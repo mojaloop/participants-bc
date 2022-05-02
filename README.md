@@ -1,2 +1,2 @@
 # participants-bc
-**EXPERIMENTAL** vNext Participants Bounded Context
+**EXPERIMENTAL** vNext Participant Lifecycle Management Bounded Context
