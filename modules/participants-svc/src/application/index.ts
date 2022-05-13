@@ -36,13 +36,16 @@ import appConfigs from "./config";
 
 import {ConsoleLogger, ILogger} from "@mojaloop/logging-bc-public-types-lib";
 //import {AppConfiguration} from "@mojaloop/platform-configuration-bc-client-lib";
+import { Collection, MongoClient } from 'mongodb'
 
 const logger: ILogger = new ConsoleLogger();
+let _mongoClient: MongoClient;
 const app = express();
 
 let routes: ExpressRoutes;
 
 function setupExpress() {
+    //await MongoClient.connect(this._mongoUri, { useNewUrlParser: true })
 
     app.use(express.json()); // for parsing application/json
     app.use(express.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded

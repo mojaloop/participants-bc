@@ -1,16 +1,15 @@
 {
-  "name": "@mojaloop/typescript-bc-template",
+  "name": "@mojaloop/participant-bc",
   "version": "0.0.1",
-  "description": "mojaloop typescript bounded context template and examples.",
+  "description": "mojaloop participant bounded context.",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/mojaloop/typescript-bc-template",
+  "homepage": "https://github.com/mojaloop/participant-bc",
   "private": true,
   "bugs": {
-    "url": "https://github.com/mojaloop/typescript-bc-template/issues#readme"
+    "url": "https://github.com/mojaloop/participant-bc/issues#readme"
   },
   "contributors": [
-    "Miguel de Barros <miguel.debarros@modusbox.com>",
-    "Pedro Sousa Barreto <pedrosousabarreto@gmail.com>"
+    "Jason Bruwer <jason.bruwer@coil.com>"
   ],
   "scripts": {
     "prepare": "husky install",
@@ -30,7 +29,11 @@
     "test:integration": "yarn workspaces foreach --parallel -v run test:integration",
     "audit:check": "yarn workspaces foreach --parallel -v run audit:check",
     "dep:check": "yarn workspaces foreach --parallel -v run dep:check",
-    "dep:update": "yarn workspaces foreach --parallel -v run dep:update"
+    "dep:update": "yarn workspaces foreach --parallel -v run dep:update",
+    "docker:mongodb:up": "docker-compose up -d mongodb",
+    "docker:mongodb:start": "docker-compose start mongodb",
+    "docker:mongodb:stop": "docker-compose stop mongodb",
+    "docker:mongodb:logs": "docker-compose logs -f mongodb"
   },
   "devDependencies": {
     "@types/jest": "^27.0.3",

@@ -1,0 +1,136 @@
+version: "3.7"
+
+networks:
+  mojaloop-poc:
+    name: mojaloop-poc
+
+services:
+  # Transfers
+  transfers:
+    image: mojaloop-poc/transfers:v0.1.0
+    container_name: transfers
+    command: sh -c "/opt/transfers/wait4/wait4.js transfers && npm start"
+    ports:
+      - "3000:3001"
+    volumes:
+       - ./docker/transfers/default.json:/opt/transfers/config/default.json
+       - ./docker/wait4:/opt/transfers/wait4
+    environment:
+      - LOG_LEVEL=info
+      - REDIS_HOST=redis
+      - KAFKA_HOST="kafka:9092"
+    networks:
+      - mojaloop-poc
+    depends_on:
+      - kafka
+    # healthcheck:
+    #   test: wget -q http://172.17.0.1:3001/health -O /dev/null || exit 1
+    #   timeout: 20s
+    #   retries: 30
+    #   interval: 15s
+
+  # Participants
+  participants:
+    image: mojaloop-poc/participants:v0.1.0
+    container_name: participants
+    command: sh -c "/opt/participants/wait4/wait4.js participants && npm start"
+    ports:
+      - "3001:3001"
+    volumes:
+       - ./docker/participants/default.json:/opt/participants/config/default.json
+       - ./docker/wait4:/opt/participants/wait4
+    environment:
+      - LOG_LEVEL=info
+      - REDIS_HOST=redis
+      - KAFKA_HOST="kafka:9092"
+    networks:
+      - mojaloop-poc
+    depends_on:
+      - redis
+      - kafka
+    # healthcheck:
+    #   test: wget -q http://172.17.0.1:3001/health -O /dev/null || exit 1
+    #   timeout: 20s
+    #   retries: 30
+    #   interval: 15s
+
+  kafka:
+    image: johnnypark/kafka-zookeeper:2.3.0
+    container_name: kafka
+    volumes:
+      - ./docker/kafka/:/opt/kafka_2.12-2.3.0/config/
+    ports:
+      - "2181:2181"
+      - "9092:9092"
+    environment:
+      - ZOO_LOG4J_PROP=WARN
+    networks:
+      - mojaloop-poc
+    healthcheck:
+      test: ["CMD" ,"/opt/kafka_2.12-2.3.0/bin/kafka-broker-api-versions.sh","--bootstrap-server","172.17.0.1:9092"]
+      timeout: 20s
+      retries: 10
+      start_period: 40s
+      interval: 30s
+
+  kafka-manager:
+    image: "sheepkiller/kafka-manager"
+    container_name: "kafka-manager"
+    ports:
+      - "9000:9000"
+    environment:
+      ZK_HOSTS: kafka:2181
+
+  redis:
+    container_name: redis
+    image: "redis:5.0.4-alpine"
+    ports:
+      - "6379:6379"
+    networks:
+      - mojaloop-poc
+    restart: always
+
+  simulator:
+    image: mojaloop/simulator:v9.5.0
+    container_name: simulator
+    ports:
+      - "8444:8444"
+    environment:
+      - LOG_LEVEL=info
+      - TRANSFERS_ENDPOINT=http://host.docker.internal:3000
+      - QUOTES_ENDPOINT=http://host.docker.internal:3002
+      - PARTIES_ENDPOINT=http://host.docker.internal:4002
+      - TRANSFERS_FULFIL_RESPONSE_DISABLED=false
+      - TRANSFERS_FULFILMENT=XoSz1cL0tljJSCp_VtIYmPNw-zFUgGfbUqf69AagUzY
+      - TRANSFERS_CONDITION=HOr22-H3AfTDHrSkPjJtVPRdKouuMkDXTR4ejlQa8Ks
+    networks:
+      - mojaloop-poc
+    healthcheck:
+      test: ["CMD", "sh", "-c" ,"apk --no-cache add curl", ";", "curl", "http://localhost:8444/health"]
+      timeout: 20s
+      retries: 10
+      interval: 30s
+
+  mongodb:
+    image: "mongo"
+    container_name: "mongodb"
+    ports:
+      - "27017:27017"
+    networks:
+      - mojaloop-poc
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+
+  mongo-express:
+    image: mongo-express
+    container_name: "mongo-express"
+    restart: always
+    networks:
+      - mojaloop-poc
+    ports:
+        - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
