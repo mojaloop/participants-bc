@@ -34,24 +34,46 @@ import express from "express";
 import {ExpressRoutes} from "./routes";
 import appConfigs from "./config";
 
-import {ConsoleLogger, ILogger} from "@mojaloop/logging-bc-public-types-lib";
+//TODO temporary...
+import {ConsoleLogger} from "../logger_console";
+
+//TODO fix logger...
+import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 //import {AppConfiguration} from "@mojaloop/platform-configuration-bc-client-lib";
-import { Collection, MongoClient } from 'mongodb'
 
 const logger: ILogger = new ConsoleLogger();
-let _mongoClient: MongoClient;
 const app = express();
 
 let routes: ExpressRoutes;
 
 function setupExpress() {
-    //await MongoClient.connect(this._mongoUri, { useNewUrlParser: true })
-
     app.use(express.json()); // for parsing application/json
     app.use(express.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
 }
 
 function setupRoutes() {
+
+    /*app.post("/create_participant", async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        const data: ConfigurationSet = req.body;
+        logger.debug(data);
+
+        await configSetAgg.processCreateConfigSetCmd(data).then((success) => {
+            res.status(200).json({status: "ok"});
+        }).catch((error: Error) => {
+            res.status(500).json({
+                status: "error",
+                msg: "unknown error. " + error.message
+            });
+            
+            if (error instanceof CannotCreateDuplicateConfigSetError) {
+                res.status(409).json({
+                    status: "error",
+                    msg: "received duplicated configuration, cannot update"
+                });
+            }
+        });
+    });*/
+
     routes = new ExpressRoutes(logger);
 
     app.use("/", routes.MainRouter);
@@ -63,15 +85,16 @@ function setupRoutes() {
 }
 
 async function start():Promise<void>{
-    await appConfigs.init();
+    /*await appConfigs.init();
     await appConfigs.bootstrap(true);
 
     await appConfigs.fetch();
 
     const httpPortParam = appConfigs.getParam("service-http-port");
-    if(!httpPortParam) throw new Error("Missing service-http-port param");
+    if (!httpPortParam) throw new Error("Missing service-http-port param");
 
-    const httpPort = httpPortParam.currentValue;
+    const httpPort = httpPortParam.currentValue;*/
+    const httpPort = 3100;//TODO need from config bc...
     setupExpress();
     setupRoutes();
 

@@ -32,18 +32,35 @@
 
 import express from "express";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import {Participant} from "@mojaloop/participant-bc-public-types-lib";
+import {ParticipantAggregate} from "../domain/participant_agg";
+import {ConsoleLogger} from "../logger_console";
+import {IParticipantsRepository} from "../domain/iparticipant_repo";
+import {MongoDBParticipantsRepo} from "../infrastructure/mongodb_participants_repo";
+
+import {
+    InvalidParticipantError,
+    ParticipantNotFoundError
+} from "../domain/errors";
+
+const logger: ILogger = new ConsoleLogger();
+//TODO need to fetch properties with config bc.
+const repo: IParticipantsRepository = new MongoDBParticipantsRepo("mongodb://root:example@localhost:27017/", logger);
+
+const configSetAgg: ParticipantAggregate = new ParticipantAggregate(repo, logger);
 
 export class ExpressRoutes {
     private _logger:ILogger;
 
     private _mainRouter = express.Router();
 
-
-    constructor(logger:ILogger) {
+    constructor(logger: ILogger) {
         this._logger = logger;
 
         // main
         this._mainRouter.get("/", this.getExample.bind(this));
+        this._mainRouter.get("/participant/:name", this.participantByName.bind(this));
+        this._mainRouter.post("/create_participant", this.participantCreate.bind(this));
     }
 
     get MainRouter():express.Router{
@@ -51,8 +68,33 @@ export class ExpressRoutes {
     }
 
 
-    private async getExample(req: express.Request, res: express.Response, next: express.NextFunction){
+    private async getExample(req: express.Request, res: express.Response, next: express.NextFunction) {
         return res.send({resp:"example worked"});
+    }
+
+    private async participantByName(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        this._logger.debug(`Fetching Participant [${partName}].`);
+
+        try {
+            const fetched = await configSetAgg.getParticipantByName(partName);
+            res.send(fetched);
+        } catch (err : any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: `No participant with name ${partName}.`
+                });
+            }
+        }
+    }
+
+    private async participantCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const data: Participant = req.body;
+        this._logger.debug(`Creating Participant [${data}].`);
+
+        const created = await configSetAgg.createParticipant(data);
+        res.send(created);
     }
 
 
