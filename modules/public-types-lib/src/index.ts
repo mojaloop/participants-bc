@@ -1,5 +1,10 @@
 'use strict'
 
-import { Participant } from './participant'
+import {
+    Participant,
+    ParticipantApproval,
+    ParticipantAccount,
+    ParticipantEndpoint
+} from './participant'
 
-export { Participant }
+export { Participant, ParticipantApproval, ParticipantAccount, ParticipantEndpoint }

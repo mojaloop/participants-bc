@@ -13,11 +13,11 @@ POST http://localhost:3100/create_participant
 Content-Type: application/json
 
 {
-  "id": 1,
-  "name": "peter",
+  "id": "{{$uuid}}",
+  "name": "johnny",
   "isActive": true,
-  "description": "A person.",
-  "createdDate": 121212222,
+  "description": "A dirty person.",
+  "createdDate": "{{$timestamp}}",
   "createdBy": "api"
 }
 

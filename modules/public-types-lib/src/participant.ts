@@ -31,10 +31,36 @@
 'use strict'
 
 export declare type Participant = {
-  id: number
+  id: string
   name: string
   isActive: boolean
   description: string
   createdDate: number
   createdBy: string
+  participantEndpoints: ParticipantEndpoint[]
+  participantAccounts: ParticipantAccount[]
+}
+
+export declare type ParticipantEndpoint = {
+  type: string
+  value: string
+}
+
+export declare type ParticipantAccount = {
+  id: string
+  type: number
+  isActive: boolean
+  currency: number
+  balance: number
+}
+
+export declare type ParticipantApproval = {
+  participantId: string
+  lastUpdated: number
+  maker: string
+  makerLastUpdated: number
+  checker: string
+  checkerLastUpdated: number
+  checkerApproved: boolean
+  feedback: string
 }

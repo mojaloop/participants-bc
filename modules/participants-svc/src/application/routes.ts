@@ -39,7 +39,7 @@ import {IParticipantsRepository} from "../domain/iparticipant_repo";
 import {MongoDBParticipantsRepo} from "../infrastructure/mongodb_participants_repo";
 
 import {
-    InvalidParticipantError,
+    InvalidParticipantError, ParticipantCreateValidationError,
     ParticipantNotFoundError
 } from "../domain/errors";
 
@@ -91,11 +91,28 @@ export class ExpressRoutes {
 
     private async participantCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
         const data: Participant = req.body;
-        this._logger.debug(`Creating Participant [${data}].`);
+        this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
 
-        const created = await configSetAgg.createParticipant(data);
-        res.send(created);
+        try {
+            const created = await configSetAgg.createParticipant(data);
+            res.send(created);
+        } catch (err: any) {
+            if (err instanceof ParticipantCreateValidationError) {
+                res.status(400).json({
+                    status: "error",
+                    msg: `Validation failure: ${err.message}.`
+                });
+            } else if (err instanceof InvalidParticipantError) {
+                res.status(500).json({
+                    status: "error",
+                    msg: `Unable to store participant. ${err.message}.`
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: "unknown error"
+                });
+            }
+        }
     }
-
-
 }

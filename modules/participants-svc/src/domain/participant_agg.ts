@@ -35,7 +35,7 @@ import {Participant} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 
 import {
-    InvalidParticipantError,
+    InvalidParticipantError, ParticipantCreateValidationError,
     ParticipantNotFoundError
 } from "./errors";
 
@@ -49,13 +49,17 @@ export class ParticipantAggregate {
         this._logger = logger;
     }
 
-    async getParticipantByName(participantName:string):Promise<Participant | null>{
+    async getParticipantByName(participantName:string):Promise<Participant | null> {
         const part: Participant | null = await this._repo.fetchWhereName(participantName);
         if (part == null) throw new ParticipantNotFoundError()
         return part;
     }
 
-    async createParticipant(participant: Participant):Promise<Participant | null>{
+    async createParticipant(participant: Participant): Promise<Participant | null> {
+        if (!await this._validateParticipantCreate(participant)) {
+            throw new ParticipantCreateValidationError("Invalid credentials for participant");
+        }
+
         const success = await this._repo.store(participant);
         if (!success) {
             //TODO
@@ -63,5 +67,17 @@ export class ParticipantAggregate {
         }
 
         return participant;
+    }
+
+    private async _validateParticipantCreate(participant: Participant) : Promise<boolean> {
+        participant.isActive = false;
+
+        if (participant.name.trim().length == 0) throw new ParticipantCreateValidationError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        this._logger.debug(existing);
+        if (existing != null) throw new ParticipantCreateValidationError(`'${participant.name}' already exists`);
+
+        return true;
     }
 }
