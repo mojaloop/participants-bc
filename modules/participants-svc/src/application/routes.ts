@@ -32,22 +32,49 @@
 
 import express from "express";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
-import {Participant} from "@mojaloop/participant-bc-public-types-lib";
+import {
+    Participant,
+    ParticipantAccount,
+    ParticipantApproval,
+    ParticipantEndpoint
+} from "@mojaloop/participant-bc-public-types-lib";
 import {ParticipantAggregate} from "../domain/participant_agg";
 import {ConsoleLogger} from "../logger_console";
 import {IParticipantsRepository} from "../domain/iparticipant_repo";
 import {MongoDBParticipantsRepo} from "../infrastructure/mongodb_participants_repo";
 
 import {
-    InvalidParticipantError, ParticipantCreateValidationError,
+    InvalidParticipantError, NoAccountsError, NoEndpointsError, ParticipantCreateValidationError,
     ParticipantNotFoundError
 } from "../domain/errors";
+import {IParticipantsEndpointRepository} from "../domain/iparticipant_endpoint_repo";
+import {MongoDBParticipantsEndpointRepo} from "../infrastructure/mongodb_participants_endpoint_repo";
+import {IParticipantsApprovalRepository} from "../domain/iparticipant_approval_repo";
+import {MongoDBParticipantsApprovalRepo} from "../infrastructure/mongodb_participants_approval_repo";
+import {IParticipantsAccountRepository} from "../domain/iparticipant_account_repo";
+import {MongoDBParticipantsAccountRepo} from "../infrastructure/mongodb_participants_account_repo";
+import {IAccountsBalances} from "../domain/iparticipant_account_balances_ds";
+import {RestAccountsAndBalances} from "../infrastructure/rest_acc_bal";
 
 const logger: ILogger = new ConsoleLogger();
 //TODO need to fetch properties with config bc.
-const repo: IParticipantsRepository = new MongoDBParticipantsRepo("mongodb://root:example@localhost:27017/", logger);
+const mongoURL = "mongodb://root:example@localhost:27017/";
+const accBalancesURL = "http://localhost:3001/";
 
-const configSetAgg: ParticipantAggregate = new ParticipantAggregate(repo, logger);
+const repoPart: IParticipantsRepository = new MongoDBParticipantsRepo(mongoURL, logger);
+const repoPartEndpoint: IParticipantsEndpointRepository = new MongoDBParticipantsEndpointRepo(mongoURL, logger);
+const repoPartApproval: IParticipantsApprovalRepository = new MongoDBParticipantsApprovalRepo(mongoURL, logger);
+const repoPartAccount: IParticipantsAccountRepository = new MongoDBParticipantsAccountRepo(mongoURL, logger);
+const restAccAndBal: IAccountsBalances = new RestAccountsAndBalances(accBalancesURL, logger);
+
+const participantAgg: ParticipantAggregate = new ParticipantAggregate(
+    repoPart,
+    repoPartEndpoint,
+    repoPartApproval,
+    repoPartAccount,
+    restAccAndBal,
+    logger
+);
 
 export class ExpressRoutes {
     private _logger:ILogger;
@@ -60,13 +87,24 @@ export class ExpressRoutes {
         // main
         this._mainRouter.get("/", this.getExample.bind(this));
         this._mainRouter.get("/participant/:name", this.participantByName.bind(this));
-        this._mainRouter.post("/create_participant", this.participantCreate.bind(this));
+        this._mainRouter.post("/participant", this.participantCreate.bind(this));
+        this._mainRouter.put("/participant/:name/approve", this.participantApprove.bind(this));
+        this._mainRouter.put("/participant/:name/disable", this.deActivateParticipant.bind(this));
+
+        // endpoint
+        this._mainRouter.get("/participant/:name/endpoints", this.endpointsByParticipantName.bind(this));
+        this._mainRouter.post("/participant/:name/endpoint", this.participantEndpointCreate.bind(this));
+        this._mainRouter.delete("/participant/:name/endpoint", this.participantEndpointDelete.bind(this));
+
+        // account
+        this._mainRouter.get("/participant/:name/accounts", this.accountsByParticipantName.bind(this));
+        this._mainRouter.post("/participant/:name/account", this.participantAccountCreate.bind(this));
+        this._mainRouter.delete("/participant/:name/account", this.participantAccountDelete.bind(this));
     }
 
     get MainRouter():express.Router{
         return this._mainRouter;
     }
-
 
     private async getExample(req: express.Request, res: express.Response, next: express.NextFunction) {
         return res.send({resp:"example worked"});
@@ -77,7 +115,7 @@ export class ExpressRoutes {
         this._logger.debug(`Fetching Participant [${partName}].`);
 
         try {
-            const fetched = await configSetAgg.getParticipantByName(partName);
+            const fetched = await participantAgg.getParticipantByName(partName);
             res.send(fetched);
         } catch (err : any) {
             if (err instanceof ParticipantNotFoundError) {
@@ -94,7 +132,7 @@ export class ExpressRoutes {
         this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
 
         try {
-            const created = await configSetAgg.createParticipant(data);
+            const created = await participantAgg.createParticipant(data);
             res.send(created);
         } catch (err: any) {
             if (err instanceof ParticipantCreateValidationError) {
@@ -111,6 +149,202 @@ export class ExpressRoutes {
                 res.status(500).json({
                     status: "error",
                     msg: "unknown error"
+                });
+            }
+        }
+    }
+
+    private async endpointsByParticipantName(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        this._logger.debug(`Fetching Endpoints for Participant [${partName}].`);
+
+        try {
+            const fetched = await participantAgg.getParticipantEndpointsByName(partName);
+            res.send(fetched);
+        } catch (err : any) {
+            if (err instanceof ParticipantNotFoundError || err instanceof NoEndpointsError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async accountsByParticipantName(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        this._logger.debug(`Fetching Accounts for Participant [${partName}].`);
+
+        try {
+            const fetched = await participantAgg.getParticipantAccountsByName(partName);
+            res.send(fetched);
+        } catch (err : any) {
+            if (err instanceof ParticipantNotFoundError || err instanceof NoAccountsError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async participantEndpointCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        const data: ParticipantEndpoint = req.body;
+        this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${partName}].`);
+
+        try {
+            const participant = await participantAgg.getParticipantByName(partName);
+            const created = await participantAgg.addParticipantEndpoint(participant, data);
+            res.send(created);
+        } catch (err: any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async participantAccountCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        const data: ParticipantAccount = req.body;
+        this._logger.debug(`Creating Participant Account [${JSON.stringify(data)}] for [${partName}].`);
+
+        try {
+            const participant = await participantAgg.getParticipantByName(partName);
+            const created = await participantAgg.addParticipantAccount(participant, data);
+            res.send(created);
+        } catch (err: any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async participantApprove(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        const data: ParticipantApproval = req.body;
+        this._logger.debug(`Approving Participant [${JSON.stringify(data)}] for [${partName}].`);
+
+        try {
+            const participant = await participantAgg.getParticipantByName(partName);
+            const approved = await participantAgg.approveParticipant(
+                participant,
+                data.checker,
+                data.feedback
+            );
+            res.send(approved);
+        } catch (err: any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async deActivateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        const data: ParticipantApproval = req.body;
+        this._logger.debug(`Disable Participant [${JSON.stringify(data)}] for [${partName}].`);
+
+        try {
+            const participant = await participantAgg.getParticipantByName(partName);
+            if (!participant.isActive) {
+                res.send(participant);
+                return;
+            }
+            const disabled = await participantAgg.deActivateParticipant(participant);
+            res.send(disabled);
+        } catch (err: any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async participantEndpointDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        const data: ParticipantEndpoint = req.body;
+        this._logger.debug(`Removing Participant Endpoint [${JSON.stringify(data)}] for [${partName}].`);
+
+        try {
+            const participant = await participantAgg.getParticipantByName(partName);
+            const removed = await participantAgg.removeParticipantEndpoint(participant, data);
+            res.send(removed);
+        } catch (err: any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async participantAccountDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        const data: ParticipantAccount = req.body;
+        this._logger.debug(`Removing Participant Account [${JSON.stringify(data)}] for [${partName}].`);
+
+        try {
+            const participant = await participantAgg.getParticipantByName(partName);
+            const removed = await participantAgg.removeParticipantAccount(participant, data);
+            res.send(removed);
+        } catch (err: any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
                 });
             }
         }

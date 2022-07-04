@@ -41,6 +41,7 @@ export interface IParticipantsRepository {
     fetchWhereId(id: number): Promise<Participant | null>;
 
     //Approvals
+    //TODO needs their own repository, not to conflict...
     updateApprovalForChecker(participantApp: ParticipantApproval): Promise<boolean>;
 
     destroy (): Promise<void>

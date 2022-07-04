@@ -14,9 +14,9 @@ Content-Type: application/json
 
 {
   "id": "{{$uuid}}",
-  "name": "johnny",
+  "name": "sally",
   "isActive": true,
-  "description": "A dirty person.",
+  "description": "A MJL person.",
   "createdDate": "{{$timestamp}}",
   "createdBy": "api"
 }

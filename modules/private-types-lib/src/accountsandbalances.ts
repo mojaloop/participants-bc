@@ -30,40 +30,24 @@
 
 'use strict'
 
-/** Participants **/
-export declare type Participant = {
+/**Accounts and Balances**/
+export declare type JournalAccount = {
   id: string
-  name: string
-  isActive: boolean
-  description: string
-  createdDate: number
-  createdBy: string
-  lastUpdated: number
-  participantEndpoints: ParticipantEndpoint[]
-  participantAccounts: ParticipantAccount[]
-}
-
-export declare type ParticipantEndpoint = {
   type: string
-  value: string
-}
-
-export declare type ParticipantAccount = {
-  id: string
-  type: number
-  isActive: boolean
+  state: string
   currency: number
   balanceDebit: bigint
   balanceCredit: bigint
+  externalId: string
 }
 
-export declare type ParticipantApproval = {
-  participantId: string
-  lastUpdated: number
-  maker: string
-  makerLastUpdated: number
-  checker: string
-  checkerLastUpdated: number
-  checkerApproved: boolean
-  feedback: string
+export declare type JournalEntry = {
+  id: string
+  currency: number
+  amount: bigint
+  accountDebit: string
+  accountCredit: string
+  timestamp: number
+  externalId: string
+  externalCategory: string
 }

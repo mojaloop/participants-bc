@@ -33,3 +33,9 @@
 export class ParticipantNotFoundError extends Error {}
 export class ParticipantCreateValidationError extends Error {}
 export class InvalidParticipantError extends Error {}
+export class EndpointTypeExistsError extends Error {}
+export class AccountTypeExistsError extends Error {}
+export class NoAccountsError extends Error {}
+export class NoEndpointsError extends Error {}
+export class UnableToCreateAccountUpstream extends Error {}
+export class ParticipantNotActive extends Error {}

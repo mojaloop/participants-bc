@@ -26,44 +26,43 @@
  - Jason Bruwer <jason.bruwer@coil.com>
 
  --------------
-******/
+ ******/
 
 'use strict'
 
-/** Participants **/
-export declare type Participant = {
-  id: string
-  name: string
-  isActive: boolean
-  description: string
-  createdDate: number
-  createdBy: string
-  lastUpdated: number
-  participantEndpoints: ParticipantEndpoint[]
-  participantAccounts: ParticipantAccount[]
-}
+import {
+    JournalAccount,
+    JournalEntry
+} from "@mojaloop/participant-bc-private-types-lib";
+import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import {IAccountsBalances} from "../domain/iparticipant_account_balances_ds";
 
-export declare type ParticipantEndpoint = {
-  type: string
-  value: string
-}
+export class RestAccountsAndBalances implements IAccountsBalances {
+    private _restUri: string;
+    private _logger: ILogger;
 
-export declare type ParticipantAccount = {
-  id: string
-  type: number
-  isActive: boolean
-  currency: number
-  balanceDebit: bigint
-  balanceCredit: bigint
-}
+    private _initialized: boolean = false;
 
-export declare type ParticipantApproval = {
-  participantId: string
-  lastUpdated: number
-  maker: string
-  makerLastUpdated: number
-  checker: string
-  checkerLastUpdated: number
-  checkerApproved: boolean
-  feedback: string
+    constructor(_restUri: string, logger: ILogger) {
+        this._logger = logger;
+        this._restUri = _restUri;
+    }
+
+    async init(): Promise<void>{
+        this._initialized = true;
+    }
+    
+    async createAccount(account: JournalAccount): Promise<boolean> {
+
+        return true;//TODO @jason, implement...
+    }
+
+    async createJournalEntry(entry: JournalEntry): Promise<boolean> {
+
+        return true;//TODO @jason, implement...
+    }
+
+    async destroy (): Promise<void> {
+        this._initialized = false;
+    }
 }

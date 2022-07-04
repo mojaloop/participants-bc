@@ -31,42 +31,197 @@
 "use strict"
 
 import {IParticipantsRepository} from "./iparticipant_repo";
-import {Participant} from "@mojaloop/participant-bc-public-types-lib";
+import {IParticipantsEndpointRepository} from "./iparticipant_endpoint_repo";
+import {
+    Participant,
+    ParticipantEndpoint,
+    ParticipantAccount,
+    ParticipantApproval
+} from "@mojaloop/participant-bc-public-types-lib";
+import {
+    JournalAccount, JournalEntry
+} from "@mojaloop/participant-bc-private-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 
 import {
-    InvalidParticipantError, ParticipantCreateValidationError,
-    ParticipantNotFoundError
+    InvalidParticipantError, NoAccountsError, NoEndpointsError, ParticipantCreateValidationError, ParticipantNotActive,
+    ParticipantNotFoundError, UnableToCreateAccountUpstream
 } from "./errors";
+import {IParticipantsApprovalRepository} from "./iparticipant_approval_repo";
+import {IAccountsBalances} from "./iparticipant_account_balances_ds";
+import {IParticipantsAccountRepository} from "./iparticipant_account_repo";
 
 export class ParticipantAggregate {
     private _logger: ILogger;
     private _repo: IParticipantsRepository;
+    private _repoEndpoints: IParticipantsEndpointRepository;
+    private _repoApproval: IParticipantsApprovalRepository;
+    private _repoAccount: IParticipantsAccountRepository;
+    private _accBal: IAccountsBalances;
 
-    constructor(repo: IParticipantsRepository, logger: ILogger) {
+    constructor(
+        repo: IParticipantsRepository,
+        _repoEndpoints: IParticipantsEndpointRepository,
+        _repoApproval: IParticipantsApprovalRepository,
+        _repoAccount: IParticipantsAccountRepository,
+        _accBal: IAccountsBalances,
+        logger: ILogger
+    ) {
         this._repo = repo;
         this._repo.init();
+        this._repoEndpoints = _repoEndpoints;
+        this._repoEndpoints.init();
+        this._repoApproval = _repoApproval;
+        this._repoApproval.init();
+        this._repoAccount = _repoAccount;
+        this._repoAccount.init();
+        this._accBal = _accBal;
+        this._accBal.init();
         this._logger = logger;
     }
 
-    async getParticipantByName(participantName:string):Promise<Participant | null> {
+    async getParticipantByName(participantName: string): Promise<Participant> {
         const part: Participant | null = await this._repo.fetchWhereName(participantName);
-        if (part == null) throw new ParticipantNotFoundError()
+        if (part == null) throw new ParticipantNotFoundError(`'${participantName}' not found.`);
         return part;
     }
 
-    async createParticipant(participant: Participant): Promise<Participant | null> {
+    async getParticipantEndpointsByName(participantName: string): Promise<ParticipantEndpoint[]> {
+        const part: Participant | null = await this._repo.fetchWhereName(participantName);
+        if (part == null) throw new ParticipantNotFoundError(`'${participantName}' not found.`);
+
+        const endpoints: ParticipantEndpoint[] | null = await this._repoEndpoints.fetchWhereParticipant(part);
+        if (endpoints == null || endpoints.length == 0) {
+            throw new NoEndpointsError(`Participant '${participantName}' has no endpoints.`);
+        }
+        return endpoints;
+    }
+
+    async getParticipantAccountsByName(participantName: string): Promise<ParticipantAccount[]> {
+        const part: Participant | null = await this._repo.fetchWhereName(participantName);
+        if (part == null) throw new ParticipantNotFoundError(`'${participantName}' not found.`);
+
+        const accounts: ParticipantAccount[] | null = await this._repoAccount.fetchWhereParticipant(part);
+        if (accounts == null || accounts.length == 0) {
+            throw new NoAccountsError(`Participant '${participantName}' has no accounts.`);
+        }
+        return accounts;
+    }
+
+    async createParticipant(participant: Participant): Promise<Participant> {
         if (!await this._validateParticipantCreate(participant)) {
             throw new ParticipantCreateValidationError("Invalid credentials for participant");
         }
 
-        const success = await this._repo.store(participant);
-        if (!success) {
-            //TODO
-            throw new InvalidParticipantError();
-        }
+        if (!await this._repo.store(participant)) throw new InvalidParticipantError("Unable to store participant successfully!");
 
         return participant;
+    }
+
+    async approveParticipant(
+        participant: Participant,
+        checker: string,
+        feedback: string
+    ): Promise<Participant> {
+        if (participant.name.trim().length == 0) throw new ParticipantCreateValidationError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+
+        const approval: ParticipantApproval = {
+            participantId: existing.id,
+            lastUpdated: 0,
+            maker: '',
+            makerLastUpdated: 0,
+            checker: checker,
+            checkerLastUpdated: 0,
+            checkerApproved: true,
+            feedback: feedback
+        }
+
+        await this._repoApproval.approve(participant, approval);
+        
+        return existing;
+    }
+
+    async deActivateParticipant(participant: Participant): Promise<Participant> {
+        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        existing.isActive = false;
+        await this._repo.store(existing);
+        return existing;
+    }
+
+    async addParticipantEndpoint(participant: Participant, endpoint: ParticipantEndpoint): Promise<Participant> {
+        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        await this._repoEndpoints.addEndpoint(participant, endpoint);
+        return existing;
+    }
+
+    async removeParticipantEndpoint(participant: Participant, endpoint: ParticipantEndpoint): Promise<Participant> {
+        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        await this._repoEndpoints.removeEndpoint(participant, endpoint);
+        return existing;
+    }
+
+    async addParticipantAccount(participant: Participant, account: ParticipantAccount): Promise<Participant> {
+        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        if (!existing.isActive) throw new ParticipantNotActive(`'${participant.name}' is not active.`);
+
+        const accBalAccount : JournalAccount = {
+            id: account.id,
+            type: 'position',
+            state: 'active',
+            currency: account.currency,
+            balanceDebit: 0n,
+            balanceCredit: 0n,
+            externalId: participant.id
+        }
+        let success = await this._accBal.createAccount(accBalAccount);
+        if (!success) {
+            throw new UnableToCreateAccountUpstream(`'${participant.name}' account '${account.type}' failed upstream.`);
+        }
+
+        if (account.balanceCredit > 0) {
+            const hubAccountForDeposit = 'deposit';//TODO @jason, lookup...
+            const journal: JournalEntry = {
+                id: `uuid`,
+                currency: account.currency,
+                amount: account.balanceCredit,
+                accountDebit: hubAccountForDeposit,
+                accountCredit: account.id,
+                timestamp: Date.now(),
+                externalId: `initial-deposit`,
+                externalCategory: `deposit`,
+            };
+            success = await this._accBal.createJournalEntry(journal);
+            if (!success) {
+                throw new UnableToCreateAccountUpstream(`'${participant.name}' account '${account.type}' balance update failed upstream.`);
+            }
+        }
+
+        await this._repoAccount.addAccount(participant, account);
+        return existing;
+    }
+
+    async removeParticipantAccount(participant: Participant, account: ParticipantAccount): Promise<Participant> {
+        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        await this._repoAccount.removeAccount(participant, account);
+        return existing;
     }
 
     private async _validateParticipantCreate(participant: Participant) : Promise<boolean> {

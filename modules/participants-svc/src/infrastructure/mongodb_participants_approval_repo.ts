@@ -30,22 +30,22 @@
 
 'use strict'
 
-import {IParticipantsRepository} from "../domain/iparticipant_repo";
+import {IParticipantsApprovalRepository} from "../domain/iparticipant_approval_repo";
 import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient} from 'mongodb'
 
-export class MongoDBParticipantsRepo implements IParticipantsRepository {
+export class MongoDBParticipantsApprovalRepo implements IParticipantsApprovalRepository {
     private _mongoUri: string;
     private _logger: ILogger;
     private _mongoClient: MongoClient;
-    protected _collectionParticipant: Collection;
-    protected _collectionApproval: Collection;
+    protected _colApproval: Collection;
+    protected _colParticipants: Collection;
 
     private _initialized: boolean = false;
     private readonly _databaseName: string = 'participants';
+    private readonly _colNameApproval: string = 'participantApproval';
     private readonly _collectionNameParticipant: string = 'participant';
-    private readonly _collectionNameApproval: string = 'participantApproval';
 
     constructor(_mongoUri: string, logger: ILogger) {
         this._logger = logger;
@@ -57,66 +57,53 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
             this._mongoClient = await MongoClient.connect(this._mongoUri, { useNewUrlParser: true });
         } catch (err: any) {
             const errMsg: string = err?.message?.toString();
-            this._logger.isWarnEnabled() && this._logger.warn(`MongoDbParticipantRepo - init failed with error: ${errMsg}`);
+            this._logger.isWarnEnabled() && this._logger.warn(`MongoDbParticipantEndpointRepo - init failed with error: ${errMsg}`);
             this._logger.isErrorEnabled() && this._logger.error(err);
             throw (err);
         }
         if (this._mongoClient === null) throw new Error('Couldn\'t instantiate mongo client');
 
         const db = this._mongoClient.db(this._databaseName);
-        this._collectionParticipant = db.collection(this._collectionNameParticipant);
-        this._collectionApproval = db.collection(this._collectionNameApproval);
+        this._colParticipants = db.collection(this._collectionNameParticipant);
+        this._colApproval = db.collection(this._colNameApproval);
         this._initialized = true;
     }
 
-    async fetchWhereName(participantName: string): Promise<Participant | null> {
-        return await this._collectionParticipant.findOne({ name: participantName });
-    }
-    
-    async fetchWhereId(participantId: number): Promise<Participant | null> {
-        return await this._collectionParticipant.findOne({ id: participantId });
-    }
-
-    async updateApprovalForChecker(participantApp: ParticipantApproval): Promise<boolean> {
+    async approve(participant: Participant, approved: ParticipantApproval): Promise<boolean> {
         const updated = Date.now();
-        let result = await this._collectionParticipant.updateOne(
-            { participantId: participantApp.participantId },
+
+        const result = await this._colApproval.updateOne(
+            { participantId: participant.id },
             {
                 $set: {
                     lastUpdated: updated,
-                    makerLastUpdated: updated,
-                    maker : participantApp.maker
+                    checkerLastUpdated: updated,
+                    checkerApproved: true,
+                    feedback: approved.feedback,
+                    checker: approved.checker
                 },
                 $currentDate: { lastModified: true }
             }
         );
 
-        //return Promise.resolve(false);
-        return true;
-    }
-
-
-    async store(participant: Participant): Promise<boolean> {
-        this._logger.info(`Name:  ${participant.name} - stored for Participants-BC:`);
-        let result = await this._collectionParticipant.insertOne(participant);
-        let success = result.insertedCount === 1;
-        if (success) {
-            const updated = Date.now();
-            const approval = {
-                participantId : participant.id,
-                lastUpdated : updated,
-                maker: participant.createdBy,
-                makerLastUpdated: updated
-            };
-            result = await this._collectionApproval.insertOne(approval);
-            success = result.insertedCount === 1;
+        if (result.modifiedCount === 1) {
+            const resultPart = await this._colParticipants.updateOne(
+                {id: participant.id},
+                {
+                    $set: {
+                        lastUpdated: updated,
+                        isActive: true
+                    },
+                    $currentDate: {lastModified: true}
+                }
+            );
+            return (resultPart.modifiedCount === 1);
         }
-        return success;
+
+        return false;
     }
 
     async destroy (): Promise<void> {
         if (this._initialized) await this._mongoClient.close()
     }
-
-
 }

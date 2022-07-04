@@ -26,44 +26,19 @@
  - Jason Bruwer <jason.bruwer@coil.com>
 
  --------------
-******/
+ ******/
 
-'use strict'
+"use strict"
 
-/** Participants **/
-export declare type Participant = {
-  id: string
-  name: string
-  isActive: boolean
-  description: string
-  createdDate: number
-  createdBy: string
-  lastUpdated: number
-  participantEndpoints: ParticipantEndpoint[]
-  participantAccounts: ParticipantAccount[]
-}
+import {Participant, ParticipantEndpoint} from "@mojaloop/participant-bc-public-types-lib";
 
-export declare type ParticipantEndpoint = {
-  type: string
-  value: string
-}
+export interface IParticipantsEndpointRepository {
+    init(): Promise<void>;
 
-export declare type ParticipantAccount = {
-  id: string
-  type: number
-  isActive: boolean
-  currency: number
-  balanceDebit: bigint
-  balanceCredit: bigint
-}
+    addEndpoint(participant: Participant, toAdd: ParticipantEndpoint): Promise<boolean>;
+    removeEndpoint(participant: Participant, toRemove: ParticipantEndpoint): Promise<boolean>;
+    fetchWhereParticipant(participant: Participant): Promise<ParticipantEndpoint[] | null>;
+    fetchWhereParticipantAndType(participant: Participant, type: string): Promise<ParticipantEndpoint>;
 
-export declare type ParticipantApproval = {
-  participantId: string
-  lastUpdated: number
-  maker: string
-  makerLastUpdated: number
-  checker: string
-  checkerLastUpdated: number
-  checkerApproved: boolean
-  feedback: string
+    destroy (): Promise<void>
 }
