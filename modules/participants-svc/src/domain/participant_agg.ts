@@ -105,6 +105,16 @@ export class ParticipantAggregate {
         if (accounts == null || accounts.length == 0) {
             throw new NoAccountsError(`Participant '${participantName}' has no accounts.`);
         }
+
+        // Obtain the most recent account balances:
+        for (const acc of accounts) {
+            //TODO this may be improved with fetching accounts by participantId in future...
+            const jAcc = await this._accBal.getAccount(acc.id);
+            if (jAcc == null) continue;
+
+            acc.balanceDebit = jAcc.balanceDebit;
+            acc.balanceCredit = jAcc.balanceCredit;
+        }
         return accounts;
     }
 
@@ -193,7 +203,7 @@ export class ParticipantAggregate {
             throw new UnableToCreateAccountUpstream(`'${participant.name}' account '${account.type}' failed upstream.`);
         }
 
-        if (account.balanceCredit > 0) {
+        if (account.balanceCredit != null && account.balanceCredit > 0) {
             const hubAccountForDeposit = 'deposit';//TODO @jason, lookup...
             const journal: JournalEntry = {
                 id: `uuid`,
@@ -210,6 +220,10 @@ export class ParticipantAggregate {
                 throw new UnableToCreateAccountUpstream(`'${participant.name}' account '${account.type}' balance update failed upstream.`);
             }
         }
+
+        // We store balances in acc+balances:
+        delete account.balanceDebit;
+        delete account.balanceCredit;
 
         await this._repoAccount.addAccount(participant, account);
         return existing;

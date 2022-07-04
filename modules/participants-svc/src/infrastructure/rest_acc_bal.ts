@@ -62,6 +62,10 @@ export class RestAccountsAndBalances implements IAccountsBalances {
         return true;//TODO @jason, implement...
     }
 
+    async getAccount(accName: string): Promise<JournalAccount | null> {
+        return null;//TODO @jason, implement...
+    }
+
     async destroy (): Promise<void> {
         this._initialized = false;
     }

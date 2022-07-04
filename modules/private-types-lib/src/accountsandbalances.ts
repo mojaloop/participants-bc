@@ -38,7 +38,7 @@ export declare type JournalAccount = {
   currency: number
   balanceDebit: bigint
   balanceCredit: bigint
-  externalId: string
+  externalId?: string
 }
 
 export declare type JournalEntry = {
@@ -48,6 +48,6 @@ export declare type JournalEntry = {
   accountDebit: string
   accountCredit: string
   timestamp: number
-  externalId: string
-  externalCategory: string
+  externalId?: string
+  externalCategory?: string
 }

@@ -53,8 +53,8 @@ export declare type ParticipantAccount = {
   type: number
   isActive: boolean
   currency: number
-  balanceDebit: bigint
-  balanceCredit: bigint
+  balanceDebit?: bigint
+  balanceCredit?: bigint
 }
 
 export declare type ParticipantApproval = {
