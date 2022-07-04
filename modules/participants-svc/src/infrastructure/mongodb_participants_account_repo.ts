@@ -38,8 +38,7 @@ import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient} from 'mongodb'
 import {
     AccountTypeExistsError,
-    NoAccountsError,
-    ParticipantNotFoundError
+    NoAccountsError
 } from "../domain/errors";
 import {IParticipantsAccountRepository} from "../domain/iparticipant_account_repo";
 
@@ -63,7 +62,7 @@ export class MongoDBParticipantsAccountRepo implements IParticipantsAccountRepos
             this._mongoClient = await MongoClient.connect(this._mongoUri, { useNewUrlParser: true });
         } catch (err: any) {
             const errMsg: string = err?.message?.toString();
-            this._logger.isWarnEnabled() && this._logger.warn(`MongoDbParticipantEndpointRepo - init failed with error: ${errMsg}`);
+            this._logger.isWarnEnabled() && this._logger.warn(`MongoDbParticipantAccountRepo - init failed with error: ${errMsg}`);
             this._logger.isErrorEnabled() && this._logger.error(err);
             throw (err);
         }
@@ -74,20 +73,16 @@ export class MongoDBParticipantsAccountRepo implements IParticipantsAccountRepos
         this._initialized = true;
     }
 
-    async fetchWhereParticipant(participant: Participant): Promise<ParticipantAccount[]> {
+    async fetchWhereParticipant(participant: Participant): Promise<ParticipantAccount[] | null> {
         const participantBy = await this._colParticipant.findOne({ name: participant.name });
-        if (participantBy == null) {
-            throw new ParticipantNotFoundError(`No participant with id '${participant.id}'.`);
-        }
+        if (participantBy == null) return null;
 
         return participantBy.participantAccounts;
     }
 
-    async fetchWhereParticipantAndType(participant: Participant, type: number): Promise<ParticipantAccount> {
+    async fetchWhereParticipantAndType(participant: Participant, type: number): Promise<ParticipantAccount | null> {
         const participantAccounts = await this.fetchWhereParticipant(participant);
-        if (participantAccounts == null) {//TODO move to the aggregate...
-            throw new NoAccountsError(`No accounts for participant '${participant.name}'.`);
-        }
+        if (participantAccounts == null) return null;
 
         for (let i = 0; i < participantAccounts.length; i++) {
             if (type === participantAccounts[i].type) return participantAccounts[i];
@@ -98,8 +93,9 @@ export class MongoDBParticipantsAccountRepo implements IParticipantsAccountRepos
 
     async addAccount(participant: Participant, toAdd: ParticipantAccount): Promise<boolean> {
         //TODO move to the aggregate...
-        const existing = await this.fetchWhereParticipant(participant);
-        if (this.doesAccountTypeExist(existing, toAdd.type)) {
+        let existing = await this.fetchWhereParticipant(participant);
+        if (existing == null) existing = [];
+        else if (this.doesAccountTypeExist(existing, toAdd.type)) {
             throw new AccountTypeExistsError(`Type ${toAdd.type} already exists for participant.`);
         }
         existing.push(toAdd);
@@ -120,7 +116,7 @@ export class MongoDBParticipantsAccountRepo implements IParticipantsAccountRepos
 
     async removeAccount(participant: Participant, toRemove: ParticipantAccount): Promise<boolean> {
         const existing = await this.fetchWhereParticipant(participant);
-        if (existing.length === 0) return true;
+        if (existing == null || existing.length === 0) return true;
 
         const newArr = [];
         for (const itm of existing) {

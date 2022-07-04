@@ -37,8 +37,8 @@ export interface IParticipantsAccountRepository {
 
     addAccount(participant: Participant, toAdd: ParticipantAccount): Promise<boolean>;
     removeAccount(participant: Participant, toRemove: ParticipantAccount): Promise<boolean>;
-    fetchWhereParticipant(participant: Participant): Promise<ParticipantAccount[]>;
-    fetchWhereParticipantAndType(participant: Participant, type: number): Promise<ParticipantAccount>;
+    fetchWhereParticipant(participant: Participant): Promise<ParticipantAccount[] | null>;
+    fetchWhereParticipantAndType(participant: Participant, type: number): Promise<ParticipantAccount | null>;
 
     destroy (): Promise<void>
 }

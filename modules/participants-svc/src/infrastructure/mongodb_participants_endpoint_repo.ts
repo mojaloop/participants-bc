@@ -34,7 +34,7 @@ import {IParticipantsEndpointRepository} from "../domain/iparticipant_endpoint_r
 import {Participant, ParticipantEndpoint} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient} from 'mongodb'
-import {EndpointTypeExistsError, ParticipantNotFoundError} from "../domain/errors";
+import {EndpointTypeExistsError, NoEndpointsError} from "../domain/errors";
 
 export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRepository {
     private _mongoUri: string;
@@ -74,14 +74,15 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
         return participantBy.participantEndpoints;
     }
 
-    async fetchWhereParticipantAndType(participant: Participant, type: string): Promise<ParticipantEndpoint> {
-        const participantBy = this.fetchWhereParticipant(participant);
-        if (participantBy == null) {//TODO move to the aggregate...
-            throw new ParticipantNotFoundError(`No participant with id '${participant.id}'.`);
+    async fetchWhereParticipantAndType(participant: Participant, type: string): Promise<ParticipantEndpoint | null> {
+        const participantEndpoints = await this.fetchWhereParticipant(participant);
+        if (participantEndpoints == null) return null;
+
+        for (let i = 0; i < participantEndpoints.length; i++) {
+            if (type === participantEndpoints[i].type) return participantEndpoints[i];
         }
-        
-        const pe: ParticipantEndpoint = {value: '', type: type};
-        return Promise.resolve(pe);
+
+        throw new NoEndpointsError(`No endpoint of type '${type}' for participant '${participant.name}'.`);
     }
 
     async addEndpoint(participant: Participant, toAdd: ParticipantEndpoint): Promise<boolean> {

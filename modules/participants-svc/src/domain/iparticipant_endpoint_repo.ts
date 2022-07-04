@@ -38,7 +38,7 @@ export interface IParticipantsEndpointRepository {
     addEndpoint(participant: Participant, toAdd: ParticipantEndpoint): Promise<boolean>;
     removeEndpoint(participant: Participant, toRemove: ParticipantEndpoint): Promise<boolean>;
     fetchWhereParticipant(participant: Participant): Promise<ParticipantEndpoint[] | null>;
-    fetchWhereParticipantAndType(participant: Participant, type: string): Promise<ParticipantEndpoint>;
+    fetchWhereParticipantAndType(participant: Participant, type: string): Promise<ParticipantEndpoint | null>;
 
     destroy (): Promise<void>
 }
