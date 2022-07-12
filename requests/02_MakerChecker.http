@@ -4,24 +4,33 @@
 # * 'gtrp' and 'gtr' create a GET request with or without query parameters;
 # * 'ptr' and 'ptrp' create a POST request with a simple or parameter-like body;
 # * 'mptr' and 'fptr' create a POST request to submit a form with a text or file field (multipart/form-data);
-### Get Example
-GET http://localhost:3100/
-Content-Type: application/json
 
-### Store Participant
-POST http://localhost:3100/participant
+### Approve Participant [sally]
+
+PUT http://localhost:3100/participant/sally/approve
 Content-Type: application/json
 
 {
-  "id": "{{$uuid}}",
-  "name": "sally",
-  "isActive": true,
-  "description": "A MJL person.",
-  "createdDate": "{{$timestamp}}",
-  "createdBy": "api"
+  "checker": "johnny",
+  "feedback": "You are now good to go!"
 }
+
+### Disable Participant [sally]
+
+PUT http://localhost:3100/participant/sally/disable
+Content-Type: application/json
+
+{}
+
+### Enable Participant [sally]
+
+PUT http://localhost:3100/participant/sally/enable
+Content-Type: application/json
+
+{}
 
 ### Get Participant
 GET http://localhost:3100/participant/sally
 Content-Type: application/json
+
 

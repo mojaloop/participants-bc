@@ -95,7 +95,7 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
 
         const updated = Date.now();
         const result = await this._colParticipant.updateOne(
-            { participantId: participant.id },
+            { id: participant.id },
             {
                 $set: {
                     lastUpdated: updated,
@@ -119,7 +119,7 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
 
         const updated = Date.now();
         const result = await this._colParticipant.updateOne(
-            { participantId: participant.id },
+            { id: participant.id },
             {
                 $set: {
                     lastUpdated: updated,

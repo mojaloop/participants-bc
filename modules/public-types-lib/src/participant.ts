@@ -50,9 +50,9 @@ export declare type ParticipantEndpoint = {
 
 export declare type ParticipantAccount = {
   id: string
-  type: number
-  isActive: boolean
-  currency: number
+  type: number//TODO move
+  //isActive: boolean//TODO do we need this?
+  currency: number//TODO move
   balanceDebit?: bigint
   balanceCredit?: bigint
 }

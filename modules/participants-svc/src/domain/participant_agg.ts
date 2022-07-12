@@ -123,7 +123,7 @@ export class ParticipantAggregate {
             throw new ParticipantCreateValidationError("Invalid credentials for participant");
         }
 
-        if (!await this._repo.store(participant)) throw new InvalidParticipantError("Unable to store participant successfully!");
+        if (!await this._repo.insert(participant)) throw new InvalidParticipantError("Unable to store participant successfully!");
 
         return participant;
     }
@@ -148,10 +148,15 @@ export class ParticipantAggregate {
             checkerApproved: true,
             feedback: feedback
         }
+        participant.id = existing.id
 
-        await this._repoApproval.approve(participant, approval);
-        
-        return existing;
+        //TODO @jason, move the approve here, repo should be more low-level.
+        const approvedResult = await this._repoApproval.approve(participant, approval);
+        if (!approvedResult) throw new InvalidParticipantError(`Unable to approve participant.`);
+
+        const updated = await this._repo.fetchWhereName(participant.name)
+        if (updated == null) throw new ParticipantNotFoundError(`'${participant.name}' missing!`);
+        return updated;
     }
 
     async deActivateParticipant(participant: Participant): Promise<Participant> {
@@ -159,8 +164,22 @@ export class ParticipantAggregate {
 
         const existing = await this._repo.fetchWhereName(participant.name);
         if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        if (existing.isActive == false) return existing;
+
         existing.isActive = false;
-        await this._repo.store(existing);
+        await this._repo.update(existing);
+        return existing;
+    }
+
+    async activateParticipant(participant: Participant): Promise<Participant> {
+        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+
+        const existing = await this._repo.fetchWhereName(participant.name);
+        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        if (existing.isActive) return existing;
+        
+        existing.isActive = true;
+        await this._repo.update(existing);
         return existing;
     }
 
@@ -169,8 +188,12 @@ export class ParticipantAggregate {
 
         const existing = await this._repo.fetchWhereName(participant.name);
         if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        participant.id = existing.id;
         await this._repoEndpoints.addEndpoint(participant, endpoint);
-        return existing;
+
+        const updated = await this._repo.fetchWhereName(existing.name);
+        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
+        return updated;
     }
 
     async removeParticipantEndpoint(participant: Participant, endpoint: ParticipantEndpoint): Promise<Participant> {
@@ -178,8 +201,12 @@ export class ParticipantAggregate {
 
         const existing = await this._repo.fetchWhereName(participant.name);
         if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        participant.id = existing.id;
         await this._repoEndpoints.removeEndpoint(participant, endpoint);
-        return existing;
+
+        const updated = await this._repo.fetchWhereName(existing.name);
+        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
+        return updated;
     }
 
     async addParticipantAccount(participant: Participant, account: ParticipantAccount): Promise<Participant> {
@@ -225,8 +252,13 @@ export class ParticipantAggregate {
         delete account.balanceDebit;
         delete account.balanceCredit;
 
-        await this._repoAccount.addAccount(participant, account);
-        return existing;
+        participant.id = existing.id;
+        const successLocalAcc = await this._repoAccount.addAccount(participant, account);
+        if (!successLocalAcc) throw new InvalidParticipantError(`Unable to add local account ${account.type}`);
+
+        const updated = await this._repo.fetchWhereName(existing.name);
+        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
+        return updated;
     }
 
     async removeParticipantAccount(participant: Participant, account: ParticipantAccount): Promise<Participant> {
@@ -234,8 +266,13 @@ export class ParticipantAggregate {
 
         const existing = await this._repo.fetchWhereName(participant.name);
         if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
-        await this._repoAccount.removeAccount(participant, account);
-        return existing;
+        participant.id = existing.id;
+        const successLocalAcc = await this._repoAccount.removeAccount(participant, account);
+        if (!successLocalAcc) throw new InvalidParticipantError(`Unable to remove local account ${account.type}`);
+
+        const updated = await this._repo.fetchWhereName(existing.name);
+        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
+        return updated;
     }
 
     private async _validateParticipantCreate(participant: Participant) : Promise<boolean> {

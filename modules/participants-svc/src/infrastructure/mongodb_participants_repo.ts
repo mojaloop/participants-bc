@@ -95,8 +95,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         return true;
     }
 
-
-    async store(participant: Participant): Promise<boolean> {
+    async insert(participant: Participant): Promise<boolean> {
         this._logger.info(`Name:  ${participant.name} - stored for Participants-BC:`);
         let result = await this._collectionParticipant.insertOne(participant);
         let success = result.insertedCount === 1;
@@ -112,6 +111,27 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
             success = result.insertedCount === 1;
         }
         return success;
+    }
+
+    async update(participant: Participant): Promise<boolean> {
+        const updated = Date.now();
+        let result = await this._collectionParticipant.updateOne(
+            { id: participant.id },
+            {
+                $set: {
+                    name: participant.name,
+                    isActive: participant.isActive,
+                    description: participant.description,
+                    createdDate: participant.createdDate,
+                    createdBy: participant.createdBy,
+                    lastUpdated: updated,
+                    participantEndpoints: participant.participantEndpoints,
+                    participantAccounts: participant.participantAccounts
+                },
+                $currentDate: { lastModified: true }
+            }
+        );
+        return (result.modifiedCount === 1)
     }
 
     async destroy (): Promise<void> {

@@ -35,6 +35,7 @@ import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-
 export interface IParticipantsApprovalRepository {
     init(): Promise<void>;
 
+    //TODO @jason remove
     approve(participant: Participant, approved: ParticipantApproval): Promise<boolean>;
 
     destroy (): Promise<void>

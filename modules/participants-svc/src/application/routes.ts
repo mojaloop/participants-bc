@@ -84,12 +84,15 @@ export class ExpressRoutes {
     constructor(logger: ILogger) {
         this._logger = logger;
 
-        // main
+        // example
         this._mainRouter.get("/", this.getExample.bind(this));
+
+        // participant
         this._mainRouter.get("/participant/:name", this.participantByName.bind(this));
         this._mainRouter.post("/participant", this.participantCreate.bind(this));
         this._mainRouter.put("/participant/:name/approve", this.participantApprove.bind(this));
         this._mainRouter.put("/participant/:name/disable", this.deActivateParticipant.bind(this));
+        this._mainRouter.put("/participant/:name/enable", this.activateParticipant.bind(this));
 
         // endpoint
         this._mainRouter.get("/participant/:name/endpoints", this.endpointsByParticipantName.bind(this));
@@ -204,7 +207,7 @@ export class ExpressRoutes {
         this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${partName}].`);
 
         try {
-            const participant = await participantAgg.getParticipantByName(partName);
+            const participant = await this.defaultParticipantWithName(partName);
             const created = await participantAgg.addParticipantEndpoint(participant, data);
             res.send(created);
         } catch (err: any) {
@@ -228,7 +231,7 @@ export class ExpressRoutes {
         this._logger.debug(`Creating Participant Account [${JSON.stringify(data)}] for [${partName}].`);
 
         try {
-            const participant = await participantAgg.getParticipantByName(partName);
+            const participant = await this.defaultParticipantWithName(partName);
             const created = await participantAgg.addParticipantAccount(participant, data);
             res.send(created);
         } catch (err: any) {
@@ -252,7 +255,7 @@ export class ExpressRoutes {
         this._logger.debug(`Approving Participant [${JSON.stringify(data)}] for [${partName}].`);
 
         try {
-            const participant = await participantAgg.getParticipantByName(partName);
+            const participant = await this.defaultParticipantWithName(partName);
             const approved = await participantAgg.approveParticipant(
                 participant,
                 data.checker,
@@ -280,13 +283,33 @@ export class ExpressRoutes {
         this._logger.debug(`Disable Participant [${JSON.stringify(data)}] for [${partName}].`);
 
         try {
-            const participant = await participantAgg.getParticipantByName(partName);
-            if (!participant.isActive) {
-                res.send(participant);
-                return;
-            }
+            const participant = await this.defaultParticipantWithName(partName);
             const disabled = await participantAgg.deActivateParticipant(participant);
             res.send(disabled);
+        } catch (err: any) {
+            if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    private async activateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const partName = req.params["name"] ?? null;
+        const data: ParticipantApproval = req.body;
+        this._logger.debug(`Enable Participant [${JSON.stringify(data)}] for [${partName}].`);
+
+        try {
+            const participant = await this.defaultParticipantWithName(partName);
+            const enabled = await participantAgg.activateParticipant(participant);
+            res.send(enabled);
         } catch (err: any) {
             if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
@@ -308,7 +331,7 @@ export class ExpressRoutes {
         this._logger.debug(`Removing Participant Endpoint [${JSON.stringify(data)}] for [${partName}].`);
 
         try {
-            const participant = await participantAgg.getParticipantByName(partName);
+            const participant = await this.defaultParticipantWithName(partName);
             const removed = await participantAgg.removeParticipantEndpoint(participant, data);
             res.send(removed);
         } catch (err: any) {
@@ -332,7 +355,7 @@ export class ExpressRoutes {
         this._logger.debug(`Removing Participant Account [${JSON.stringify(data)}] for [${partName}].`);
 
         try {
-            const participant = await participantAgg.getParticipantByName(partName);
+            const participant = await this.defaultParticipantWithName(partName);
             const removed = await participantAgg.removeParticipantAccount(participant, data);
             res.send(removed);
         } catch (err: any) {
@@ -348,5 +371,20 @@ export class ExpressRoutes {
                 });
             }
         }
+    }
+
+    async defaultParticipantWithName(partName : string): Promise<Participant> {
+        const participant: Participant = {
+            id : '',
+            name : partName,
+            isActive : false,
+            description : '',
+            createdDate : 0,
+            createdBy : '',
+            lastUpdated : 0,
+            participantEndpoints : [],
+            participantAccounts : []
+        }
+        return participant;
     }
 }

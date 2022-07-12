@@ -36,7 +36,8 @@ export interface IParticipantsRepository {
     init(): Promise<void>;
 
     //Participant
-    store(participant: Participant): Promise<boolean>;
+    insert(participant: Participant): Promise<boolean>;
+    update(participant: Participant): Promise<boolean>;
     fetchWhereName(participantName: string): Promise<Participant | null>;
     fetchWhereId(id: number): Promise<Participant | null>;
 

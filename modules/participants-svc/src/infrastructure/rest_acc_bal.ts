@@ -48,7 +48,7 @@ export class RestAccountsAndBalances implements IAccountsBalances {
         this._restUri = _restUri;
     }
 
-    async init(): Promise<void>{
+    async init(): Promise<void> {
         this._initialized = true;
     }
     
@@ -63,6 +63,10 @@ export class RestAccountsAndBalances implements IAccountsBalances {
     }
 
     async getAccount(accName: string): Promise<JournalAccount | null> {
+        return null;//TODO @jason, implement...
+    }
+
+    async getAccounts(externalId: string): Promise<JournalAccount[] | null> {
         return null;//TODO @jason, implement...
     }
 

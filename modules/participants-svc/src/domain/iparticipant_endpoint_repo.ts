@@ -35,6 +35,7 @@ import {Participant, ParticipantEndpoint} from "@mojaloop/participant-bc-public-
 export interface IParticipantsEndpointRepository {
     init(): Promise<void>;
 
+    //TODO move to aggregate.
     addEndpoint(participant: Participant, toAdd: ParticipantEndpoint): Promise<boolean>;
     removeEndpoint(participant: Participant, toRemove: ParticipantEndpoint): Promise<boolean>;
     fetchWhereParticipant(participant: Participant): Promise<ParticipantEndpoint[] | null>;

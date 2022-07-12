@@ -37,6 +37,7 @@ export interface IAccountsBalances {
 
     createAccount(account: JournalAccount): Promise<boolean>;
     getAccount(accountId: string): Promise<JournalAccount | null>;
+    getAccounts(externalId: string): Promise<JournalAccount[] | null>;
     createJournalEntry(account: JournalEntry): Promise<boolean>;
 
     destroy (): Promise<void>
