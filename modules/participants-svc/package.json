@@ -42,6 +42,7 @@
     "dep:update": "ncu -u"
   },
   "dependencies": {
+    "@mojaloop/accounts-and-balances-bc-client": "^0.0.2",
     "@mojaloop/logging-bc-public-types-lib": "^0.0.1",
     "@mojaloop/participant-bc-public-types-lib": "^0.0.1",
     "@mojaloop/platform-configuration-bc-client-lib": "^0.0.5",

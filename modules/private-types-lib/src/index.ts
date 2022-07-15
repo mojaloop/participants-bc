@@ -1,8 +1,8 @@
 'use strict'
 
 import {
-    JournalAccount,
-    JournalEntry
+    ParticipantABAccount,
+    ParticipantABJournalEntry
 } from './accountsandbalances'
 
-export { JournalAccount, JournalEntry }
+export { ParticipantABAccount, ParticipantABJournalEntry }

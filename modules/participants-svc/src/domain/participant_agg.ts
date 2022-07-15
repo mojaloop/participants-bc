@@ -39,7 +39,8 @@ import {
     ParticipantApproval
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
-    JournalAccount, JournalEntry
+    ParticipantABAccount,
+    ParticipantABJournalEntry
 } from "@mojaloop/participant-bc-private-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 
@@ -50,6 +51,7 @@ import {
 import {IParticipantsApprovalRepository} from "./iparticipant_approval_repo";
 import {IAccountsBalances} from "./iparticipant_account_balances_ds";
 import {IParticipantsAccountRepository} from "./iparticipant_account_repo";
+import {AccountState, AccountType} from "@mojaloop/accounts-and-balances-bc-client";
 
 export class ParticipantAggregate {
     private _logger: ILogger;
@@ -112,8 +114,8 @@ export class ParticipantAggregate {
             const jAcc = await this._accBal.getAccount(acc.id);
             if (jAcc == null) continue;
 
-            acc.balanceDebit = jAcc.balanceDebit;
-            acc.balanceCredit = jAcc.balanceCredit;
+            acc.balanceDebit = jAcc.debitBalance;
+            acc.balanceCredit = jAcc.creditBalance;
         }
         return accounts;
     }
@@ -216,14 +218,15 @@ export class ParticipantAggregate {
         if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
         if (!existing.isActive) throw new ParticipantNotActive(`'${participant.name}' is not active.`);
 
-        const accBalAccount : JournalAccount = {
+        const accBalAccount : ParticipantABAccount = {
             id: account.id,
-            type: 'position',
-            state: 'active',
-            currency: account.currency,
-            balanceDebit: 0n,
-            balanceCredit: 0n,
-            externalId: participant.id
+            type: AccountType.POSITION,
+            state: AccountState.ACTIVE,
+            currency: ''+account.currency,
+            debitBalance: 0n,
+            creditBalance: 0n,
+            externalId: participant.id,
+            timeStampLastJournalEntry: Date.now()
         }
         let success = await this._accBal.createAccount(accBalAccount);
         if (!success) {
@@ -232,13 +235,13 @@ export class ParticipantAggregate {
 
         if (account.balanceCredit != null && account.balanceCredit > 0) {
             const hubAccountForDeposit = 'deposit';//TODO @jason, lookup...
-            const journal: JournalEntry = {
+            const journal: ParticipantABJournalEntry = {
                 id: `uuid`,
-                currency: account.currency,
+                currency: ''+account.currency,
                 amount: account.balanceCredit,
-                accountDebit: hubAccountForDeposit,
-                accountCredit: account.id,
-                timestamp: Date.now(),
+                debitedAccountId: hubAccountForDeposit,
+                creditedAccountId: account.id,
+                timeStamp: Date.now(),
                 externalId: `initial-deposit`,
                 externalCategory: `deposit`,
             };

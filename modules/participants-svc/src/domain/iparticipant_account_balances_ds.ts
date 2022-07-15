@@ -30,15 +30,15 @@
 
 "use strict"
 
-import {JournalAccount, JournalEntry} from "@mojaloop/participant-bc-private-types-lib";
+import {ParticipantABAccount, ParticipantABJournalEntry} from "@mojaloop/participant-bc-private-types-lib";
 
 export interface IAccountsBalances {
     init(): Promise<void>;
 
-    createAccount(account: JournalAccount): Promise<boolean>;
-    getAccount(accountId: string): Promise<JournalAccount | null>;
-    getAccounts(externalId: string): Promise<JournalAccount[] | null>;
-    createJournalEntry(account: JournalEntry): Promise<boolean>;
+    createAccount(account: ParticipantABAccount): Promise<boolean>;
+    getAccount(accountId: string): Promise<ParticipantABAccount | null>;
+    getAccounts(externalId: string): Promise<ParticipantABAccount[] | null>;
+    createJournalEntry(account: ParticipantABJournalEntry): Promise<boolean>;
 
     destroy (): Promise<void>
 }

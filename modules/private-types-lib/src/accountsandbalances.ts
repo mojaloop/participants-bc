@@ -30,24 +30,30 @@
 
 'use strict'
 
+import {
+  IAccount
+} from "@mojaloop/accounts-and-balances-bc-client";
+import {AccountState, AccountType, IJournalEntry} from "@mojaloop/accounts-and-balances-bc-private-types/dist/types";
+
 /**Accounts and Balances**/
-export declare type JournalAccount = {
-  id: string
-  type: string
-  state: string
-  currency: number
-  balanceDebit: bigint
-  balanceCredit: bigint
-  externalId?: string
+export class ParticipantABAccount implements IAccount {
+  id: string;
+  externalId: string | null;
+  state: AccountState;
+  type: AccountType;
+  currency: string;
+  creditBalance: bigint;
+  debitBalance: bigint;
+  timeStampLastJournalEntry: number;
 }
 
-export declare type JournalEntry = {
-  id: string
-  currency: number
-  amount: bigint
-  accountDebit: string
-  accountCredit: string
-  timestamp: number
-  externalId?: string
-  externalCategory?: string
+export class ParticipantABJournalEntry implements IJournalEntry {
+  amount: bigint;
+  creditedAccountId: string;
+  currency: string;
+  debitedAccountId: string;
+  externalCategory: string | null;
+  externalId: string | null;
+  id: string;
+  timeStamp: number;
 }

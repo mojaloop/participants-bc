@@ -31,42 +31,58 @@
 'use strict'
 
 import {
-    JournalAccount,
-    JournalEntry
+    ParticipantABAccount,
+    ParticipantABJournalEntry
 } from "@mojaloop/participant-bc-private-types-lib";
+import {
+    AccountsAndBalancesClient
+} from "@mojaloop/accounts-and-balances-bc-client";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {IAccountsBalances} from "../domain/iparticipant_account_balances_ds";
 
 export class RestAccountsAndBalances implements IAccountsBalances {
     private _restUri: string;
     private _logger: ILogger;
+    private _accBalClient: AccountsAndBalancesClient;
 
     private _initialized: boolean = false;
+    private _enabled: boolean = false;
 
     constructor(_restUri: string, logger: ILogger) {
         this._logger = logger;
         this._restUri = _restUri;
+
     }
 
     async init(): Promise<void> {
         this._initialized = true;
+        if (this._enabled) {
+            this._accBalClient = new AccountsAndBalancesClient(this._logger, this._restUri, 30000);
+        }
     }
     
-    async createAccount(account: JournalAccount): Promise<boolean> {
+    async createAccount(account: ParticipantABAccount): Promise<boolean> {
+        if (!this._enabled) return true;
 
-        return true;//TODO @jason, implement...
+        const state = await this._accBalClient.createAccount(account);
+        return true;
     }
 
-    async createJournalEntry(entry: JournalEntry): Promise<boolean> {
+    async createJournalEntry(entry: ParticipantABJournalEntry): Promise<boolean> {
+        if (!this._enabled) return true;
 
-        return true;//TODO @jason, implement...
+        const state = await this._accBalClient.createJournalEntries([entry]);
+        return true;
     }
 
-    async getAccount(accName: string): Promise<JournalAccount | null> {
-        return null;//TODO @jason, implement...
+    async getAccount(accountId: string): Promise<ParticipantABAccount | null> {
+        if (!this._enabled) return null;
+
+        const result = await this._accBalClient.getAccountById(accountId)
+        return result;
     }
 
-    async getAccounts(externalId: string): Promise<JournalAccount[] | null> {
+    async getAccounts(externalId: string): Promise<ParticipantABAccount[] | null> {
         return null;//TODO @jason, implement...
     }
 
