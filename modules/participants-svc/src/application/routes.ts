@@ -30,6 +30,7 @@
 
 "use strict";
 
+
 import express from "express";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
@@ -39,92 +40,145 @@ import {
     ParticipantEndpoint
 } from "@mojaloop/participant-bc-public-types-lib";
 import {ParticipantAggregate} from "../domain/participant_agg";
-import {ConsoleLogger} from "../logger_console";
-import {IParticipantsRepository} from "../domain/iparticipant_repo";
-import {MongoDBParticipantsRepo} from "../infrastructure/mongodb_participants_repo";
 
 import {
     InvalidParticipantError, NoAccountsError, NoEndpointsError, ParticipantCreateValidationError,
-    ParticipantNotFoundError
+    ParticipantNotFoundError, UnauthorizedError
 } from "../domain/errors";
-import {IParticipantsEndpointRepository} from "../domain/iparticipant_endpoint_repo";
-import {MongoDBParticipantsEndpointRepo} from "../infrastructure/mongodb_participants_endpoint_repo";
-import {IParticipantsApprovalRepository} from "../domain/iparticipant_approval_repo";
-import {MongoDBParticipantsApprovalRepo} from "../infrastructure/mongodb_participants_approval_repo";
-import {IParticipantsAccountRepository} from "../domain/iparticipant_account_repo";
-import {MongoDBParticipantsAccountRepo} from "../infrastructure/mongodb_participants_account_repo";
-import {IAccountsBalances} from "../domain/iparticipant_account_balances_ds";
-import {RestAccountsAndBalances} from "../infrastructure/rest_acc_bal";
+import {CallSecurityContext, TokenHelper} from "@mojaloop/security-bc-client-lib";
 
-const logger: ILogger = new ConsoleLogger();
-//TODO need to fetch properties with config bc.
-const mongoURL = "mongodb://root:example@localhost:27017/";
-const accBalancesURL = "http://localhost:3001/";
+// Extend express request to include our security fields
+declare module "express-serve-static-core" {
+    export interface Request {
+        securityContext: null | CallSecurityContext;
+    }
+}
 
-const repoPart: IParticipantsRepository = new MongoDBParticipantsRepo(mongoURL, logger);
-const repoPartEndpoint: IParticipantsEndpointRepository = new MongoDBParticipantsEndpointRepo(mongoURL, logger);
-const repoPartApproval: IParticipantsApprovalRepository = new MongoDBParticipantsApprovalRepo(mongoURL, logger);
-const repoPartAccount: IParticipantsAccountRepository = new MongoDBParticipantsAccountRepo(mongoURL, logger);
-const restAccAndBal: IAccountsBalances = new RestAccountsAndBalances(accBalancesURL, logger);
-
-const participantAgg: ParticipantAggregate = new ParticipantAggregate(
-    repoPart,
-    repoPartEndpoint,
-    repoPartApproval,
-    repoPartAccount,
-    restAccAndBal,
-    logger
-);
 
 export class ExpressRoutes {
-    private _logger:ILogger;
-
+    private _logger: ILogger;
+    private _tokenHelper: TokenHelper;
+    private _participantsAgg: ParticipantAggregate;
     private _mainRouter = express.Router();
 
-    constructor(logger: ILogger) {
+    constructor(participantsAgg: ParticipantAggregate, tokenHelper: TokenHelper, logger: ILogger) {
         this._logger = logger;
+        this._tokenHelper = tokenHelper;
+        this._participantsAgg = participantsAgg;
+
+        // inject authentication - all request below this require a valid token
+        this._mainRouter.use(this._authenticationMiddleware.bind(this));
 
         // example
         this._mainRouter.get("/", this.getExample.bind(this));
 
         // participant
-        this._mainRouter.get("/participant/:name", this.participantByName.bind(this));
-        this._mainRouter.post("/participant", this.participantCreate.bind(this));
-        this._mainRouter.put("/participant/:name/approve", this.participantApprove.bind(this));
-        this._mainRouter.put("/participant/:name/disable", this.deActivateParticipant.bind(this));
-        this._mainRouter.put("/participant/:name/enable", this.activateParticipant.bind(this));
+        this._mainRouter.get("/participants", this.getAllParticipants.bind(this));
+        this._mainRouter.get("/participants/:id", this.participantById.bind(this));
+        this._mainRouter.post("/participants", this.participantCreate.bind(this));
+        this._mainRouter.put("/participants/:id/approve", this.participantApprove.bind(this));
+        this._mainRouter.put("/participants/:id/disable", this.deActivateParticipant.bind(this));
+        this._mainRouter.put("/participants/:id/enable", this.activateParticipant.bind(this));
 
         // endpoint
-        this._mainRouter.get("/participant/:name/endpoints", this.endpointsByParticipantName.bind(this));
-        this._mainRouter.post("/participant/:name/endpoint", this.participantEndpointCreate.bind(this));
-        this._mainRouter.delete("/participant/:name/endpoint", this.participantEndpointDelete.bind(this));
+        this._mainRouter.get("/participants/:id/endpoints", this.endpointsByParticipantName.bind(this));
+        this._mainRouter.post("/participants/:id/endpoint", this.participantEndpointCreate.bind(this));
+        this._mainRouter.delete("/participants/:id/endpoint", this.participantEndpointDelete.bind(this));
 
         // account
-        this._mainRouter.get("/participant/:name/accounts", this.accountsByParticipantName.bind(this));
-        this._mainRouter.post("/participant/:name/account", this.participantAccountCreate.bind(this));
-        this._mainRouter.delete("/participant/:name/account", this.participantAccountDelete.bind(this));
+        this._mainRouter.get("/participants/:id/accounts", this.accountsByParticipantName.bind(this));
+        this._mainRouter.post("/participants/:id/account", this.participantAccountCreate.bind(this));
+        this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
     }
 
-    get MainRouter():express.Router{
+    private async _authenticationMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const authorizationHeader = req.headers["authorization"];
+
+        if (!authorizationHeader)
+            return res.sendStatus(403);
+
+        const bearer = authorizationHeader.trim().split(" ");
+        if (bearer.length!=2) {
+            return res.sendStatus(403);
+        }
+
+        const bearerToken = bearer[1];
+        let verified;
+        try{
+            verified = await this._tokenHelper.verifyToken(bearerToken);
+        }catch(err){
+            this._logger.error(err,"unable to verify token");
+            return res.sendStatus(403);
+        }
+        if (!verified) {
+            return res.sendStatus(403);
+        }
+
+        const decoded = this._tokenHelper.decodeToken(bearerToken);
+        if (!decoded.sub || decoded.sub.indexOf("::")== -1) {
+            return res.sendStatus(403);
+        }
+
+        const subSplit = decoded.sub.split("::");
+        const subjectType = subSplit[0];
+        const subject = subSplit[1];
+
+        req.securityContext = {
+            accessToken: bearerToken,
+            clientId: subjectType.toUpperCase().startsWith("APP") ? subject:null,
+            username: subjectType.toUpperCase().startsWith("USER") ? subject:null,
+            rolesIds: decoded.roles
+        };
+
+        return next();
+    }
+
+    get MainRouter(): express.Router {
         return this._mainRouter;
     }
 
     private async getExample(req: express.Request, res: express.Response, next: express.NextFunction) {
-        return res.send({resp:"example worked"});
+        return res.send({resp: "example worked"});
     }
 
-    private async participantByName(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
-        this._logger.debug(`Fetching Participant [${partName}].`);
+    private async getAllParticipants(req: express.Request, res: express.Response, next: express.NextFunction) {
+        this._logger.debug("Fetching all participants");
 
         try {
-            const fetched = await participantAgg.getParticipantByName(partName);
+            const fetched = await this._participantsAgg.getAllParticipants(req.securityContext!);
             res.send(fetched);
-        } catch (err : any) {
-            if (err instanceof ParticipantNotFoundError) {
+        } catch (err: any) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
-                    msg: `No participant with name ${partName}.`
+                    msg: "No participants found."
+                });
+            }
+        }
+    }
+
+    private async participantById(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const id = req.params["id"] ?? null;
+        this._logger.debug(`Fetching Participant [${id}].`);
+
+        try {
+            const fetched = await this._participantsAgg.getParticipantById(req.securityContext!, id);
+            res.send(fetched);
+        } catch (err: any) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: `No participant with id ${id}.`
                 });
             }
         }
@@ -135,10 +189,15 @@ export class ExpressRoutes {
         this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
 
         try {
-            const created = await participantAgg.createParticipant(data);
+            const created = await this._participantsAgg.createParticipant(req.securityContext!, data);
             res.send(created);
         } catch (err: any) {
-            if (err instanceof ParticipantCreateValidationError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantCreateValidationError) {
                 res.status(400).json({
                     status: "error",
                     msg: `Validation failure: ${err.message}.`
@@ -158,14 +217,20 @@ export class ExpressRoutes {
     }
 
     private async endpointsByParticipantName(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
-        this._logger.debug(`Fetching Endpoints for Participant [${partName}].`);
+        const id = req.params["id"] ?? null;
+
+        this._logger.debug(`Fetching Endpoints for Participant [${id}].`);
 
         try {
-            const fetched = await participantAgg.getParticipantEndpointsByName(partName);
+            const fetched = await this._participantsAgg.getParticipantEndpointsById(req.securityContext!, id);
             res.send(fetched);
-        } catch (err : any) {
-            if (err instanceof ParticipantNotFoundError || err instanceof NoEndpointsError) {
+        } catch (err: any) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError || err instanceof NoEndpointsError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -180,14 +245,19 @@ export class ExpressRoutes {
     }
 
     private async accountsByParticipantName(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
-        this._logger.debug(`Fetching Accounts for Participant [${partName}].`);
+        const id = req.params["id"] ?? null;
+        this._logger.debug(`Fetching Accounts for Participant [${id}].`);
 
         try {
-            const fetched = await participantAgg.getParticipantAccountsByName(partName);
+            const fetched = await this._participantsAgg.getParticipantAccountsById(req.securityContext!, id);
             res.send(fetched);
-        } catch (err : any) {
-            if (err instanceof ParticipantNotFoundError || err instanceof NoAccountsError) {
+        } catch (err: any) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError || err instanceof NoAccountsError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -202,16 +272,21 @@ export class ExpressRoutes {
     }
 
     private async participantEndpointCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
+        const id = req.params["id"] ?? null;
         const data: ParticipantEndpoint = req.body;
-        this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${partName}].`);
+        this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            const participant = await this.defaultParticipantWithName(partName);
-            const created = await participantAgg.addParticipantEndpoint(participant, data);
-            res.send(created);
+            //const participant = await this._participantsAgg.getParticipantById(req.securityContext!, id);
+            await this._participantsAgg.addParticipantEndpoint(req.securityContext!, id, data);
+            res.send();
         } catch (err: any) {
-            if (err instanceof ParticipantNotFoundError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -226,16 +301,20 @@ export class ExpressRoutes {
     }
 
     private async participantAccountCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
+        const id = req.params["id"] ?? null;
         const data: ParticipantAccount = req.body;
-        this._logger.debug(`Creating Participant Account [${JSON.stringify(data)}] for [${partName}].`);
+        this._logger.debug(`Creating Participant Account [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            const participant = await this.defaultParticipantWithName(partName);
-            const created = await participantAgg.addParticipantAccount(participant, data);
-            res.send(created);
+            await this._participantsAgg.addParticipantAccount(req.securityContext!, id, data);
+            res.send();
         } catch (err: any) {
-            if (err instanceof ParticipantNotFoundError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -250,20 +329,25 @@ export class ExpressRoutes {
     }
 
     private async participantApprove(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
+        const id = req.params["id"] ?? null;
         const data: ParticipantApproval = req.body;
-        this._logger.debug(`Approving Participant [${JSON.stringify(data)}] for [${partName}].`);
+        this._logger.debug(`Approving Participant [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            const participant = await this.defaultParticipantWithName(partName);
-            const approved = await participantAgg.approveParticipant(
-                participant,
-                data.checker,
-                data.feedback
+            await this._participantsAgg.approveParticipant(
+                    req.securityContext!,
+                    id,
+                    data.checker,
+                    data.feedback
             );
-            res.send(approved);
+            res.send();
         } catch (err: any) {
-            if (err instanceof ParticipantNotFoundError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -278,16 +362,20 @@ export class ExpressRoutes {
     }
 
     private async deActivateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
+        const id = req.params["id"] ?? null;
         const data: ParticipantApproval = req.body;
-        this._logger.debug(`Disable Participant [${JSON.stringify(data)}] for [${partName}].`);
+        this._logger.debug(`Disable Participant [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            const participant = await this.defaultParticipantWithName(partName);
-            const disabled = await participantAgg.deActivateParticipant(participant);
-            res.send(disabled);
+            await this._participantsAgg.deActivateParticipant(req.securityContext!, id);
+            res.send();
         } catch (err: any) {
-            if (err instanceof ParticipantNotFoundError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -302,16 +390,20 @@ export class ExpressRoutes {
     }
 
     private async activateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
+        const id = req.params["id"] ?? null;
         const data: ParticipantApproval = req.body;
-        this._logger.debug(`Enable Participant [${JSON.stringify(data)}] for [${partName}].`);
+        this._logger.debug(`Enable Participant [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            const participant = await this.defaultParticipantWithName(partName);
-            const enabled = await participantAgg.activateParticipant(participant);
-            res.send(enabled);
+            await this._participantsAgg.activateParticipant(req.securityContext!, id);
+            res.send();
         } catch (err: any) {
-            if (err instanceof ParticipantNotFoundError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -326,16 +418,20 @@ export class ExpressRoutes {
     }
 
     private async participantEndpointDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
+        const id = req.params["id"] ?? null;
         const data: ParticipantEndpoint = req.body;
-        this._logger.debug(`Removing Participant Endpoint [${JSON.stringify(data)}] for [${partName}].`);
+        this._logger.debug(`Removing Participant Endpoint [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            const participant = await this.defaultParticipantWithName(partName);
-            const removed = await participantAgg.removeParticipantEndpoint(participant, data);
-            res.send(removed);
+            await this._participantsAgg.removeParticipantEndpoint(req.securityContext!, id, data);
+            res.send();
         } catch (err: any) {
-            if (err instanceof ParticipantNotFoundError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -350,16 +446,20 @@ export class ExpressRoutes {
     }
 
     private async participantAccountDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const partName = req.params["name"] ?? null;
+        const id = req.params["id"] ?? null;
         const data: ParticipantAccount = req.body;
-        this._logger.debug(`Removing Participant Account [${JSON.stringify(data)}] for [${partName}].`);
+        this._logger.debug(`Removing Participant Account [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            const participant = await this.defaultParticipantWithName(partName);
-            const removed = await participantAgg.removeParticipantAccount(participant, data);
-            res.send(removed);
+            await this._participantsAgg.removeParticipantAccount(req.securityContext!, id, data);
+            res.send();
         } catch (err: any) {
-            if (err instanceof ParticipantNotFoundError) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
@@ -373,18 +473,4 @@ export class ExpressRoutes {
         }
     }
 
-    async defaultParticipantWithName(partName : string): Promise<Participant> {
-        const participant: Participant = {
-            id : '',
-            name : partName,
-            isActive : false,
-            description : '',
-            createdDate : 0,
-            createdBy : '',
-            lastUpdated : 0,
-            participantEndpoints : [],
-            participantAccounts : []
-        }
-        return participant;
-    }
 }

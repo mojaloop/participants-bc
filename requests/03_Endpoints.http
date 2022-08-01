@@ -6,12 +6,12 @@
 # * 'mptr' and 'fptr' create a POST request to submit a form with a text or file field (multipart/form-data);
 
 ### Get Participant Endpoints
-GET http://localhost:3100/participant/sally/endpoints
+GET http://localhost:3010/participant/sally/endpoints
 Content-Type: application/json
 
 ### Add Participant Endpoint for [sally]
 
-POST http://localhost:3100/participant/sally/endpoint
+POST http://localhost:3010/participant/sally/endpoint
 Content-Type: application/json
 
 {
@@ -21,7 +21,7 @@ Content-Type: application/json
 
 ### Delete Participant Endpoint for [sally]
 
-DELETE http://localhost:3100/participant/sally/endpoint
+DELETE http://localhost:3010/participant/sally/endpoint
 Content-Type: application/json
 
 {
@@ -29,7 +29,7 @@ Content-Type: application/json
 }
 
 ### Get Participant
-GET http://localhost:3100/participant/sally
+GET http://localhost:3010/participant/sally
 Content-Type: application/json
 
 

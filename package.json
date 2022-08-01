@@ -14,7 +14,7 @@
   "scripts": {
     "prepare": "husky install",
     "start": "yarn workspaces foreach --parallel -v run start",
-    "start:example-svc": "yarn workspace @mojaloop/typescript-bc-template-example-svc run start",
+    "start:participants-svc": "yarn workspace @mojaloop/participants-bc-svc run start",
     "build": "yarn workspaces foreach --parallel -v run build",
     "watch": "yarn workspaces foreach --parallel -v run watch",
     "clean": "yarn run clean:dist && yarn run clean:npm",
@@ -49,6 +49,7 @@
     "typescript": "^4.6.4"
   },
   "workspaces": [
+    "modules/participant-bc-private-types-lib",
     "modules/*"
   ],
   "packageManager": "yarn@3.2.0",

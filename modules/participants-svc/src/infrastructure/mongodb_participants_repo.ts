@@ -30,7 +30,7 @@
 
 'use strict'
 
-import {IParticipantsRepository} from "../domain/iparticipant_repo";
+import {IParticipantsRepository} from "../domain/repo_interfaces";
 import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient} from 'mongodb'
@@ -69,11 +69,16 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         this._initialized = true;
     }
 
+
+    async fetchAll():Promise<Participant[]>{
+        return await this._collectionParticipant.find({}).toArray();
+    }
+
     async fetchWhereName(participantName: string): Promise<Participant | null> {
         return await this._collectionParticipant.findOne({ name: participantName });
     }
     
-    async fetchWhereId(participantId: number): Promise<Participant | null> {
+    async fetchWhereId(participantId: string): Promise<Participant | null> {
         return await this._collectionParticipant.findOne({ id: participantId });
     }
 

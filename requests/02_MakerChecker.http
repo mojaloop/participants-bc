@@ -7,7 +7,7 @@
 
 ### Approve Participant [sally]
 
-PUT http://localhost:3100/participant/sally/approve
+PUT http://localhost:3010/participant/sally/approve
 Content-Type: application/json
 
 {
@@ -17,20 +17,20 @@ Content-Type: application/json
 
 ### Disable Participant [sally]
 
-PUT http://localhost:3100/participant/sally/disable
+PUT http://localhost:3010/participant/sally/disable
 Content-Type: application/json
 
 {}
 
 ### Enable Participant [sally]
 
-PUT http://localhost:3100/participant/sally/enable
+PUT http://localhost:3010/participant/sally/enable
 Content-Type: application/json
 
 {}
 
 ### Get Participant
-GET http://localhost:3100/participant/sally
+GET http://localhost:3010/participant/sally
 Content-Type: application/json
 
 

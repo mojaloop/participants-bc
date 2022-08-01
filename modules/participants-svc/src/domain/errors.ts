@@ -30,6 +30,8 @@
 
 'use strict'
 
+export class UnauthorizedError extends Error {}
+export class MakerCheckerViolationError extends Error {}
 export class ParticipantNotFoundError extends Error {}
 export class ParticipantCreateValidationError extends Error {}
 export class InvalidParticipantError extends Error {}
