@@ -5,11 +5,11 @@
 # * 'ptr' and 'ptrp' create a POST request with a simple or parameter-like body;
 # * 'mptr' and 'fptr' create a POST request to submit a form with a text or file field (multipart/form-data);
 ### Get Example
-GET http://localhost:3100/
+GET http://localhost:3010/
 Content-Type: application/json
 
 ### Store Participant
-POST http://localhost:3100/participant
+POST http://localhost:3010/participant
 Content-Type: application/json
 
 {
@@ -22,6 +22,6 @@ Content-Type: application/json
 }
 
 ### Get Participant
-GET http://localhost:3100/participant/sally
+GET http://localhost:3010/participant/sally
 Content-Type: application/json
 

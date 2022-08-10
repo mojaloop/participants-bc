@@ -30,6 +30,7 @@
 
 "use strict"
 
+import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
 import {IParticipantsRepository} from "./iparticipant_repo";
 import {IParticipantsEndpointRepository} from "./iparticipant_endpoint_repo";
 import {
@@ -45,13 +46,42 @@ import {
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 
 import {
-    InvalidParticipantError, NoAccountsError, NoEndpointsError, ParticipantCreateValidationError, ParticipantNotActive,
-    ParticipantNotFoundError, UnableToCreateAccountUpstream
+    InvalidParticipantError,
+    MakerCheckerViolationError,
+    NoAccountsError,
+    NoEndpointsError,
+    ParticipantCreateValidationError,
+    ParticipantNotActive,
+    ParticipantNotFoundError,
+    UnableToCreateAccountUpstream,
+    UnauthorizedError
 } from "./errors";
-import {IParticipantsApprovalRepository} from "./iparticipant_approval_repo";
+import {
+    IParticipantsApprovalRepository,
+    IParticipantsAccountRepository,
+    IParticipantsRepository,
+    IParticipantsEndpointRepository
+} from "./repo_interfaces";
+
 import {IAccountsBalances} from "./iparticipant_account_balances_ds";
-import {IParticipantsAccountRepository} from "./iparticipant_account_repo";
-import {AccountState, AccountType} from "@mojaloop/accounts-and-balances-bc-client";
+import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib/dist/index";
+import {CallSecurityContext} from "@mojaloop/security-bc-client-lib";
+import {ParticipantPrivilegeNames} from "./privilege_names";
+import {randomUUID} from "crypto";
+import {AuditSecurityContext} from "@mojaloop/auditing-bc-public-types-lib/dist/audit_types";
+
+enum AuditedActionNames {
+    PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
+    PARTICIPANT_APPROVED = "PARTICIPANT_APPROVED",
+    PARTICIPANT_ENABLED = "PARTICIPANT_ENABLED",
+    PARTICIPANT_DISABLED = "PARTICIPANT_DISABLED",
+    PARTICIPANT_ENDPOINT_ADDED = "PARTICIPANT_ENDPOINT_ADDED",
+    PARTICIPANT_ENDPOINT_REMOVED = "PARTICIPANT_ENDPOINT_REMOVED",
+    PARTICIPANT_ACCOUNT_ADDED = "PARTICIPANT_ACCOUNT_ADDED",
+    PARTICIPANT_ACCOUNT_REMOVED = "PARTICIPANT_ACCOUNT_REMOVED",
+
+}
+
 
 export class ParticipantAggregate {
     private _logger: ILogger;
@@ -60,52 +90,96 @@ export class ParticipantAggregate {
     private _repoApproval: IParticipantsApprovalRepository;
     private _repoAccount: IParticipantsAccountRepository;
     private _accBal: IAccountsBalances;
+    private _auditClient:IAuditClient;
+    private _authorizationClient:IAuthorizationClient;
 
     constructor(
-        repo: IParticipantsRepository,
-        _repoEndpoints: IParticipantsEndpointRepository,
-        _repoApproval: IParticipantsApprovalRepository,
-        _repoAccount: IParticipantsAccountRepository,
-        _accBal: IAccountsBalances,
-        logger: ILogger
+            repo: IParticipantsRepository,
+            repoEndpoints: IParticipantsEndpointRepository,
+            repoApproval: IParticipantsApprovalRepository,
+            repoAccount: IParticipantsAccountRepository,
+            accBal: IAccountsBalances,
+            auditClient:IAuditClient,
+            authorizationClient:IAuthorizationClient,
+            logger: ILogger
     ) {
         this._repo = repo;
-        this._repo.init();
-        this._repoEndpoints = _repoEndpoints;
-        this._repoEndpoints.init();
-        this._repoApproval = _repoApproval;
-        this._repoApproval.init();
-        this._repoAccount = _repoAccount;
-        this._repoAccount.init();
-        this._accBal = _accBal;
-        this._accBal.init();
+        this._repoEndpoints = repoEndpoints;
+        this._repoApproval = repoApproval;
+        this._repoAccount = repoAccount;
+        this._accBal = accBal;
+        this._auditClient = auditClient;
+        this._authorizationClient = authorizationClient;
         this._logger = logger;
     }
 
-    async getParticipantByName(participantName: string): Promise<Participant> {
+    async init():Promise<void>{
+        await this._repo.init();
+        await this._repoEndpoints.init();
+        await this._repoApproval.init();
+        await this._repoAccount.init();
+        await this._accBal.init();
+    }
+    private _getAuditSecCtx(secCtx:CallSecurityContext):AuditSecurityContext{
+        return {
+            userId: secCtx.username,
+            role: "", // TODO get role
+            appId: secCtx.clientId
+        }
+    }
+
+    private _enforcePrivilege(secCtx:CallSecurityContext, privName:string):void{
+        for(const roleId of secCtx.rolesIds){
+            if(this._authorizationClient.roleHasPrivilege(roleId, privName)) return;
+        }
+        throw new UnauthorizedError();
+    }
+
+    async getAllParticipants(secCtx:CallSecurityContext): Promise<Participant[]> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const list: Participant[] | null = await this._repo.fetchAll();
+        return list;
+    }
+
+    async getParticipantById(secCtx:CallSecurityContext, id: string): Promise<Participant> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const part: Participant | null = await this._repo.fetchWhereId(id);
+        if (part == null) throw new ParticipantNotFoundError(`Participant with ID: '${id}' not found.`);
+        return part;
+    }
+
+    async getParticipantByName(secCtx:CallSecurityContext, participantName: string): Promise<Participant> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
         const part: Participant | null = await this._repo.fetchWhereName(participantName);
         if (part == null) throw new ParticipantNotFoundError(`'${participantName}' not found.`);
         return part;
     }
 
-    async getParticipantEndpointsByName(participantName: string): Promise<ParticipantEndpoint[]> {
-        const part: Participant | null = await this._repo.fetchWhereName(participantName);
-        if (part == null) throw new ParticipantNotFoundError(`'${participantName}' not found.`);
+    async getParticipantEndpointsById(secCtx:CallSecurityContext, id: string): Promise<ParticipantEndpoint[]> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const endpoints: ParticipantEndpoint[] | null = await this._repoEndpoints.fetchWhereParticipant(part);
+        const part: Participant | null = await this._repo.fetchWhereId(id);
+        if (part == null) throw new ParticipantNotFoundError(`Participant with ID: '${id}' not found.`);
+
+        const endpoints: ParticipantEndpoint[] | null = await this._repoEndpoints.fetchWhereParticipantId(id);
         if (endpoints == null || endpoints.length == 0) {
-            throw new NoEndpointsError(`Participant '${participantName}' has no endpoints.`);
+            throw new NoEndpointsError(`Participant '${id}' has no endpoints.`);
         }
         return endpoints;
     }
 
-    async getParticipantAccountsByName(participantName: string): Promise<ParticipantAccount[]> {
-        const part: Participant | null = await this._repo.fetchWhereName(participantName);
-        if (part == null) throw new ParticipantNotFoundError(`'${participantName}' not found.`);
+    async getParticipantAccountsById(secCtx:CallSecurityContext, id: string): Promise<ParticipantAccount[]> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const accounts: ParticipantAccount[] | null = await this._repoAccount.fetchWhereParticipant(part);
+        const part: Participant | null = await this._repo.fetchWhereId(id);
+        if (part == null) throw new ParticipantNotFoundError(`Participant with ID: '${id}' not found.`);
+
+        const accounts: ParticipantAccount[] | null = await this._repoAccount.fetchWhereParticipantId(id);
         if (accounts == null || accounts.length == 0) {
-            throw new NoAccountsError(`Participant '${participantName}' has no accounts.`);
+            throw new NoAccountsError(`Participant '${id}' has no accounts.`);
         }
 
         // Obtain the most recent account balances:
@@ -120,25 +194,58 @@ export class ParticipantAggregate {
         return accounts;
     }
 
-    async createParticipant(participant: Participant): Promise<Participant> {
-        if (!await this._validateParticipantCreate(participant)) {
-            throw new ParticipantCreateValidationError("Invalid credentials for participant");
+    async createParticipant(secCtx:CallSecurityContext, participant: Participant): Promise<Participant> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT);
+
+        if (participant.name.trim().length == 0) throw new ParticipantCreateValidationError("[name] cannot be empty");
+
+        let existingById = null;
+        const existingByName = await this._repo.fetchWhereName(participant.name);
+
+        if(participant.id){
+            existingById = await this._repo.fetchWhereId(participant.id);
+        }
+        if (existingById || existingByName){
+            this._logger.debug("trying to create duplicate participant");
+            throw new ParticipantCreateValidationError(`'${participant.name}' already exists`);
         }
 
-        if (!await this._repo.insert(participant)) throw new InvalidParticipantError("Unable to store participant successfully!");
+        if(!participant.id){
+            participant.id = randomUUID();
+        }
+        participant.isActive = false;
+        participant.createdBy = secCtx.username;
+        participant.createdDate = Date.now();
+        participant.lastUpdated = participant.createdDate;
+
+        if (!await this._repo.insert(participant))
+            throw new InvalidParticipantError("Unable to store participant successfully!");
+
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_CREATED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participant.id}]
+        );
 
         return participant;
     }
 
-    async approveParticipant(
-        participant: Participant,
-        checker: string,
-        feedback: string
-    ): Promise<Participant> {
-        if (participant.name.trim().length == 0) throw new ParticipantCreateValidationError("[name] cannot be empty");
+    async approveParticipant(secCtx:CallSecurityContext,participantId:string,checker: string,feedback: string): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT);
 
-        const existing = await this._repo.fetchWhereName(participant.name);
-        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
+        if (participantId.trim().length == 0) throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+
+        if(existing.createdBy === secCtx.username){
+            await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_APPROVED, false,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+            );
+            throw new MakerCheckerViolationError(`Maker check violation - Cannot approve participant with ID: '${participantId}'.`);
+        }
 
         const approval: ParticipantApproval = {
             participantId: existing.id,
@@ -150,73 +257,98 @@ export class ParticipantAggregate {
             checkerApproved: true,
             feedback: feedback
         }
-        participant.id = existing.id
 
         //TODO @jason, move the approve here, repo should be more low-level.
-        const approvedResult = await this._repoApproval.approve(participant, approval);
+        const approvedResult = await this._repoApproval.approve(participantId, approval);
         if (!approvedResult) throw new InvalidParticipantError(`Unable to approve participant.`);
 
-        const updated = await this._repo.fetchWhereName(participant.name)
-        if (updated == null) throw new ParticipantNotFoundError(`'${participant.name}' missing!`);
-        return updated;
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_APPROVED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+        );
     }
 
-    async deActivateParticipant(participant: Participant): Promise<Participant> {
-        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+    async deActivateParticipant(secCtx:CallSecurityContext, participantId:string): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.DISABLE_PARTICIPANT);
 
-        const existing = await this._repo.fetchWhereName(participant.name);
-        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
-        if (existing.isActive == false) return existing;
+        if (participantId.trim().length == 0) throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        if (existing.isActive == false) return;
 
         existing.isActive = false;
         await this._repo.update(existing);
-        return existing;
+
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_DISABLED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+        );
+
     }
 
-    async activateParticipant(participant: Participant): Promise<Participant> {
-        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+    async activateParticipant(secCtx:CallSecurityContext, participantId:string): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.ENABLE_PARTICIPANT);
 
-        const existing = await this._repo.fetchWhereName(participant.name);
-        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
-        if (existing.isActive) return existing;
+        if (participantId.trim().length == 0) throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        if (existing.isActive) return;
         
         existing.isActive = true;
         await this._repo.update(existing);
-        return existing;
+
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_ENABLED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+        );
+     }
+
+    async addParticipantEndpoint(secCtx:CallSecurityContext, participantId:string, endpoint: ParticipantEndpoint): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
+
+        if (participantId.trim().length == 0) throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+
+        await this._repoEndpoints.addEndpoint(participantId, endpoint);
+
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_ENDPOINT_ADDED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+        );
     }
 
-    async addParticipantEndpoint(participant: Participant, endpoint: ParticipantEndpoint): Promise<Participant> {
-        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+    async removeParticipantEndpoint(secCtx:CallSecurityContext, participantId:string, endpoint: ParticipantEndpoint): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
 
-        const existing = await this._repo.fetchWhereName(participant.name);
-        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
-        participant.id = existing.id;
-        await this._repoEndpoints.addEndpoint(participant, endpoint);
+        if (participantId.trim().length == 0) throw new ParticipantCreateValidationError("[id] cannot be empty");
 
-        const updated = await this._repo.fetchWhereName(existing.name);
-        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
-        return updated;
+        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        await this._repoEndpoints.removeEndpoint(participantId, endpoint);
+
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_ENDPOINT_REMOVED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+        );
     }
 
-    async removeParticipantEndpoint(participant: Participant, endpoint: ParticipantEndpoint): Promise<Participant> {
-        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+    async addParticipantAccount(secCtx:CallSecurityContext, participantId:string, account: ParticipantAccount): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ACCOUNTS);
 
-        const existing = await this._repo.fetchWhereName(participant.name);
-        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
-        participant.id = existing.id;
-        await this._repoEndpoints.removeEndpoint(participant, endpoint);
+        if (participantId.trim().length == 0) throw new ParticipantCreateValidationError("[id] cannot be empty");
 
-        const updated = await this._repo.fetchWhereName(existing.name);
-        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
-        return updated;
-    }
-
-    async addParticipantAccount(participant: Participant, account: ParticipantAccount): Promise<Participant> {
-        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
-
-        const existing = await this._repo.fetchWhereName(participant.name);
-        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
-        if (!existing.isActive) throw new ParticipantNotActive(`'${participant.name}' is not active.`);
+        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        if (!existing.isActive) throw new ParticipantNotActive(`'${participantId}' is not active.`);
 
         const accBalAccount : ParticipantABAccount = {
             id: account.id,
@@ -230,7 +362,7 @@ export class ParticipantAggregate {
         }
         let success = await this._accBal.createAccount(accBalAccount);
         if (!success) {
-            throw new UnableToCreateAccountUpstream(`'${participant.name}' account '${account.type}' failed upstream.`);
+            throw new UnableToCreateAccountUpstream(`'${existing.name}' account '${account.type}' failed upstream.`);
         }
 
         if (account.balanceCredit != null && account.balanceCredit > 0) {
@@ -247,7 +379,7 @@ export class ParticipantAggregate {
             };
             success = await this._accBal.createJournalEntry(journal);
             if (!success) {
-                throw new UnableToCreateAccountUpstream(`'${participant.name}' account '${account.type}' balance update failed upstream.`);
+                throw new UnableToCreateAccountUpstream(`'${existing.name}' account '${account.type}' balance update failed upstream.`);
             }
         }
 
@@ -255,38 +387,33 @@ export class ParticipantAggregate {
         delete account.balanceDebit;
         delete account.balanceCredit;
 
-        participant.id = existing.id;
-        const successLocalAcc = await this._repoAccount.addAccount(participant, account);
+
+        const successLocalAcc = await this._repoAccount.addAccount(participantId, account);
         if (!successLocalAcc) throw new InvalidParticipantError(`Unable to add local account ${account.type}`);
 
-        const updated = await this._repo.fetchWhereName(existing.name);
-        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
-        return updated;
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+        );
+
     }
 
-    async removeParticipantAccount(participant: Participant, account: ParticipantAccount): Promise<Participant> {
-        if (participant.name.trim().length == 0) throw new ParticipantNotFoundError("[name] cannot be empty");
+    async removeParticipantAccount(secCtx:CallSecurityContext, participantId:string, account: ParticipantAccount): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ACCOUNTS);
 
-        const existing = await this._repo.fetchWhereName(participant.name);
-        if (existing == null) throw new ParticipantNotFoundError(`'${participant.name}' not found.`);
-        participant.id = existing.id;
-        const successLocalAcc = await this._repoAccount.removeAccount(participant, account);
+        if (participantId.trim().length == 0) throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        const successLocalAcc = await this._repoAccount.removeAccount(participantId, account);
         if (!successLocalAcc) throw new InvalidParticipantError(`Unable to remove local account ${account.type}`);
 
-        const updated = await this._repo.fetchWhereName(existing.name);
-        if (updated == null) throw new InvalidParticipantError(`'${participant.name}' missing!`);
-        return updated;
+        await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_ACCOUNT_REMOVED, true,
+                this._getAuditSecCtx(secCtx),
+                [{key:"participantId", value: participantId}]
+        );
     }
 
-    private async _validateParticipantCreate(participant: Participant) : Promise<boolean> {
-        participant.isActive = false;
-
-        if (participant.name.trim().length == 0) throw new ParticipantCreateValidationError("[name] cannot be empty");
-
-        const existing = await this._repo.fetchWhereName(participant.name);
-        this._logger.debug(existing);
-        if (existing != null) throw new ParticipantCreateValidationError(`'${participant.name}' already exists`);
-
-        return true;
-    }
 }

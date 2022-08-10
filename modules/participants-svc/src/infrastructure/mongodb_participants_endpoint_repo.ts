@@ -30,7 +30,7 @@
 
 'use strict'
 
-import {IParticipantsEndpointRepository} from "../domain/iparticipant_endpoint_repo";
+import {IParticipantsEndpointRepository} from "../domain/repo_interfaces";
 import {Participant, ParticipantEndpoint} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient} from 'mongodb'
@@ -67,26 +67,26 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
         this._initialized = true;
     }
 
-    async fetchWhereParticipant(participant: Participant): Promise<ParticipantEndpoint[] | null> {
-        const participantBy = await this._colParticipant.findOne({ name: participant.name });
+    async fetchWhereParticipantId(participantId: string): Promise<ParticipantEndpoint[] | null> {
+        const participantBy = await this._colParticipant.findOne({ id: participantId });
         if (participantBy == null) return null;
 
         return participantBy.participantEndpoints;
     }
 
-    async fetchWhereParticipantAndType(participant: Participant, type: string): Promise<ParticipantEndpoint | null> {
-        const participantEndpoints = await this.fetchWhereParticipant(participant);
+    async fetchWhereParticipantIdAndType(participantId: string, type: string): Promise<ParticipantEndpoint | null> {
+        const participantEndpoints = await this.fetchWhereParticipantId(participantId);
         if (participantEndpoints == null) return null;
 
         for (let i = 0; i < participantEndpoints.length; i++) {
             if (type === participantEndpoints[i].type) return participantEndpoints[i];
         }
 
-        throw new NoEndpointsError(`No endpoint of type '${type}' for participant '${participant.name}'.`);
+        throw new NoEndpointsError(`No endpoint of type '${type}' for participant '${participantId}'.`);
     }
 
-    async addEndpoint(participant: Participant, toAdd: ParticipantEndpoint): Promise<boolean> {
-        let existing = await this.fetchWhereParticipant(participant);
+    async addEndpoint(participantId: string, toAdd: ParticipantEndpoint): Promise<boolean> {
+        let existing = await this.fetchWhereParticipantId(participantId);
         if (existing == null) existing = [];
         else if (this.doesEndpointTypeExist(existing, toAdd.type)) {
             throw new EndpointTypeExistsError(`Type ${toAdd.type} already exists for participant.`);
@@ -95,7 +95,7 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
 
         const updated = Date.now();
         const result = await this._colParticipant.updateOne(
-            { id: participant.id },
+            { id: participantId },
             {
                 $set: {
                     lastUpdated: updated,
@@ -107,8 +107,8 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
         return result.modifiedCount === 1;
     }
 
-    async removeEndpoint(participant: Participant, toRemove: ParticipantEndpoint): Promise<boolean> {
-        let existing = await this.fetchWhereParticipant(participant);
+    async removeEndpoint(participantId: string, toRemove: ParticipantEndpoint): Promise<boolean> {
+        let existing = await this.fetchWhereParticipantId(participantId);
         if (existing == null || existing.length === 0) return true;
 
         const newArr = [];
@@ -119,7 +119,7 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
 
         const updated = Date.now();
         const result = await this._colParticipant.updateOne(
-            { id: participant.id },
+            { id: participantId },
             {
                 $set: {
                     lastUpdated: updated,

@@ -22,21 +22,20 @@
  * Gates Foundation
  - Name Surname <name.surname@gatesfoundation.com>
 
- * Coil
- - Jason Bruwer <jason.bruwer@coil.com>
+ * Crosslake
+ - Pedro Sousa Barreto <pedrob@crosslaketech.com>
 
  --------------
  ******/
 
 "use strict"
 
-import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-types-lib";
-
-export interface IParticipantsApprovalRepository {
-    init(): Promise<void>;
-
-    //TODO @jason remove
-    approve(participant: Participant, approved: ParticipantApproval): Promise<boolean>;
-
-    destroy (): Promise<void>
-}
+export enum ParticipantPrivilegeNames {
+    VIEW_PARTICIPANT= "VIEW_PARTICIPANT",
+    CREATE_PARTICIPANT = "CREATE_PARTICIPANT",
+    APPROVE_PARTICIPANT = "APPROVE_PARTICIPANT",
+    ENABLE_PARTICIPANT = "ENABLE_PARTICIPANT",
+    DISABLE_PARTICIPANT = "DISABLE_PARTICIPANT",
+    MANAGE_ENDPOINTS = "MANAGE_ENDPOINTS",
+    MANAGE_ACCOUNTS = "MANAGE_ACCOUNTS",
+};

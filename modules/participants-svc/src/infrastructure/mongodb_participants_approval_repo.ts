@@ -30,7 +30,7 @@
 
 'use strict'
 
-import {IParticipantsApprovalRepository} from "../domain/iparticipant_approval_repo";
+import {IParticipantsApprovalRepository} from "../domain/repo_interfaces";
 import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient} from 'mongodb'
@@ -69,11 +69,11 @@ export class MongoDBParticipantsApprovalRepo implements IParticipantsApprovalRep
         this._initialized = true;
     }
 
-    async approve(participant: Participant, approved: ParticipantApproval): Promise<boolean> {
+    async approve(participantId: string, approved: ParticipantApproval): Promise<boolean> {
         const updated = Date.now();
 
         const result = await this._colApproval.updateOne(
-            { participantId: participant.id },
+            { participantId: participantId },
             {
                 $set: {
                     lastUpdated: updated,
@@ -88,7 +88,7 @@ export class MongoDBParticipantsApprovalRepo implements IParticipantsApprovalRep
 
         if (result.modifiedCount === 1) {
             const resultPart = await this._colParticipants.updateOne(
-                {id: participant.id},
+                {id: participantId},
                 {
                     $set: {
                         lastUpdated: updated,

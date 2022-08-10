@@ -30,51 +30,88 @@
 
 "use strict";
 
-import express from "express";
+//TODO re-enable configs
+//import appConfigs from "./config";
+
+import express, {Express} from "express";
 import {ExpressRoutes} from "./routes";
-import appConfigs from "./config";
+import {ILogger, LogLevel} from "@mojaloop/logging-bc-public-types-lib";
+import {AuthorizationClient, TokenHelper} from "@mojaloop/security-bc-client-lib";
+import {
+    AuditClient,
+    KafkaAuditClientDispatcher,
+    LocalAuditClientCryptoProvider
+} from "@mojaloop/auditing-bc-client-lib";
+import {KafkaLogger} from "@mojaloop/logging-bc-client-lib";
+import {existsSync} from "fs";
+import {
+    IParticipantsRepository,
+    IParticipantsEndpointRepository,
+    IParticipantsApprovalRepository,
+    IParticipantsAccountRepository
+} from "../domain/repo_interfaces";
+import {IAccountsBalances} from "../domain/iparticipant_account_balances_ds";
+import {MongoDBParticipantsEndpointRepo } from "../infrastructure/mongodb_participants_endpoint_repo";
+import {MongoDBParticipantsRepo} from "../infrastructure/mongodb_participants_repo";
+import {MongoDBParticipantsApprovalRepo} from "../infrastructure/mongodb_participants_approval_repo";
+import {MongoDBParticipantsAccountRepo} from "../infrastructure/mongodb_participants_account_repo";
+import {RestAccountsAndBalances} from "../infrastructure/rest_acc_bal";
+import {ParticipantAggregate} from "../domain/participant_agg";
+import {addPrivileges} from "./config/privileges";
 
-//TODO temporary...
-import {ConsoleLogger} from "../logger_console";
+const PRODUCTION_MODE = process.env["PRODUCTION_MODE"] || false;
 
-//TODO fix logger...
-import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
-//import {AppConfiguration} from "@mojaloop/platform-configuration-bc-client-lib";
+const BC_NAME = "participants-bc";
+const APP_NAME = "participants-svc";
+const APP_VERSION = "0.0.3";
+const LOGLEVEL = LogLevel.DEBUG;
 
-const logger: ILogger = new ConsoleLogger();
-const app = express();
+const SVC_DEFAULT_HTTP_PORT = 3010;
 
+const AUTH_Z_TOKEN_ISSUER_NAME = process.env["AUTH_Z_TOKEN_ISSUER_NAME"] || "http://localhost:3201/"
+const AUTH_Z_TOKEN_AUDIENCE = process.env["AUTH_Z_TOKEN_AUDIENCE"] || "mojaloop.vnext.default_audience"
+const AUTH_Z_SVC_JWKS_URL = process.env["AUTH_Z_SVC_JWKS_URL"] || "http://localhost:3201/.well-known/jwks.json";
+
+const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3202";
+
+const KAFKA_URL = process.env["KAFKA_URL"] || "localhost:9092";
+const MONGO_URL = process.env["MONGO_URL"] || "mongodb://localhost:27017/";
+const ACCOUNTS_BALANCES_URL = process.env["ACCOUNTS_BALANCES_URL"] || "http://localhost:3020/";
+
+const KAFKA_AUDITS_TOPIC = process.env["KAFKA_AUDITS_TOPIC"] || "audits";
+const KAFKA_LOGS_TOPIC = process.env["KAFKA_LOGS_TOPIC"] || "logs";
+const AUDIT_CERT_FILE_PATH = process.env["AUDIT_CERT_FILE_PATH"] || "./tmp_key_file";
+
+
+let app:Express;
 let routes: ExpressRoutes;
+let auditClient:AuditClient;
+let participantAgg: ParticipantAggregate
+let authorizationClient: AuthorizationClient;
+let tokenHelper:TokenHelper;
+
+// kafka logger
+const kafkaProducerOptions = {
+    kafkaBrokerList: KAFKA_URL
+}
+
+const logger:KafkaLogger = new KafkaLogger(
+        BC_NAME,
+        APP_NAME,
+        APP_VERSION,
+        kafkaProducerOptions,
+        KAFKA_LOGS_TOPIC,
+        LOGLEVEL
+);
 
 function setupExpress() {
+    app = express();
     app.use(express.json()); // for parsing application/json
     app.use(express.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
 }
 
 function setupRoutes() {
-
-    /*app.post("/create_participant", async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-        const data: ConfigurationSet = req.body;
-        logger.debug(data);
-
-        await configSetAgg.processCreateConfigSetCmd(data).then((success) => {
-            res.status(200).json({status: "ok"});
-        }).catch((error: Error) => {
-            res.status(500).json({
-                status: "error",
-                msg: "unknown error. " + error.message
-            });
-            
-            if (error instanceof CannotCreateDuplicateConfigSetError) {
-                res.status(409).json({
-                    status: "error",
-                    msg: "received duplicated configuration, cannot update"
-                });
-            }
-        });
-    });*/
-
-    routes = new ExpressRoutes(logger);
+    routes = new ExpressRoutes(participantAgg, tokenHelper, logger);
 
     app.use("/", routes.MainRouter);
 
@@ -85,20 +122,64 @@ function setupRoutes() {
 }
 
 async function start():Promise<void>{
-    /*await appConfigs.init();
-    await appConfigs.bootstrap(true);
+    /// start logger
+    await logger.start();
 
-    await appConfigs.fetch();
+    /// start auditClient
+    if(!existsSync(AUDIT_CERT_FILE_PATH)) {
+        if(PRODUCTION_MODE) process.exit(9);
+        // create e tmp file
+        LocalAuditClientCryptoProvider.createRsaPrivateKeyFileSync(AUDIT_CERT_FILE_PATH, 2048);
+    }
+    const cryptoProvider = new LocalAuditClientCryptoProvider(AUDIT_CERT_FILE_PATH);
+    const auditDispatcher = new KafkaAuditClientDispatcher(kafkaProducerOptions, KAFKA_AUDITS_TOPIC, logger);
+    // NOTE: to pass the same kafka logger to the audit client, make sure the logger is started/initialised already
+    auditClient = new AuditClient(BC_NAME, APP_NAME, APP_VERSION, cryptoProvider, auditDispatcher);
+    await auditClient.init();
 
-    const httpPortParam = appConfigs.getParam("service-http-port");
-    if (!httpPortParam) throw new Error("Missing service-http-port param");
+    // setup privileges - bootstrap app privs and get priv/role associations
+    authorizationClient = new AuthorizationClient(BC_NAME, APP_NAME, APP_VERSION, AUTH_N_SVC_BASEURL, logger);
+    addPrivileges(authorizationClient);
+    await authorizationClient.bootstrap(true);
+    await authorizationClient.fetch();
 
-    const httpPort = httpPortParam.currentValue;*/
-    const httpPort = 3100;//TODO need from config bc...
+    // repos and aggregate
+    const repoPart: IParticipantsRepository = new MongoDBParticipantsRepo(MONGO_URL, logger);
+    const repoPartEndpoint: IParticipantsEndpointRepository = new MongoDBParticipantsEndpointRepo(MONGO_URL, logger);
+    const repoPartApproval: IParticipantsApprovalRepository = new MongoDBParticipantsApprovalRepo(MONGO_URL, logger);
+    const repoPartAccount: IParticipantsAccountRepository = new MongoDBParticipantsAccountRepo(MONGO_URL, logger);
+    const restAccAndBal: IAccountsBalances = new RestAccountsAndBalances(ACCOUNTS_BALANCES_URL, logger);
+
+    participantAgg = new ParticipantAggregate(
+            repoPart,
+            repoPartEndpoint,
+            repoPartApproval,
+            repoPartAccount,
+            restAccAndBal,
+            auditClient,
+            authorizationClient,
+            logger
+    );
+
+    await participantAgg.init();
+
+    // token helper
+    tokenHelper = new TokenHelper(AUTH_Z_TOKEN_ISSUER_NAME, AUTH_Z_SVC_JWKS_URL,AUTH_Z_TOKEN_AUDIENCE, logger);
+    await tokenHelper.init();
+
     setupExpress();
     setupRoutes();
 
-    /*const server = */app.listen(httpPort, () =>console.log(`🚀 Example server ready at: http://localhost:${httpPort}`));
+    let portNum = SVC_DEFAULT_HTTP_PORT;
+    if(process.env["SVC_HTTP_PORT"] && !isNaN(parseInt(process.env["SVC_HTTP_PORT"]))) {
+        portNum = parseInt(process.env["SVC_HTTP_PORT"])
+    }
+
+    const server = app.listen(portNum, () => {
+        console.log(`🚀 Server ready at: http://localhost:${portNum}`);
+        logger.info("Participants service started");
+    });
+
 }
 
 

@@ -35,10 +35,13 @@ import {
     DefaultConfigProvider
 } from "@mojaloop/platform-configuration-bc-client-lib";
 import { ConfigParameterTypes } from "@mojaloop/platform-configuration-bc-types-lib";
+import {LogLevel} from "@mojaloop/logging-bc-public-types-lib/dist/index";
 
 // configs - constants / code dependent
-const BC_NAME = "typescript-bc-template";
-const APP_NAME = "example-svc";
+const BC_NAME = "participants-bc";
+const APP_NAME = "participants-svc";
+const APP_VERSION = "0.0.1";
+const LOGLEVEL = LogLevel.DEBUG;
 const CONFIGSET_VERSION = "0.0.1";
 
 // configs - non-constants
