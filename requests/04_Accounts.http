@@ -25,6 +25,7 @@ DELETE http://localhost:3010/participant/sally/account
 Content-Type: application/json
 
 {
+  "id": "{{$uuid}}",
   "type": "POSITION"
 }
 

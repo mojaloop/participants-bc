@@ -31,8 +31,6 @@
 "use strict"
 
 import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
-import {IParticipantsRepository} from "./iparticipant_repo";
-import {IParticipantsEndpointRepository} from "./iparticipant_endpoint_repo";
 import {
     Participant,
     ParticipantEndpoint,
@@ -69,6 +67,7 @@ import {CallSecurityContext} from "@mojaloop/security-bc-client-lib";
 import {ParticipantPrivilegeNames} from "./privilege_names";
 import {randomUUID} from "crypto";
 import {AuditSecurityContext} from "@mojaloop/auditing-bc-public-types-lib/dist/audit_types";
+import {AccountState, AccountType} from "@mojaloop/accounts-and-balances-bc-private-types/dist/types";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -79,7 +78,6 @@ enum AuditedActionNames {
     PARTICIPANT_ENDPOINT_REMOVED = "PARTICIPANT_ENDPOINT_REMOVED",
     PARTICIPANT_ACCOUNT_ADDED = "PARTICIPANT_ACCOUNT_ADDED",
     PARTICIPANT_ACCOUNT_REMOVED = "PARTICIPANT_ACCOUNT_REMOVED",
-
 }
 
 
@@ -357,7 +355,7 @@ export class ParticipantAggregate {
             currency: ''+account.currency,
             debitBalance: 0n,
             creditBalance: 0n,
-            externalId: participant.id,
+            externalId: existing.id,
             timeStampLastJournalEntry: Date.now()
         }
         let success = await this._accBal.createAccount(accBalAccount);
