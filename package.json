@@ -50,6 +50,7 @@
   },
   "workspaces": [
     "modules/participant-bc-private-types-lib",
+    "modules/participant-bc-public-types-lib",
     "modules/*"
   ],
   "packageManager": "yarn@3.2.0",

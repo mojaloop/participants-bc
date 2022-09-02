@@ -28,10 +28,24 @@
 "use strict";
 
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
-import {Participant, ParticipantAccount} from "@mojaloop/participant-bc-public-types-lib";
+import {
+	Participant,
+	ParticipantAccount,
+	ParticipantApproval,
+	ParticipantEndpoint
+} from "@mojaloop/participant-bc-public-types-lib";
 import axios, {AxiosInstance, AxiosResponse, AxiosError} from "axios";
 import {
-	UnableToCreateParticipantError, UnableToGetParticipantError,
+	UnableToApproveParticipantError,
+	UnableToCreateParticipantAccountError,
+	UnableToCreateParticipantEndpointError,
+	UnableToCreateParticipantError, UnableToDeleteParticipantAccountError,
+	UnableToDeleteParticipantEndpointError,
+	UnableToDisableParticipantError,
+	UnableToEnableParticipantError,
+	UnableToGetParticipantAccountError,
+	UnableToGetParticipantEndpointsError,
+	UnableToGetParticipantError,
 	UnableToGetParticipantsError
 } from "./errors";
 
@@ -122,6 +136,225 @@ export class ParticipantsHttpClient {
 				throw new UnableToCreateParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
 			}
 			throw new UnableToCreateParticipantError((e as any)?.message);
+		}
+	}
+
+	async approveParticipant(partApproval: ParticipantApproval): Promise<void> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.put(
+				`/participants/${partApproval.participantId}/approve`, partApproval);
+			if (axiosResponse.status !== 200) throw new UnableToApproveParticipantError(
+				`Participant ${partApproval.participantId} not approved [${axiosResponse.status}].`
+			);
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToApproveParticipantError((axiosError.response.data as any).message);
+				}
+				throw new UnableToApproveParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToApproveParticipantError((e as any)?.message);
+		}
+	}
+
+	async disableParticipant(participantId: string): Promise<void> {
+		try {
+			const partApproval : ParticipantApproval = {
+				participantId,
+				lastUpdated: 0,
+				maker: "",
+				makerLastUpdated: 0,
+				checker: "",
+				checkerLastUpdated: 0,
+				checkerApproved: false,
+				feedback: ""
+			}
+			const axiosResponse: AxiosResponse = await this.httpClient.put(
+				`/participants/${partApproval.participantId}/disable`, partApproval);
+			if (axiosResponse.status !== 200) throw new UnableToDisableParticipantError(
+				`Participant ${partApproval.participantId} not disabled [${axiosResponse.status}].`
+			);
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToDisableParticipantError((axiosError.response.data as any).message);
+				}
+				throw new UnableToDisableParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToDisableParticipantError((e as any)?.message);
+		}
+	}
+
+	async enableParticipant(participantId: string): Promise<void> {
+		try {
+			const partApproval : ParticipantApproval = {
+				participantId,
+				lastUpdated: 0,
+				maker: "",
+				makerLastUpdated: 0,
+				checker: "",
+				checkerLastUpdated: 0,
+				checkerApproved: false,
+				feedback: ""
+			}
+			const axiosResponse: AxiosResponse = await this.httpClient.put(
+				`/participants/${partApproval.participantId}/enable`, partApproval);
+			if (axiosResponse.status !== 200) throw new UnableToEnableParticipantError(
+				`Participant ${partApproval.participantId} not enabled [${axiosResponse.status}].`
+			);
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToEnableParticipantError((axiosError.response.data as any).message);
+				}
+				throw new UnableToEnableParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToEnableParticipantError((e as any)?.message);
+		}
+	}
+
+	async getParticipantEndpointsById(participantId: string): Promise<ParticipantEndpoint[] | null> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.get(
+				`/participants/${participantId}/endpoints`,
+				{
+					validateStatus: (statusCode: number) => {
+						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
+					}
+				}
+			);
+			if (axiosResponse.status === 404) return null;
+			return axiosResponse.data;
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToGetParticipantEndpointsError((axiosError.response.data as any).message);
+				}
+				throw new UnableToGetParticipantEndpointsError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToGetParticipantEndpointsError((e as any)?.message);
+		}
+	}
+
+	async createParticipantEndpoint(
+		participant: Participant,
+		partEndpoint: ParticipantEndpoint
+	): Promise<void> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.post(
+				`/participants/${participant.id}/endpoint`, partEndpoint);
+			if (axiosResponse.status !== 200) throw new UnableToCreateParticipantEndpointError(
+				`Create Participant Endpoint for ${participant.id} failed [${axiosResponse.status}].`
+			);
+			return axiosResponse.data;
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToCreateParticipantEndpointError((axiosError.response.data as any).message);
+				}
+				throw new UnableToCreateParticipantEndpointError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToCreateParticipantEndpointError((e as any)?.message);
+		}
+	}
+
+	async deleteParticipantEndpoint(
+		participant: Participant,
+		partEndpoint: ParticipantEndpoint
+	): Promise<void> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.delete(
+				`/participants/${participant.id}/endpoint`,
+				{ data : { source: partEndpoint } });
+			if (axiosResponse.status !== 200) throw new UnableToDeleteParticipantEndpointError(
+				`Delete Participant Endpoint for ${participant.id} failed [${axiosResponse.status}].`
+			);
+			return axiosResponse.data;
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToDeleteParticipantEndpointError((axiosError.response.data as any).message);
+				}
+				throw new UnableToDeleteParticipantEndpointError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToDeleteParticipantEndpointError((e as any)?.message);
+		}
+	}
+
+	async getParticipantAccountsById(participantId: string): Promise<ParticipantAccount[] | null> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.get(
+				`/participants/${participantId}/accounts`,
+				{
+					validateStatus: (statusCode: number) => {
+						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
+					}
+				}
+			);
+			if (axiosResponse.status === 404) return null;
+			return axiosResponse.data;
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToGetParticipantAccountError((axiosError.response.data as any).message);
+				}
+				throw new UnableToGetParticipantAccountError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToGetParticipantAccountError((e as any)?.message);
+		}
+	}
+
+	async createParticipantAccount(
+		participant: Participant,
+		partAccount: ParticipantAccount
+	): Promise<void> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.post(
+				`/participants/${participant.id}/account`, partAccount);
+			if (axiosResponse.status !== 200) throw new UnableToCreateParticipantAccountError(
+				`Create Participant Account for ${participant.id} failed [${axiosResponse.status}].`
+			);
+			return axiosResponse.data;
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToCreateParticipantAccountError((axiosError.response.data as any).message);
+				}
+				throw new UnableToCreateParticipantAccountError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToCreateParticipantAccountError((e as any)?.message);
+		}
+	}
+
+	async deleteParticipantAccount(
+		participant: Participant,
+		partAccount: ParticipantAccount
+	): Promise<void> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.delete(
+				`/participants/${participant.id}/account`,
+				{ data : { source: partAccount } });
+			if (axiosResponse.status !== 200) throw new UnableToDeleteParticipantAccountError(
+				`Delete Participant Account for ${participant.id} failed [${axiosResponse.status}].`
+			);
+			return axiosResponse.data;
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToDeleteParticipantAccountError((axiosError.response.data as any).message);
+				}
+				throw new UnableToDeleteParticipantAccountError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToDeleteParticipantAccountError((e as any)?.message);
 		}
 	}
 }

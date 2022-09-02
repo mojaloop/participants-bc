@@ -28,10 +28,8 @@
 "use strict";
 
 import {LogLevel} from "@mojaloop/logging-bc-public-types-lib";
-import {
-	ParticipantsHttpClient
-} from "@mojaloop/participants-bc-client";
-import {Participant} from "@mojaloop/participant-bc-public-types-lib";
+import {ParticipantsHttpClient} from "@mojaloop/participants-bc-client";
+import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-types-lib";
 import {KafkaLogger} from "@mojaloop/logging-bc-client-lib";
 import {MLKafkaProducerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
 import * as uuid from "uuid";
@@ -113,10 +111,75 @@ describe("participant - integration tests", () => {
 		expect(participantReceived.id).toEqual(participantId);
 	});
 
-	// Get participant by id:
+	// Get participant by id (non-existing):
 	test("get non-existent participant by id", async () => {
 		const id: string = uuid.v4();
 		const participant: Participant | null = await participantsHttpClient.getParticipantById(id);
 		expect(participant).toBeNull();
+	});
+
+	// Get participant by id:
+	test("get existing participant by id", async () => {
+		const participantId: string = uuid.v4();
+		const participant: Participant = {
+			id: participantId,
+			name: "Peter Pan",
+			isActive: true,
+			description: "",
+			createdDate: 0,
+			createdBy: "",
+			lastUpdated: 0,
+			participantEndpoints: [],
+			participantAccounts: []
+		};
+		const participantCreated: Participant = await participantsHttpClient.createParticipant(participant);
+		expect(participantCreated.id).toEqual(participantId);
+
+		const partById = await participantsHttpClient.getParticipantById(participantId);
+		expect(partById).toBeDefined()
+		if (partById) {
+			expect(partById.id).toEqual(participantId);
+			expect(partById.name).toEqual(participant.name);
+			expect(partById.isActive).toEqual(false);
+		}
+	});
+
+	// Test participant approval:
+	test("approve participant by id", async () => {
+		const participantId: string = uuid.v4();
+		const participant: Participant = {
+			id: participantId,
+			name: "Peter Pan",
+			isActive: true,
+			description: "",
+			createdDate: 0,
+			createdBy: "",
+			lastUpdated: 0,
+			participantEndpoints: [],
+			participantAccounts: []
+		};
+		const participantCreated: Participant = await participantsHttpClient.createParticipant(participant);
+		expect(participantCreated.id).toEqual(participantId);
+
+		const approval : ParticipantApproval = {
+			participantId: participantId,
+			lastUpdated: 0,
+			maker: "",
+			makerLastUpdated: 0,
+			checker: "Johnny",
+			checkerLastUpdated: 0,
+			checkerApproved: true,
+			feedback: ""
+		}
+
+		await participantsHttpClient.approveParticipant(approval);
+		const partById = await participantsHttpClient.getParticipantById(participantId);
+
+		expect(partById).toBeDefined()
+		if (partById) {
+			expect(partById.id).toEqual(participantId);
+			expect(partById.name).toEqual(participant.name);
+			expect(partById.isActive).toEqual(true);
+		}
 	});
 });

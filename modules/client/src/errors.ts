@@ -30,3 +30,15 @@
 export class UnableToGetParticipantsError extends Error{}
 export class UnableToGetParticipantError extends Error{}
 export class UnableToCreateParticipantError extends Error{}
+
+export class UnableToApproveParticipantError extends Error{}
+export class UnableToDisableParticipantError extends Error{}
+export class UnableToEnableParticipantError extends Error{}
+
+export class UnableToGetParticipantEndpointsError extends Error{}
+export class UnableToCreateParticipantEndpointError extends Error{}
+export class UnableToDeleteParticipantEndpointError extends Error{}
+
+export class UnableToGetParticipantAccountError extends Error{}
+export class UnableToCreateParticipantAccountError extends Error{}
+export class UnableToDeleteParticipantAccountError extends Error{}

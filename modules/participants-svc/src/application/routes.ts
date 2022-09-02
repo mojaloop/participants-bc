@@ -81,12 +81,12 @@ export class ExpressRoutes {
         this._mainRouter.put("/participants/:id/enable", this.activateParticipant.bind(this));
 
         // endpoint
-        this._mainRouter.get("/participants/:id/endpoints", this.endpointsByParticipantName.bind(this));
+        this._mainRouter.get("/participants/:id/endpoints", this.endpointsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/endpoint", this.participantEndpointCreate.bind(this));
         this._mainRouter.delete("/participants/:id/endpoint", this.participantEndpointDelete.bind(this));
 
         // account
-        this._mainRouter.get("/participants/:id/accounts", this.accountsByParticipantName.bind(this));
+        this._mainRouter.get("/participants/:id/accounts", this.accountsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/account", this.participantAccountCreate.bind(this));
         this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
     }
@@ -216,7 +216,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async endpointsByParticipantName(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async endpointsByParticipantId(req: express.Request, res: express.Response, next: express.NextFunction) {
         const id = req.params["id"] ?? null;
 
         this._logger.debug(`Fetching Endpoints for Participant [${id}].`);
@@ -244,7 +244,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async accountsByParticipantName(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async accountsByParticipantId(req: express.Request, res: express.Response, next: express.NextFunction) {
         const id = req.params["id"] ?? null;
         this._logger.debug(`Fetching Accounts for Participant [${id}].`);
 
