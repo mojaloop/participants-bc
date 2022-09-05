@@ -277,7 +277,6 @@ export class ExpressRoutes {
         this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            //const participant = await this._participantsAgg.getParticipantById(req.securityContext!, id);
             await this._participantsAgg.addParticipantEndpoint(req.securityContext!, id, data);
             res.send();
         } catch (err: any) {
