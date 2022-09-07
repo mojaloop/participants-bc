@@ -1,0 +1,35 @@
+{
+  "name": "@mojaloop/participants-bc-client",
+  "version": "0.0.1",
+  "description": "Participants BC - Client",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/mojaloop/participants-bc/tree/main/modules/client",
+  "bugs": {
+    "url": "https://github.com/mojaloop/participants-bc/issues#readme"
+  },
+  "contributors": [
+    "Jason Bruwer <jason.bruwer@coil.com>"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "clean:dist": "rm -rf dist",
+    "clean:node-modules": "rm -rf node_modules",
+    "clean:dist-and-node-modules": "rm -rf dist node_modules",
+    "clean": "yarn clean:dist",
+    "lint": "npx eslint ./src",
+    "build": "tsc",
+    "test:unit": "jest --testMatch '**/test/unit/**/*.test.ts'",
+    "publish": "yarn clean && yarn build && yarn version patch && yarn npm publish --tag latest --access public"
+  },
+  "devDependencies": {
+    "@mojaloop/logging-bc-public-types-lib": "^0.0.3",
+    "nock": "^13.2.9"
+  },
+  "dependencies": {
+    "axios": "^0.27.2"
+  }
+}
