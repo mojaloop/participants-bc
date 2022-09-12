@@ -13,27 +13,25 @@
   ],
   "scripts": {
     "prepare": "husky install",
-    "start": "yarn workspaces foreach --parallel -v run start",
-    "start:participants-svc": "yarn workspace @mojaloop/participants-bc-svc run start",
-    "build": "yarn workspaces foreach --parallel -v run build",
-    "watch": "yarn workspaces foreach --parallel -v run watch",
-    "clean": "yarn run clean:dist && yarn run clean:npm",
-    "clean:npm": "yarn workspaces foreach --parallel -v run clean",
-    "clean:dist": "yarn workspaces foreach --parallel -v run clean",
+    "start:logging-svc": "npm -w @mojaloop/participants-bc-svc run start",
+    "build": "npm -ws run build",
+    "watch": "npm -ws --parallel -v run watch",
+    "clean": "yarn run clean:dist",
+    "clean:npm": "rm -Rf node_modules && npm -ws run clean:npm",
+    "clean:dist": "npm -ws run clean:dist",
     "pretest": "echo 'FIX ME'",
-    "lint": "yarn workspaces foreach -v run lint",
-    "lint:fix": "yarn workspaces foreach -v run lint:fix",
-    "test:unit": "yarn workspaces foreach -v run test:unit",
-    "test:coverage": "yarn workspaces foreach --parallel -v run test:coverage",
-    "test:coverage-check": "yarn workspaces foreach --parallel -v run test:coverage-check",
-    "test:integration": "yarn workspaces foreach --parallel -v run test:integration",
-    "audit:check": "yarn workspaces foreach --parallel -v run audit:check",
-    "dep:check": "yarn workspaces foreach --parallel -v run dep:check",
-    "dep:update": "yarn workspaces foreach --parallel -v run dep:update",
-    "docker:mongodb:up": "docker-compose up -d mongodb",
-    "docker:mongodb:start": "docker-compose start mongodb",
-    "docker:mongodb:stop": "docker-compose stop mongodb",
-    "docker:mongodb:logs": "docker-compose logs -f mongodb"
+    "standard": "yarn run --no-progress --stream lint'",
+    "lint": "npm -ws -p run lint",
+    "lint:fix": "npm -ws -p run lint:fix",
+    "test:unit": "npm -ws run test:unit",
+    "test:coverage": "npm -ws --parallel -v run test:coverage",
+    "test:coverage-check": "npm -ws --parallel -v run test:coverage-check",
+    "test:integration": "npm -ws --parallel -v run test:integration",
+    "audit:check": "npm -ws --parallel -v run audit:check",
+    "dep:check": "npm -ws --parallel -v run dep:check",
+    "dep:update": "npm -ws --parallel -v run dep:update",
+    "publish:public-types": "npm -w @mojaloop/public-types-lib run npm_publish",
+    "publish:client-lib": "npm -w @mojaloop/client run npm_publish"
   },
   "devDependencies": {
     "@types/jest": "^27.0.3",
@@ -52,9 +50,5 @@
     "modules/participant-bc-private-types-lib",
     "modules/participant-bc-public-types-lib",
     "modules/*"
-  ],
-  "packageManager": "yarn@3.2.0",
-  "engines": {
-    "yarn": "3.2.0"
-  }
+  ]
 }

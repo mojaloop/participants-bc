@@ -3,17 +3,14 @@
 
 # Install
 1. Install `npm`
-2. Install `yarn` via `npm install --global yarn`
+2. Install `nvm` via `https://github.com/nvm-sh/nvm`
 
 # Build
-Create an empty `yarnb.lock` file.
+Run: `npm install`
 
-Run:
-```shell
-yarn install
-```
+# Test
 Then:
 ```shell
-yarn build
+npm run 
 ```
 
