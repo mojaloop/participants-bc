@@ -41,27 +41,27 @@ import * as uuid from "uuid";
 
 /* ********** Constants Begin ********** */
 
-// General.
+// General:
 const BOUNDED_CONTEXT_NAME: string = "participants-bc";
 const SERVICE_NAME: string = "integration-tests";
 const SERVICE_VERSION: string = "0.0.1";
 
-// Message broker.
+// Message broker:
 const MESSAGE_BROKER_HOST: string = process.env.PARTICIPANTS_MESSAGE_BROKER_HOST ?? "localhost";
 const MESSAGE_BROKER_PORT_NO: number =
 	parseInt(process.env.PARTICIPANTS_MESSAGE_BROKER_PORT_NO ?? "") || 9092;
 const MESSAGE_BROKER_URL: string = `${MESSAGE_BROKER_HOST}:${MESSAGE_BROKER_PORT_NO}`;
 
-// Logging.
+// Logging:
 const LOGGING_LEVEL: LogLevel = LogLevel.INFO;
 const LOGGING_TOPIC: string = `${BOUNDED_CONTEXT_NAME}_${SERVICE_NAME}_logging`;
 
-// Web server.
+// Web server:
 const WEB_SERVER_HOST: string = process.env.PARTICIPANTS_WEB_SERVER_HOST ?? "localhost";
 const WEB_SERVER_PORT_NO: number =
 	parseInt(process.env.PARTICIPANTS_WEB_SERVER_PORT_NO ?? "") || 1234;
 
-// Participants HTTP client.
+// Participants HTTP client:
 const BASE_URL_PARTICIPANTS_HTTP_SERVICE: string = `http://${WEB_SERVER_HOST}:${WEB_SERVER_PORT_NO}`;
 const TIMEOUT_MS_PARTICIPANTS_HTTP_CLIENT: number = 10_000;
 

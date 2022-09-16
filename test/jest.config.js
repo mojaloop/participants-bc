@@ -5,9 +5,10 @@ module.exports = {
   testEnvironment: "node",
   collectCoverage: true,
   collectCoverageFrom: [
-    "../client/src/**/*.ts",
-    "../domain/src/**/*.ts",
-    "../web-service-app/src/web-server/express_web_server.ts"
+    "../packages/client/src/**/*.ts",
+    "../packages/participants-svc/src/**/*.ts",
+    "../packages/private-types-lib/src/**/*.ts",
+    "../packages/public-types-lib/src/**/*.ts",
   ],
   coverageReporters: ["json", "lcov"],
   clearMocks: true,

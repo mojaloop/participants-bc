@@ -13,25 +13,17 @@
   ],
   "scripts": {
     "prepare": "husky install",
-    "start:logging-svc": "npm -w @mojaloop/participants-bc-svc run start",
-    "build": "npm -ws run build",
-    "watch": "npm -ws --parallel -v run watch",
-    "clean": "yarn run clean:dist",
-    "clean:npm": "rm -Rf node_modules && npm -ws run clean:npm",
-    "clean:dist": "npm -ws run clean:dist",
-    "pretest": "echo 'FIX ME'",
-    "standard": "yarn run --no-progress --stream lint'",
+    "clean": "npm -ws -p run clean",
+    "clean:dist": "npm -ws -p run clean:dist",
+    "clean:node-modules": "rm -rf node_modules && npm -ws -p run clean:node-modules",
+    "clean:dist-and-node-modules": "rm -rf node_modules && npm -ws -p run clean:dist-and-node-modules",
+    "dep:check": "npm -ws -p run dep:check",
     "lint": "npm -ws -p run lint",
-    "lint:fix": "npm -ws -p run lint:fix",
-    "test:unit": "npm -ws run test:unit",
-    "test:coverage": "npm -ws --parallel -v run test:coverage",
-    "test:coverage-check": "npm -ws --parallel -v run test:coverage-check",
-    "test:integration": "npm -ws --parallel -v run test:integration",
-    "audit:check": "npm -ws --parallel -v run audit:check",
-    "dep:check": "npm -ws --parallel -v run dep:check",
-    "dep:update": "npm -ws --parallel -v run dep:update",
-    "publish:public-types": "npm -w @mojaloop/public-types-lib run npm_publish",
-    "publish:client-lib": "npm -w @mojaloop/client run npm_publish"
+    "build": "npm -ws -p run build",
+    "clean-and-build": "npm run clean && npm run build",
+    "test:unit": "npm -ws -p run test:unit",
+    "test:integration": "jest test/integration",
+    "publish": "npm -ws -p run publish"
   },
   "devDependencies": {
     "@types/jest": "^27.0.3",
@@ -47,8 +39,8 @@
     "typescript": "^4.6.4"
   },
   "workspaces": [
-    "modules/participant-bc-private-types-lib",
-    "modules/participant-bc-public-types-lib",
-    "modules/*"
+    "packages/participant-bc-private-types-lib",
+    "packages/participant-bc-public-types-lib",
+    "packages/*"
   ]
 }

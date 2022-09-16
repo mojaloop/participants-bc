@@ -16,14 +16,26 @@
     "/dist"
   ],
   "scripts": {
+    "start": "node dist/application/index.js",
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rm -Rf dist",
     "clean:dist": "rm -rf dist",
     "clean:node-modules": "rm -rf node_modules",
     "clean:dist-and-node-modules": "rm -rf dist node_modules",
-    "clean": "yarn clean:dist",
+    "prestart": "npm run build",
+    "pretest": "npm run build",
+    "standard": "npm run lint",
     "lint": "npx eslint ./src",
-    "build": "tsc",
-    "test:unit": "jest --testMatch '**/test/unit/**/*.test.ts'",
-    "publish": "yarn clean && yarn build && yarn version patch && yarn npm publish --tag latest --access public"
+    "lint:fix": "eslint ./src --fix",
+    "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts'",
+    "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
+    "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
+    "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
+    "audit:check": "npm npm audit",
+    "dep:check": "ncu -e 2",
+    "dep:update": "ncu -u",
+    "npm_publish": "npm version patch && npm publish --tag=latest --access public"
   },
   "devDependencies": {
     "@mojaloop/logging-bc-public-types-lib": "^0.0.3",

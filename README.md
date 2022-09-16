@@ -7,10 +7,12 @@
 
 # Build
 Run: `npm install`
+Then: `npm build`
 
 # Test
 Then:
 ```shell
-npm run 
+npm run test:unit 
+npm run test:integration 
 ```
 

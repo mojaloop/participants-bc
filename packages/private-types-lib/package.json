@@ -23,23 +23,25 @@
     "test:unit"
   ],
   "scripts": {
-    "start": "yarn run service",
-    "service": "tsc && node dist/application/index.js",
+    "start": "npm run service",
+    "service": "tsc && node dist/index.js --config ../../.env",
     "build": "tsc",
     "watch": "tsc -w",
     "clean": "rm -Rf dist",
-    "pretest": "yarn run build",
-    "prestart": "export PATH=\"$PROJECT_CWD/node_modules/.bin:bin:$PATH\"",
-    "standard": "yarn run lint",
-    "lint": "yarn run build && npx eslint ./src",
-    "lint:fix": "yarn run build && npx eslint ./src --fix",
+    "clean:dist": "rm -rf dist",
+    "clean:node-modules": "rm -rf node_modules",
+    "clean:dist-and-node-modules": "rm -rf dist node_modules",
+    "pretest": "npm run build",
+    "standard": "npm run lint",
+    "lint": "eslint ./src",
+    "lint:fix": "eslint ./src --fix",
     "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts'",
-    "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
-    "test:coverage": "jest --passWithNoTests --coverage --testMatch '**/test/unit/**/*.test.ts'",
+    "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
     "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
-    "audit:check": "yarn npm audit",
+    "audit:check": "npm npm audit",
     "dep:check": "ncu -e 2",
-    "dep:update": "ncu -u"
+    "dep:update": "ncu -u",
+    "npm_publish": "npm version patch && npm publish --tag=latest --access public"
   },
   "dependencies": {
     "express": "^4.18.1"
