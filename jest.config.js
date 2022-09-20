@@ -1,16 +1,12 @@
-"use strict";
+"use strict"
 
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
   collectCoverage: true,
-  collectCoverageFrom: [
-    "../packages/client/src/**/*.ts",
-    "../packages/participants-svc/src/**/*.ts",
-    "../packages/private-types-lib/src/**/*.ts",
-    "../packages/public-types-lib/src/**/*.ts",
-  ],
+  collectCoverageFrom: ["./src/**/*.ts"],
   coverageReporters: ["json", "lcov"],
+  coverageDirectory: `./coverage/integration/`,
   clearMocks: true,
   coverageThreshold: {
     "global": {

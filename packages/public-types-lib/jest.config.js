@@ -1,17 +1,21 @@
 "use strict"
 
+const { name } = require("./package.json");
+let packageName = name.replace("@mojaloop", "");
+
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  collectCoverage: false,
+  collectCoverage: true,
   collectCoverageFrom: ["./src/**/*.ts"],
   coverageReporters: ["json", "lcov"],
+  coverageDirectory: `./coverage/${packageName}/`,
   clearMocks: true,
   coverageThreshold: {
     "global": {
-      "branches": 75,
-      "functions": 80,
-      "lines": 80,
+      "branches": 90,
+      "functions": 90,
+      "lines": 90,
       "statements": -10
     }
   }

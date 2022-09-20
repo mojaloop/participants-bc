@@ -37,7 +37,7 @@ import {
 } from "@mojaloop/participant-bc-public-types-lib";
 import {KafkaLogger} from "@mojaloop/logging-bc-client-lib";
 import {MLKafkaProducerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
-import * as uuid from "uuid";
+import { v4 as uuidv4Gen } from 'uuid';
 
 /* ********** Constants Begin ********** */
 
@@ -100,7 +100,7 @@ describe("participant - integration tests", () => {
 
 	// Create participant:
 	test("create non-existent participant", async () => {
-		const participantId: string = uuid.v4();
+		const participantId: string = uuidv4Gen();
 		const participant: Participant = {
 			id: participantId,
 			name: "Peter Pan",
@@ -118,14 +118,14 @@ describe("participant - integration tests", () => {
 
 	// Get participant by id (non-existing):
 	test("get non-existent participant by id", async () => {
-		const id: string = uuid.v4();
+		const id: string = uuidv4Gen();
 		const participant: Participant | null = await participantsHttpClient.getParticipantById(id);
 		expect(participant).toBeNull();
 	});
 
 	// Get participant by id:
 	test("get existing participant by id", async () => {
-		const participantId: string = uuid.v4();
+		const participantId: string = uuidv4Gen();
 		const participant: Participant = {
 			id: participantId,
 			name: "Alice in Wonderland",
@@ -151,7 +151,7 @@ describe("participant - integration tests", () => {
 
 	// Test participant approval:
 	test("approve participant by id", async () => {
-		const participantId: string = uuid.v4();
+		const participantId: string = uuidv4Gen();
 		const participant: Participant = {
 			id: participantId,
 			name: "Snow White",
@@ -190,7 +190,7 @@ describe("participant - integration tests", () => {
 
 	// Test participant disable/enable:
 	test("disable and enable participant by id", async () => {
-		const participantId: string = uuid.v4();
+		const participantId: string = uuidv4Gen();
 		const participant: Participant = {
 			id: participantId,
 			name: "Mickey Mouse",
@@ -247,7 +247,7 @@ describe("participant - integration tests", () => {
 
 	// Create participant endpoint by id:
 	test("create/delete/get participant endpoint for participant", async () => {
-		const participantId: string = uuid.v4();
+		const participantId: string = uuidv4Gen();
 		const participant: Participant = {
 			id: participantId,
 			name: "Aladdin",
@@ -284,7 +284,7 @@ describe("participant - integration tests", () => {
 
 	// Create participant account by id:
 	test("create/delete/get participant account for participant", async () => {
-		const participantId: string = uuid.v4();
+		const participantId: string = uuidv4Gen();
 		const participant: Participant = {
 			id: participantId,
 			name: "Robin Hood",
@@ -299,7 +299,7 @@ describe("participant - integration tests", () => {
 		const participantCreated: Participant = await participantsHttpClient.createParticipant(participant);
 		expect(participantCreated.id).toEqual(participantId);
 
-		const accId: string = uuid.v4();
+		const accId: string = uuidv4Gen();
 		const partAcc : ParticipantAccount = {
 			id: accId,
 			type: 1,
