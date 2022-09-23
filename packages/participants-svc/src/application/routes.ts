@@ -74,6 +74,7 @@ export class ExpressRoutes {
 
         // participant
         this._mainRouter.get("/participants", this.getAllParticipants.bind(this));
+        this._mainRouter.get("/participants/:ids/multi", this.getParticipantsByIds.bind(this));
         this._mainRouter.get("/participants/:id", this.participantById.bind(this));
         this._mainRouter.post("/participants", this.participantCreate.bind(this));
         this._mainRouter.put("/participants/:id/approve", this.participantApprove.bind(this));
@@ -146,6 +147,29 @@ export class ExpressRoutes {
 
         try {
             const fetched = await this._participantsAgg.getAllParticipants(req.securityContext!);
+            res.send(fetched);
+        } catch (err: any) {
+            if (err instanceof UnauthorizedError) {
+                res.status(403).json({
+                    status: "error",
+                    msg: "Unauthorized"
+                });
+            } else if (err instanceof ParticipantNotFoundError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: "No participants found."
+                });
+            }
+        }
+    }
+
+    private async getParticipantsByIds(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const ids = req.params["ids"] ?? null;
+        const idSplit : string[] = (ids == null) ? [] : ids.split(',')
+        this._logger.debug(`Fetching Participant [${ids}].`);
+
+        try {
+            const fetched = await this._participantsAgg.getParticipantsByIds(req.securityContext!, idSplit);
             res.send(fetched);
         } catch (err: any) {
             if (err instanceof UnauthorizedError) {

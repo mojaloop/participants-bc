@@ -147,6 +147,15 @@ describe("participant - integration tests", () => {
 			expect(partById.name).toEqual(participant.name);
 			expect(partById.isActive).toEqual(false);
 		}
+
+		const partsById = await participantsHttpClient.getParticipantsByIds([participantId]);
+		expect(partsById).toBeDefined()
+		expect(partsById.length).toEqual(1)
+		if (partsById) {
+			expect(partsById[0].id).toEqual(participantId);
+			expect(partsById[0].name).toEqual(participant.name);
+			expect(partsById[0].isActive).toEqual(false);
+		}
 	});
 
 	// Test participant approval:

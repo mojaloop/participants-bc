@@ -146,6 +146,14 @@ export class ParticipantAggregate {
         return part;
     }
 
+    async getParticipantsByIds(secCtx:CallSecurityContext, ids: string[]): Promise<Participant[]> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const parts: Participant[] = await this._repo.fetchWhereIds(ids);
+        if (parts.length == 0) throw new ParticipantNotFoundError(`Participant with IDs: '${ids}' not found.`);
+        return parts;
+    }
+
     async getParticipantByName(secCtx:CallSecurityContext, participantName: string): Promise<Participant> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 

@@ -23,6 +23,7 @@
     "clean-and-build": "npm run clean && npm run build",
     "test:unit": "npm -ws -p run test:unit",
     "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
+    "start": "node ./packages/participants-svc/dist/application/index.js",
     "publish": "npm -ws -p run publish"
   },
   "devDependencies": {

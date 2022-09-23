@@ -33,7 +33,7 @@
 import {IParticipantsRepository} from "../domain/repo_interfaces";
 import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
-import {Collection, MongoClient} from 'mongodb'
+import {Collection, FilterQuery, MongoClient} from 'mongodb'
 
 export class MongoDBParticipantsRepo implements IParticipantsRepository {
     private _mongoUri: string;
@@ -69,6 +69,15 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         this._initialized = true;
     }
 
+    async fetchWhereIds(ids: string[]): Promise<Participant[]> {
+        const returnVal : Participant[] = [];
+
+        for (const id of ids) {
+            const existing = await this.fetchWhereId(id);
+            if (existing !== null) returnVal.push(existing)
+        }
+        return returnVal;
+    }
 
     async fetchAll():Promise<Participant[]>{
         return await this._collectionParticipant.find({}).toArray();

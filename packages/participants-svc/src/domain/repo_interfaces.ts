@@ -46,6 +46,7 @@ export interface IParticipantsRepository {
     fetchWhereName(participantName: string): Promise<Participant | null>;
     fetchWhereId(id: string): Promise<Participant | null>;
 
+    fetchWhereIds(id: string[]): Promise<Participant[]>;
     fetchAll():Promise<Participant[]>;
 
     //Approvals

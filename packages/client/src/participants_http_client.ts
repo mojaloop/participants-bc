@@ -99,6 +99,30 @@ export class ParticipantsHttpClient {
 		}
 	}
 
+	async getParticipantsByIds(ids : string[]): Promise<Participant[] | null> {
+		try {
+			const axiosResponse: AxiosResponse = await this.httpClient.get(
+				`/participants/${ids.toString()}/multi`,
+				{
+					validateStatus: (statusCode: number) => {
+						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
+					}
+				}
+			);
+			if (axiosResponse.status === 404) return null;
+			return axiosResponse.data;
+		} catch (e: unknown) {
+			if (axios.isAxiosError(e)) {
+				const axiosError: AxiosError = e as AxiosError;
+				if (axiosError.response !== undefined) {
+					throw new UnableToGetParticipantsError((axiosError.response.data as any).message);
+				}
+				throw new UnableToGetParticipantsError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
+			}
+			throw new UnableToGetParticipantsError((e as any)?.message);
+		}
+	}
+
 	async getParticipantById(participantId: string): Promise<Participant | null> {
 		try {
 			const axiosResponse: AxiosResponse = await this.httpClient.get(

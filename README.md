@@ -16,3 +16,9 @@ npm run test:unit
 npm run test:integration 
 ```
 
+
+## Troubleshoot
+
+https://github.com/auth0/node-jsonwebtoken/issues/826
+`export OPENSSL_CONF=/dev/null`
+
