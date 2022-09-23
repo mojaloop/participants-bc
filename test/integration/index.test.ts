@@ -150,8 +150,8 @@ describe("participant - integration tests", () => {
 
 		const partsById = await participantsHttpClient.getParticipantsByIds([participantId]);
 		expect(partsById).toBeDefined()
-		expect(partsById.length).toEqual(1)
 		if (partsById) {
+			expect(partsById.length).toEqual(1)
 			expect(partsById[0].id).toEqual(participantId);
 			expect(partsById[0].name).toEqual(participant.name);
 			expect(partsById[0].isActive).toEqual(false);
