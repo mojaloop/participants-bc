@@ -34,11 +34,12 @@ docker-compose logs -f # tail the logs
 2. Clone `https://github.com/mojaloop/security-bc`
 3. Setup and start `security-bc`
 4. Execute the `requests/Mojaloop-vNext.postman_collection.json` Postman collection to create all necessary security configuration
-5. Start the `participants-bc` service:
+5. Update authentication file on the `security-bc` to associate your user with the `participant-bc` role
+6. Start the `participants-bc` service:
 ```shell
 npm run start
 ```
-6. Run the integration tests:
+7Run the integration tests:
 ```shell
 npm run test:integration
 ```
