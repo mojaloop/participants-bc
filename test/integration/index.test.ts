@@ -27,7 +27,7 @@
 
 "use strict";
 
-import {LogLevel} from "@mojaloop/logging-bc-public-types-lib";
+import {ILogger, LogLevel} from "@mojaloop/logging-bc-public-types-lib";
 import {ParticipantsHttpClient, UnableToCreateParticipantAccountError} from "@mojaloop/participants-bc-client";
 import {
 	Participant,
@@ -37,7 +37,8 @@ import {
 } from "@mojaloop/participant-bc-public-types-lib";
 import {KafkaLogger} from "@mojaloop/logging-bc-client-lib";
 import {MLKafkaProducerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
-import { v4 as uuidv4Gen } from 'uuid';
+import * as Crypto from "crypto";
+import {ConsoleLogger} from "@mojaloop/logging-bc-public-types-lib/dist/console_logger";
 
 /* ********** Constants Begin ********** */
 
@@ -67,25 +68,13 @@ const TIMEOUT_MS_PARTICIPANTS_HTTP_CLIENT: number = 10_000;
 
 /* ********** Constants End ********** */
 
-let logger: KafkaLogger;
+let logger: ILogger;
 let participantsHttpClient: ParticipantsHttpClient;
 const VALID_ACCESS_TOKEN: string = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNSMHVoT2hpM05VbmJlMTF5SDZtOUZtcFpNN2JiRVl2czdpbGNfanN1MHMifQ.eyJ0eXAiOiJCZWFyZXIiLCJhenAiOiJzZWN1cml0eS1iYy11aSIsInJvbGVzIjpbXSwiaWF0IjoxNjYxMzM4MDUxLCJleHAiOjE2NjEzNDE2NTEsImF1ZCI6Im1vamFsb29wLnZuZXh0LmRlZmF1bHRfYXVkaWVuY2UiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMyMDEvIiwic3ViIjoidXNlcjo6dXNlciIsImp0aSI6IjA0NWQwOTc0LWZkMDUtNGZhYS1iNzRkLTIzZGEwNjhhMjNlMSJ9.hYXBLADnY8DeSzyXMKvQyByAy8pjeV_x35f4eedpTR68w2Igessqmb4JNYCftU0K8bvrhIeZKxzUPdWUHDxFYJLJPlK_fvlbk7_3Utou5sPa9ubH-SH87ITNevbeJXA6PnvlgE0eqDFaCs4YQ2EELW3b1uuFoEif2zFIsq32PFcjcMSEj5shNMDTpctyhwP4-1i7SRaxbclOXXRpYw0nIp-QenJ7IJOnCAOAolH4yxoHdf7y7BkXNlbn4XYQv6GOmEABIgqu3ftUI1Gg25YRyVgy-HROT3LlYbnly8mZ6kE595WngrMEp_RXYN9hQnqoWKzd0FXzKlsSVgIqBzpdbQ";
 
 describe("participant - integration tests", () => {
 	beforeAll(async () => {
-		const kafkaProducerOptions: MLKafkaProducerOptions = {
-			kafkaBrokerList: MESSAGE_BROKER_URL
-			// TODO: producerClientId?
-		}
-		logger = new KafkaLogger( // TODO: ILogger? is this the logger to use?
-			BOUNDED_CONTEXT_NAME,
-			SERVICE_NAME,
-			SERVICE_VERSION,
-			kafkaProducerOptions,
-			LOGGING_TOPIC,
-			LOGGING_LEVEL
-		);
-		await logger.start(); // TODO: here or on the aggregate?
+		logger = new ConsoleLogger()
 		participantsHttpClient = new ParticipantsHttpClient(
 			logger,
 			BASE_URL_PARTICIPANTS_HTTP_SERVICE,
@@ -95,12 +84,12 @@ describe("participant - integration tests", () => {
 	});
 
 	afterAll(async () => {
-		await logger.destroy();
+		// await logger.destroy();
 	});
 
 	// Create participant:
 	test("create non-existent participant", async () => {
-		const participantId: string = uuidv4Gen();
+		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
 			name: "Peter Pan",
@@ -118,14 +107,14 @@ describe("participant - integration tests", () => {
 
 	// Get participant by id (non-existing):
 	test("get non-existent participant by id", async () => {
-		const id: string = uuidv4Gen();
+		const id: string = Crypto.randomUUID();
 		const participant: Participant | null = await participantsHttpClient.getParticipantById(id);
 		expect(participant).toBeNull();
 	});
 
 	// Get participant by id:
 	test("get existing participant by id", async () => {
-		const participantId: string = uuidv4Gen();
+		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
 			name: "Alice in Wonderland",
@@ -160,7 +149,7 @@ describe("participant - integration tests", () => {
 
 	// Test participant approval:
 	test("approve participant by id", async () => {
-		const participantId: string = uuidv4Gen();
+		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
 			name: "Snow White",
@@ -199,7 +188,7 @@ describe("participant - integration tests", () => {
 
 	// Test participant disable/enable:
 	test("disable and enable participant by id", async () => {
-		const participantId: string = uuidv4Gen();
+		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
 			name: "Mickey Mouse",
@@ -256,7 +245,7 @@ describe("participant - integration tests", () => {
 
 	// Create participant endpoint by id:
 	test("create/delete/get participant endpoint for participant", async () => {
-		const participantId: string = uuidv4Gen();
+		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
 			name: "Aladdin",
@@ -293,7 +282,7 @@ describe("participant - integration tests", () => {
 
 	// Create participant account by id:
 	test("create/delete/get participant account for participant", async () => {
-		const participantId: string = uuidv4Gen();
+		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
 			name: "Robin Hood",
@@ -308,7 +297,7 @@ describe("participant - integration tests", () => {
 		const participantCreated: Participant = await participantsHttpClient.createParticipant(participant);
 		expect(participantCreated.id).toEqual(participantId);
 
-		const accId: string = uuidv4Gen();
+		const accId: string = Crypto.randomUUID();
 		const partAcc : ParticipantAccount = {
 			id: accId,
 			type: 1,

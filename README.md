@@ -4,21 +4,50 @@
 # Install
 1. Install `npm`
 2. Install `nvm` via `https://github.com/nvm-sh/nvm`
+3. Make use of correct NodeJS (see below `nve`):
+
+## Make use of correct NodeJS:
+```shell
+nvm install
+nvm use
+```
 
 # Build
 Run: `npm install`
-Then: `npm build`
+Then: `npm run build`
 
 # Test
-Then:
+
+## Unit: 
 ```shell
-npm run test:unit 
-npm run test:integration 
+npm run test:unit  
 ```
 
+## Integration:
+
+1. Startup supporting services via (See `README.md`);
+```shell
+cd docker-compose
+docker-compose up -d
+docker-compose logs -f # tail the logs
+```
+2. Clone `https://github.com/mojaloop/security-bc`
+3. Setup and start `security-bc`
+4. Start the `participants-bc` service:
+```shell
+npm run start
+```
+5. Run the integration tests:
+```shell
+npm run test:integration
+```
 
 ## Troubleshoot
 
-https://github.com/auth0/node-jsonwebtoken/issues/826
+### Unable to load `dlfcn_load`:
+```
+ fatal: Error: error:25066067:DSO support routines:dlfcn_load:could not load the shared library
+```
+Fix: https://github.com/auth0/node-jsonwebtoken/issues/826
 `export OPENSSL_CONF=/dev/null`
 
