@@ -60,7 +60,7 @@ const LOGGING_TOPIC: string = `${BOUNDED_CONTEXT_NAME}_${SERVICE_NAME}_logging`;
 // Web server:
 const WEB_SERVER_HOST: string = process.env.PARTICIPANTS_WEB_SERVER_HOST ?? "localhost";
 const WEB_SERVER_PORT_NO: number =
-	parseInt(process.env.PARTICIPANTS_WEB_SERVER_PORT_NO ?? "") || 1234;
+	parseInt(process.env.PARTICIPANTS_WEB_SERVER_PORT_NO ?? "") || 3010;
 
 // Participants HTTP client:
 const BASE_URL_PARTICIPANTS_HTTP_SERVICE: string = `http://${WEB_SERVER_HOST}:${WEB_SERVER_PORT_NO}`;
@@ -73,6 +73,7 @@ let participantsHttpClient: ParticipantsHttpClient;
 const VALID_ACCESS_TOKEN: string = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InNSMHVoT2hpM05VbmJlMTF5SDZtOUZtcFpNN2JiRVl2czdpbGNfanN1MHMifQ.eyJ0eXAiOiJCZWFyZXIiLCJhenAiOiJzZWN1cml0eS1iYy11aSIsInJvbGVzIjpbXSwiaWF0IjoxNjYxMzM4MDUxLCJleHAiOjE2NjEzNDE2NTEsImF1ZCI6Im1vamFsb29wLnZuZXh0LmRlZmF1bHRfYXVkaWVuY2UiLCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjMyMDEvIiwic3ViIjoidXNlcjo6dXNlciIsImp0aSI6IjA0NWQwOTc0LWZkMDUtNGZhYS1iNzRkLTIzZGEwNjhhMjNlMSJ9.hYXBLADnY8DeSzyXMKvQyByAy8pjeV_x35f4eedpTR68w2Igessqmb4JNYCftU0K8bvrhIeZKxzUPdWUHDxFYJLJPlK_fvlbk7_3Utou5sPa9ubH-SH87ITNevbeJXA6PnvlgE0eqDFaCs4YQ2EELW3b1uuFoEif2zFIsq32PFcjcMSEj5shNMDTpctyhwP4-1i7SRaxbclOXXRpYw0nIp-QenJ7IJOnCAOAolH4yxoHdf7y7BkXNlbn4XYQv6GOmEABIgqu3ftUI1Gg25YRyVgy-HROT3LlYbnly8mZ6kE595WngrMEp_RXYN9hQnqoWKzd0FXzKlsSVgIqBzpdbQ";
 
 describe("participant - integration tests", () => {
+	console.log(`Integration tests for endpoint: ${BASE_URL_PARTICIPANTS_HTTP_SERVICE}`)
 	beforeAll(async () => {
 		logger = new ConsoleLogger()
 		participantsHttpClient = new ParticipantsHttpClient(
