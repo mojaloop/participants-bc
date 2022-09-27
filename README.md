@@ -39,7 +39,7 @@ docker-compose logs -f # tail the logs
 ```shell
 npm run start
 ```
-7Run the integration tests:
+7. Run the integration tests:
 ```shell
 npm run test:integration
 ```
