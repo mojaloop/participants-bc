@@ -26,28 +26,39 @@
  - Jason Bruwer <jason.bruwer@coil.com>
 
  --------------
-******/
+ ******/
 
-'use strict'
+"use strict"
 
-/**Accounts and Balances**/
 export declare type JournalAccount = {
-  id: string
-  type: string
-  state: string
-  currency: number
-  balanceDebit: bigint
-  balanceCredit: bigint
-  externalId?: string
+    id: string
+    type: string
+    state: string
+    currency: number
+    balanceDebit: bigint
+    balanceCredit: bigint
+    externalId?: string
 }
 
 export declare type JournalEntry = {
-  id: string
-  currency: number
-  amount: bigint
-  accountDebit: string
-  accountCredit: string
-  timestamp: number
-  externalId?: string
-  externalCategory?: string
+    id: string
+    currency: number
+    amount: bigint
+    accountDebit: string
+    accountCredit: string
+    timestamp: number
+    externalId?: string
+    externalCategory?: string
+}
+
+
+export interface IAccountsBalancesAdapter {
+    init(): Promise<void>;
+
+    createAccount(account: JournalAccount): Promise<boolean>;
+    getAccount(accountId: string): Promise<JournalAccount | null>;
+    getAccounts(participantId: string): Promise<JournalAccount[] | null>;
+    createJournalEntry(account: JournalEntry): Promise<boolean>;
+
+    destroy (): Promise<void>
 }

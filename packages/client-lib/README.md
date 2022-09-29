@@ -33,15 +33,21 @@ import {
 const PARTICIPANTS_URL: string = "http://localhost:1234";
 const HTTP_CLIENT_TIMEOUT_MS: number = 10_000;
 
+const ACCESS_TOKEN= "....jwt access token fetched from authentication client lib"
+
 const logger: ILogger = new ConsoleLogger();
 const participantsClient: ParticipantsHttpClient = new ParticipantsHttpClient(
     logger,
     PARTICIPANTS_URL,
+    ACCESS_TOKEN,
     HTTP_CLIENT_TIMEOUT_MS
 );
 ```
 
-
+### How to set a new token
+```typescript
+participantsClient.setAccessToken("new access token string");
+```
 
 ## See Also
 

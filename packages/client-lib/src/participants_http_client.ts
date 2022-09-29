@@ -27,6 +27,7 @@
 
 "use strict";
 
+import axios, {AxiosInstance, AxiosResponse, AxiosError} from "axios";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
 	Participant,
@@ -34,8 +35,8 @@ import {
 	ParticipantApproval,
 	ParticipantEndpoint
 } from "@mojaloop/participant-bc-public-types-lib";
-import axios, {AxiosInstance, AxiosResponse, AxiosError} from "axios";
 import {
+	ConnectionRefusedError,
 	UnableToApproveParticipantError,
 	UnableToCreateParticipantAccountError,
 	UnableToCreateParticipantEndpointError,
@@ -46,7 +47,7 @@ import {
 	UnableToGetParticipantAccountError,
 	UnableToGetParticipantEndpointsError,
 	UnableToGetParticipantError,
-	UnableToGetParticipantsError
+	UnableToGetParticipantsError, UnauthorizedError
 } from "./errors";
 
 export class ParticipantsHttpClient {
@@ -54,7 +55,8 @@ export class ParticipantsHttpClient {
 	private readonly logger: ILogger;
 	// Other properties.
 	private readonly httpClient: AxiosInstance;
-	private readonly UNABLE_TO_REACH_SERVER_ERROR_MESSAGE: string = "unable to reach server";
+	private readonly UNKNOWN_ERROR_MESSAGE: string = "Unknown error";
+	private accessToken: string;
 
 	constructor(
 		logger: ILogger,
@@ -63,16 +65,55 @@ export class ParticipantsHttpClient {
 		timeoutMs: number
 	) {
 		this.logger = logger;
+		this.accessToken = accessToken;
 
 		this.httpClient = axios.create({
 			baseURL: baseUrlHttpService,
-			headers: {"Authorization": `Bearer ${accessToken}`},
+			headers: {
+				"Content-Type": "application/json",
+				"Authorization": `Bearer ${accessToken}`
+			},
 			timeout: timeoutMs
+		});
+
+		// Set the AUTH token for any request
+		this.httpClient.interceptors.request.use((config)=>{
+			config.headers!.Authorization =  this.accessToken ? `Bearer ${this.accessToken}` : '';
+			return config;
 		});
 	}
 	
 	setAccessToken(accessToken: string): void {
-		this.httpClient.defaults.headers.common = {"Authorization": `Bearer ${accessToken}`}; // TODO: verify.
+		this.accessToken = accessToken;
+	}
+
+	private _checkUnauthorizedResponse(axiosError: AxiosError){
+		if(axiosError.response && axiosError.response.status === 403)
+			throw new UnauthorizedError();
+	}
+
+	private _handleServerError<T extends Error>(err: unknown, errorType: new(msg:string) => T):void{
+		const axiosError: AxiosError = err as AxiosError;
+
+		this._checkUnauthorizedResponse(axiosError);
+
+		// handle connection refused
+		if(axiosError.code === "ECONNREFUSED"){
+			const err = new ConnectionRefusedError();
+			this.logger.error(err);
+			throw err;
+		}
+
+		// handle errors with an data.msg prop in the body
+		if (axiosError.response !== undefined) {
+			const errMsg =  (axiosError.response.data as any).msg || "unknown error";
+			const err = new errorType(errMsg);
+			this.logger.error(err);
+			throw err;
+		}
+
+		// handle everything else
+		throw new errorType(this.UNKNOWN_ERROR_MESSAGE);
 	}
 
 	async getAllParticipants(): Promise<Participant[] | null> {
@@ -88,14 +129,8 @@ export class ParticipantsHttpClient {
 			if (axiosResponse.status === 404) return null;
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToGetParticipantsError((axiosError.response.data as any).message);
-				}
-				throw new UnableToGetParticipantsError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToGetParticipantsError((e as any)?.message);
+			this._handleServerError(e, UnableToGetParticipantsError);
+			return null;
 		}
 	}
 
@@ -112,14 +147,8 @@ export class ParticipantsHttpClient {
 			if (axiosResponse.status === 404) return null;
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToGetParticipantsError((axiosError.response.data as any).message);
-				}
-				throw new UnableToGetParticipantsError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToGetParticipantsError((e as any)?.message);
+			this._handleServerError(e, UnableToGetParticipantsError);
+			return null;
 		}
 	}
 
@@ -136,30 +165,18 @@ export class ParticipantsHttpClient {
 			if (axiosResponse.status === 404) return null;
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToGetParticipantError((axiosError.response.data as any).message);
-				}
-				throw new UnableToGetParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToGetParticipantError((e as any)?.message);
+			this._handleServerError(e, UnableToGetParticipantError);
+			return null;
 		}
 	}
 
-	async createParticipant(participant: Participant): Promise<Participant> {
+	async createParticipant(participant: Participant): Promise<Participant | null> {
 		try {
 			const axiosResponse: AxiosResponse = await this.httpClient.post("/participants", participant);
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToCreateParticipantError((axiosError.response.data as any).message);
-				}
-				throw new UnableToCreateParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToCreateParticipantError((e as any)?.message);
+			this._handleServerError(e, UnableToCreateParticipantError);
+			return null;
 		}
 	}
 
@@ -171,14 +188,7 @@ export class ParticipantsHttpClient {
 				`Participant ${partApproval.participantId} not approved [${axiosResponse.status}].`
 			);
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToApproveParticipantError((axiosError.response.data as any).message);
-				}
-				throw new UnableToApproveParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToApproveParticipantError((e as any)?.message);
+			this._handleServerError(e, UnableToApproveParticipantError);
 		}
 	}
 
@@ -200,14 +210,7 @@ export class ParticipantsHttpClient {
 				`Participant ${partApproval.participantId} not disabled [${axiosResponse.status}].`
 			);
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToDisableParticipantError((axiosError.response.data as any).message);
-				}
-				throw new UnableToDisableParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToDisableParticipantError((e as any)?.message);
+			this._handleServerError(e, UnableToDisableParticipantError);
 		}
 	}
 
@@ -229,14 +232,7 @@ export class ParticipantsHttpClient {
 				`Participant ${partApproval.participantId} not enabled [${axiosResponse.status}].`
 			);
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToEnableParticipantError((axiosError.response.data as any).message);
-				}
-				throw new UnableToEnableParticipantError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToEnableParticipantError((e as any)?.message);
+			this._handleServerError(e, UnableToEnableParticipantError);
 		}
 	}
 
@@ -253,13 +249,7 @@ export class ParticipantsHttpClient {
 			if (axiosResponse.status === 404) return null;
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToGetParticipantEndpointsError((axiosError.response.data as any).message);
-				}
-				throw new UnableToGetParticipantEndpointsError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
+			this._handleServerError(e, UnableToGetParticipantEndpointsError);
 			throw new UnableToGetParticipantEndpointsError((e as any)?.message);
 		}
 	}
@@ -276,14 +266,7 @@ export class ParticipantsHttpClient {
 			);
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToCreateParticipantEndpointError((axiosError.response.data as any).message);
-				}
-				throw new UnableToCreateParticipantEndpointError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToCreateParticipantEndpointError((e as any)?.message);
+			this._handleServerError(e, UnableToCreateParticipantEndpointError);
 		}
 	}
 
@@ -300,14 +283,7 @@ export class ParticipantsHttpClient {
 			);
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToDeleteParticipantEndpointError((axiosError.response.data as any).message);
-				}
-				throw new UnableToDeleteParticipantEndpointError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToDeleteParticipantEndpointError((e as any)?.message);
+			this._handleServerError(e, UnableToDeleteParticipantEndpointError);
 		}
 	}
 
@@ -324,14 +300,8 @@ export class ParticipantsHttpClient {
 			if (axiosResponse.status === 404) return null;
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToGetParticipantAccountError((axiosError.response.data as any).message);
-				}
-				throw new UnableToGetParticipantAccountError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToGetParticipantAccountError((e as any)?.message);
+			this._handleServerError(e, UnableToGetParticipantAccountError);
+			return null;
 		}
 	}
 
@@ -347,14 +317,7 @@ export class ParticipantsHttpClient {
 			);
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToCreateParticipantAccountError((axiosError.response.data as any).message);
-				}
-				throw new UnableToCreateParticipantAccountError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
-			throw new UnableToCreateParticipantAccountError((e as any)?.message);
+			this._handleServerError(e, UnableToCreateParticipantAccountError);
 		}
 	}
 
@@ -371,13 +334,7 @@ export class ParticipantsHttpClient {
 			);
 			return axiosResponse.data;
 		} catch (e: unknown) {
-			if (axios.isAxiosError(e)) {
-				const axiosError: AxiosError = e as AxiosError;
-				if (axiosError.response !== undefined) {
-					throw new UnableToDeleteParticipantAccountError((axiosError.response.data as any).message);
-				}
-				throw new UnableToDeleteParticipantAccountError(this.UNABLE_TO_REACH_SERVER_ERROR_MESSAGE);
-			}
+			this._handleServerError(e, UnableToDeleteParticipantAccountError);
 			throw new UnableToDeleteParticipantAccountError((e as any)?.message);
 		}
 	}

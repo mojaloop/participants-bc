@@ -50,7 +50,7 @@ import {
     IParticipantsApprovalRepository,
     IParticipantsAccountRepository
 } from "../domain/repo_interfaces";
-import {IAccountsBalances} from "../domain/iparticipant_account_balances_ds";
+import {IAccountsBalancesAdapter} from "../domain/iparticipant_account_balances_adapter";
 import {MongoDBParticipantsEndpointRepo } from "../infrastructure/mongodb_participants_endpoint_repo";
 import {MongoDBParticipantsRepo} from "../infrastructure/mongodb_participants_repo";
 import {MongoDBParticipantsApprovalRepo} from "../infrastructure/mongodb_participants_approval_repo";
@@ -59,6 +59,7 @@ import {RestAccountsAndBalances} from "../infrastructure/rest_acc_bal";
 import {ParticipantAggregate} from "../domain/participant_agg";
 import {addPrivileges} from "./config/privileges";
 import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
+import { Server } from "net";
 
 const PRODUCTION_MODE = process.env["PRODUCTION_MODE"] || false;
 
@@ -85,11 +86,18 @@ const AUDIT_CERT_FILE_PATH = process.env["AUDIT_CERT_FILE_PATH"] || "./tmp_key_f
 
 
 let app:Express;
+let expressServer: Server;
 let routes: ExpressRoutes;
 let auditClient:AuditClient;
 let participantAgg: ParticipantAggregate
 let authorizationClient: AuthorizationClient;
 let tokenHelper:TokenHelper;
+
+let repoPart: IParticipantsRepository;
+let repoPartEndpoint: IParticipantsEndpointRepository;
+let repoPartApproval: IParticipantsApprovalRepository;
+let repoPartAccount: IParticipantsAccountRepository;
+let restAccAndBal: IAccountsBalancesAdapter;
 
 // kafka logger
 const kafkaProducerOptions = {
@@ -145,11 +153,11 @@ async function start():Promise<void>{
     await authorizationClient.fetch();
 
     // repos and aggregate
-    const repoPart: IParticipantsRepository = new MongoDBParticipantsRepo(MONGO_URL, logger);
-    const repoPartEndpoint: IParticipantsEndpointRepository = new MongoDBParticipantsEndpointRepo(MONGO_URL, logger);
-    const repoPartApproval: IParticipantsApprovalRepository = new MongoDBParticipantsApprovalRepo(MONGO_URL, logger);
-    const repoPartAccount: IParticipantsAccountRepository = new MongoDBParticipantsAccountRepo(MONGO_URL, logger);
-    const restAccAndBal: IAccountsBalances = new RestAccountsAndBalances(ACCOUNTS_BALANCES_URL, logger);
+    repoPart = new MongoDBParticipantsRepo(MONGO_URL, logger);
+    repoPartEndpoint = new MongoDBParticipantsEndpointRepo(MONGO_URL, logger);
+    repoPartApproval = new MongoDBParticipantsApprovalRepo(MONGO_URL, logger);
+    repoPartAccount = new MongoDBParticipantsAccountRepo(MONGO_URL, logger);
+    restAccAndBal = new RestAccountsAndBalances(ACCOUNTS_BALANCES_URL, logger);
 
     participantAgg = new ParticipantAggregate(
             repoPart,
@@ -176,16 +184,29 @@ async function start():Promise<void>{
         portNum = parseInt(process.env["SVC_HTTP_PORT"])
     }
 
-    const server = app.listen(portNum, () => {
+    expressServer = app.listen(portNum, () => {
         console.log(`🚀 Server ready at: http://localhost:${portNum}`);
         logger.info("Participants service started");
     });
 
 }
 
+export async function stop(){
+    await repoPart.destroy();
+    await repoPartEndpoint.destroy();
+    await repoPartApproval.destroy();
+    await repoPartAccount.destroy();
+    await restAccAndBal.destroy();
+    await auditClient.destroy();
+    await repoPart.destroy();
+    expressServer.close();
+    await logger.destroy();
+}
+
 
 async function _handle_int_and_term_signals(signal: NodeJS.Signals): Promise<void> {
     logger.info(`Service - ${signal} received - cleaning up...`);
+    await stop();
     process.exit();
 }
 

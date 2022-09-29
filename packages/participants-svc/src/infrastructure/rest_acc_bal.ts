@@ -28,16 +28,12 @@
  --------------
  ******/
 
-'use strict'
+"use strict";
 
-import {
-    JournalAccount,
-    JournalEntry
-} from "@mojaloop/participant-bc-private-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
-import {IAccountsBalances} from "../domain/iparticipant_account_balances_ds";
+import {IAccountsBalancesAdapter, JournalAccount, JournalEntry} from "../domain/iparticipant_account_balances_adapter";
 
-export class RestAccountsAndBalances implements IAccountsBalances {
+export class RestAccountsAndBalances implements IAccountsBalancesAdapter {
     private _restUri: string;
     private _logger: ILogger;
 

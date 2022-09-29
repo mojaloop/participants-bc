@@ -26,6 +26,8 @@
  ******/
 
 "use strict";
+export class UnauthorizedError extends Error{}
+export class ConnectionRefusedError extends Error{}
 
 export class UnableToGetParticipantsError extends Error{}
 export class UnableToGetParticipantError extends Error{}

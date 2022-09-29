@@ -36,9 +36,6 @@ import {
     ParticipantAccount,
     ParticipantApproval
 } from "@mojaloop/participant-bc-public-types-lib";
-import {
-    JournalAccount, JournalEntry
-} from "@mojaloop/participant-bc-private-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 
 import {
@@ -59,12 +56,12 @@ import {
     IParticipantsEndpointRepository
 } from "./repo_interfaces";
 
-import {IAccountsBalances} from "./iparticipant_account_balances_ds";
-import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib/dist/index";
+import {IAccountsBalancesAdapter, JournalAccount, JournalEntry} from "./iparticipant_account_balances_adapter";
+import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib";
 import {CallSecurityContext} from "@mojaloop/security-bc-client-lib";
 import {ParticipantPrivilegeNames} from "./privilege_names";
 import {randomUUID} from "crypto";
-import {AuditSecurityContext} from "@mojaloop/auditing-bc-public-types-lib/dist/audit_types";
+import {AuditSecurityContext} from "@mojaloop/auditing-bc-public-types-lib";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -85,7 +82,7 @@ export class ParticipantAggregate {
     private _repoEndpoints: IParticipantsEndpointRepository;
     private _repoApproval: IParticipantsApprovalRepository;
     private _repoAccount: IParticipantsAccountRepository;
-    private _accBal: IAccountsBalances;
+    private _accBal: IAccountsBalancesAdapter;
     private _auditClient:IAuditClient;
     private _authorizationClient:IAuthorizationClient;
 
@@ -94,7 +91,7 @@ export class ParticipantAggregate {
             repoEndpoints: IParticipantsEndpointRepository,
             repoApproval: IParticipantsApprovalRepository,
             repoAccount: IParticipantsAccountRepository,
-            accBal: IAccountsBalances,
+            accBal: IAccountsBalancesAdapter,
             auditClient:IAuditClient,
             authorizationClient:IAuthorizationClient,
             logger: ILogger
@@ -187,9 +184,15 @@ export class ParticipantAggregate {
         }
 
         // Obtain the most recent account balances:
+        const accBalAccounts = await this._accBal.getAccounts(part.id);
+        if(!accBalAccounts){
+            const err = new NoAccountsError("Could not get participant accounts from accountsAndBalances adapter for participant id: " + part.id);
+            this._logger.error(err)
+            throw err;
+        }
+
         for (const acc of accounts) {
-            //TODO this may be improved with fetching accounts by participantId in future...
-            const jAcc = await this._accBal.getAccount(acc.id);
+            const jAcc = accBalAccounts.find(value => value.id === acc.id);
             if (jAcc == null) continue;
 
             acc.balanceDebit = jAcc.balanceDebit;
