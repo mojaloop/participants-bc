@@ -3,7 +3,8 @@
   "plugins": [ "@typescript-eslint" ],
   "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
   "rules": {
-    "semi": ["warn"]
+    "semi": ["warn"],
+    "@typescript-eslint/no-inferrable-types": "off"
   },
   "parserOptions": {
     "sourceType": "module", // Allows for the use of imports
