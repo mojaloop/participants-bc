@@ -1,0 +1,147 @@
+# CircleCI v2.1 Config
+version: 2.1
+
+##
+# Executors
+#
+# CircleCI Executors
+##
+
+#parameters:
+#  # This parameter is used to trigger the main workflow
+#  trigger:
+#    type: boolean
+#    default: true
+#  publish:
+#    type: boolean
+#    default: false
+
+defaults_configure_git: &defaults_configure_git
+  name: Configure git
+  command: |
+    git config user.email ${GIT_CI_EMAIL}
+    git config user.name ${GIT_CI_USER}
+
+defaults_npm_auth: &defaults_npm_auth
+  name: Update NPM registry auth token
+  command: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+
+##
+# Executors
+#
+# CircleCI Executors
+##
+executors:
+  default-docker:
+    working_directory: &workingDirVar /home/circleci/project
+    resource_class: medium
+    docker:
+      - image: node:16.13
+
+jobs:
+  setup:
+    executor: default-docker
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - node_modules-cache-{{ checksum "package-lock.json" }}
+      - run: npm install
+      - save_cache:
+          paths:
+            - node_modules
+          key: node_modules-cache-{{ checksum "package-lock.json" }}
+      - persist_to_workspace:
+          root: *workingDirVar
+          paths:
+            - .
+  lint:
+    executor: default-docker
+    steps:
+      - attach_workspace:
+          at: *workingDirVar
+      - restore_cache:
+          keys:
+            - node_modules-cache-{{ checksum "package-lock.json" }}
+      - run: npm run lint
+
+  build:
+    executor: default-docker
+    steps:
+      - attach_workspace:
+          at: *workingDirVar
+      - restore_cache:
+          keys:
+            - node_modules-cache-{{ checksum "package-lock.json" }}
+      - run: npm run build
+      - save_cache:
+          paths:
+            - .
+          key: build-cache-{{ .Environment.CIRCLE_SHA1 }}
+      - persist_to_workspace:
+          root: *workingDirVar
+          paths:
+            - .
+
+  test-unit:
+    executor: default-docker
+    steps:
+      - attach_workspace:
+          at: *workingDirVar
+      - restore_cache:
+          keys:
+            - build-cache-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Execute unit tests
+          command: npm run test:unit
+      - store_artifacts:
+          path: coverage
+
+  publish_npm:
+    executor: default-docker
+    steps:
+      - checkout
+      - attach_workspace:
+          at: *workingDirVar
+      - restore_cache:
+          keys:
+            - build-cache-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          <<: *defaults_configure_git
+      - run:
+          <<: *defaults_npm_auth
+      #      - run: cat ~/.npmrc
+      - run: npm config set registry https://registry.npmjs.org/
+      - run:
+          name: Detect and publish modules
+          command: chmod +x .circleci/publish_npm.sh && .circleci/publish_npm.sh
+
+
+workflows:
+  version: 2
+  build_lint_and_test:
+    #    when: << pipeline.parameters.trigger >>
+    jobs:
+      - setup:
+          context: org-global
+      - lint:
+          context: org-global
+          requires:
+            - setup
+      - build:
+          context: org-global
+          requires:
+            - setup
+      - test-unit:
+          context: org-global
+          requires:
+            - build
+            - lint
+      - publish_npm:
+          context: org-global
+          filters:
+            branches:
+              only: main
+          requires:
+            - test-unit
+

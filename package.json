@@ -13,27 +13,18 @@
   ],
   "scripts": {
     "prepare": "husky install",
-    "start": "yarn workspaces foreach --parallel -v run start",
-    "start:participants-svc": "yarn workspace @mojaloop/participants-bc-svc run start",
-    "build": "yarn workspaces foreach --parallel -v run build",
-    "watch": "yarn workspaces foreach --parallel -v run watch",
-    "clean": "yarn run clean:dist && yarn run clean:npm",
-    "clean:npm": "yarn workspaces foreach --parallel -v run clean",
-    "clean:dist": "yarn workspaces foreach --parallel -v run clean",
-    "pretest": "echo 'FIX ME'",
-    "lint": "yarn workspaces foreach -v run lint",
-    "lint:fix": "yarn workspaces foreach -v run lint:fix",
-    "test:unit": "yarn workspaces foreach -v run test:unit",
-    "test:coverage": "yarn workspaces foreach --parallel -v run test:coverage",
-    "test:coverage-check": "yarn workspaces foreach --parallel -v run test:coverage-check",
-    "test:integration": "yarn workspaces foreach --parallel -v run test:integration",
-    "audit:check": "yarn workspaces foreach --parallel -v run audit:check",
-    "dep:check": "yarn workspaces foreach --parallel -v run dep:check",
-    "dep:update": "yarn workspaces foreach --parallel -v run dep:update",
-    "docker:mongodb:up": "docker-compose up -d mongodb",
-    "docker:mongodb:start": "docker-compose start mongodb",
-    "docker:mongodb:stop": "docker-compose stop mongodb",
-    "docker:mongodb:logs": "docker-compose logs -f mongodb"
+    "clean": "npm -ws -p run clean",
+    "clean:dist": "npm -ws -p run clean:dist",
+    "clean:node-modules": "rm -rf node_modules && npm -ws -p run clean:node-modules",
+    "clean:dist-and-node-modules": "rm -rf node_modules && npm -ws -p run clean:dist-and-node-modules",
+    "dep:check": "npm -ws -p run dep:check",
+    "lint": "npm -ws -p run lint",
+    "build": "npm -ws -p run build",
+    "clean-and-build": "npm run clean && npm run build",
+    "test:unit": "npm -ws -p run test:unit",
+    "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
+    "start": "node ./packages/participants-svc/dist/application/index.js",
+    "publish": "npm -ws -p run publish"
   },
   "devDependencies": {
     "@types/jest": "^27.0.3",
@@ -49,12 +40,8 @@
     "typescript": "^4.6.4"
   },
   "workspaces": [
-    "modules/participant-bc-private-types-lib",
-    "modules/participant-bc-public-types-lib",
-    "modules/*"
-  ],
-  "packageManager": "yarn@3.2.0",
-  "engines": {
-    "yarn": "3.2.0"
-  }
+    "packages/public-types-lib",
+    "packages/client-lib",
+    "packages/*"
+  ]
 }
