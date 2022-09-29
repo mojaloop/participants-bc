@@ -28,7 +28,7 @@ import {
     AccountsAndBalancesClient,
     IAccountDTO,
     IJournalEntryDTO
-} from "@mojaloop/participants-bc-client";
+} from "@mojaloop/participants-bc-client-lib";
 
 const PARTICIPANTS_URL: string = "http://localhost:1234";
 const HTTP_CLIENT_TIMEOUT_MS: number = 10_000;

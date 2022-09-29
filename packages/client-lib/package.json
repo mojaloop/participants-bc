@@ -1,5 +1,5 @@
 {
-  "name": "@mojaloop/participants-bc-client",
+  "name": "@mojaloop/participants-bc-client-lib",
   "version": "0.0.1",
   "description": "Participants BC - Client",
   "license": "Apache-2.0",

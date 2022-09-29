@@ -28,7 +28,7 @@
 "use strict";
 
 import {ILogger, LogLevel} from "@mojaloop/logging-bc-public-types-lib";
-import {ParticipantsHttpClient, UnableToCreateParticipantAccountError} from "@mojaloop/participants-bc-client";
+import {ParticipantsHttpClient, UnableToCreateParticipantAccountError} from "@mojaloop/participants-bc-client-lib";
 import {
 	Participant,
 	ParticipantAccount,
