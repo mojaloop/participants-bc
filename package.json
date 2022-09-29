@@ -40,8 +40,9 @@
     "typescript": "^4.6.4"
   },
   "workspaces": [
-    "packages/participant-bc-private-types-lib",
-    "packages/participant-bc-public-types-lib",
+    "packages/private-types-lib",
+    "packages/public-types-lib",
+    "packages/client-lib",
     "packages/*"
   ]
 }
