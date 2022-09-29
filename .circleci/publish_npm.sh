@@ -13,7 +13,7 @@ function printHeader() {
 printHeader "Phase 1 - Setup"
 
 # The root directory of packages to publish
-ROOT="./modules"
+ROOT="./packages"
 REPOSITORY_TYPE="github"
 CIRCLE_API="https://circleci.com/api"
 LASTCIBUILDFILE=".lastcibuild"
