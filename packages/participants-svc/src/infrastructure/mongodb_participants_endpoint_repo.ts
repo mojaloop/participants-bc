@@ -108,7 +108,7 @@ export class MongoDBParticipantsEndpointRepo implements IParticipantsEndpointRep
     }
 
     async removeEndpoint(participantId: string, toRemove: ParticipantEndpoint): Promise<boolean> {
-        let existing = await this.fetchWhereParticipantId(participantId);
+        const existing = await this.fetchWhereParticipantId(participantId);
         if (existing == null || existing.length === 0) return true;
 
         const newArr = [];

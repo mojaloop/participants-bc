@@ -93,7 +93,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 
     async updateApprovalForChecker(participantApp: ParticipantApproval): Promise<boolean> {
         const updated = Date.now();
-        let result = await this._collectionParticipant.updateOne(
+        const result = await this._collectionParticipant.updateOne(
             { participantId: participantApp.participantId },
             {
                 $set: {
@@ -104,9 +104,8 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
                 $currentDate: { lastModified: true }
             }
         );
-
-        //return Promise.resolve(false);
-        return true;
+        //confirm the result shows we updated one record
+        return (result.modifiedCount === 1);
     }
 
     async insert(participant: Participant): Promise<boolean> {
@@ -129,7 +128,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 
     async update(participant: Participant): Promise<boolean> {
         const updated = Date.now();
-        let result = await this._collectionParticipant.updateOne(
+        const result = await this._collectionParticipant.updateOne(
             { id: participant.id },
             {
                 $set: {
