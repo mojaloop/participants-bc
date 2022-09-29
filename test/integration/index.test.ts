@@ -93,7 +93,7 @@ describe("participant - integration tests", () => {
 		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
-			name: "Peter Pan",
+			name: `Peter Pan - ${participantId}`,
 			isActive: false,
 			description: "",
 			createdDate: 0,
@@ -118,7 +118,7 @@ describe("participant - integration tests", () => {
 		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
-			name: "Alice in Wonderland",
+			name: `Alice in Wonderland - ${participantId}`,
 			isActive: true,
 			description: "",
 			createdDate: 0,
@@ -153,7 +153,7 @@ describe("participant - integration tests", () => {
 		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
-			name: "Snow White",
+			name: `Snow White - ${participantId}`,
 			isActive: true,
 			description: "",
 			createdDate: 0,
@@ -168,12 +168,12 @@ describe("participant - integration tests", () => {
 		const approval : ParticipantApproval = {
 			participantId: participantId,
 			lastUpdated: 0,
-			maker: "",
+			maker: '',
 			makerLastUpdated: 0,
-			checker: "Johnny",
+			checker: 'Johnny',
 			checkerLastUpdated: 0,
 			checkerApproved: true,
-			feedback: ""
+			feedback: ''
 		}
 
 		await participantsHttpClient.approveParticipant(approval);
@@ -192,11 +192,11 @@ describe("participant - integration tests", () => {
 		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
-			name: "Mickey Mouse",
+			name: `Mickey Mouse - ${participantId}`,
 			isActive: true,
-			description: "",
+			description: '',
 			createdDate: 0,
-			createdBy: "",
+			createdBy: '',
 			lastUpdated: 0,
 			participantEndpoints: [],
 			participantAccounts: []
@@ -249,7 +249,7 @@ describe("participant - integration tests", () => {
 		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
-			name: "Aladdin",
+			name: `Aladdin - ${participantId}`,
 			isActive: true,
 			description: "",
 			createdDate: 0,
@@ -286,7 +286,7 @@ describe("participant - integration tests", () => {
 		const participantId: string = Crypto.randomUUID();
 		const participant: Participant = {
 			id: participantId,
-			name: "Robin Hood",
+			name: `Robin Hood - ${participantId}`,
 			isActive: true,
 			description: "",
 			createdDate: 0,
@@ -307,19 +307,20 @@ describe("participant - integration tests", () => {
 
 		try {
 			await participantsHttpClient.createParticipantAccount(participant, partAcc);
+			fail('Not allowed to create an account for an inactive participant.')
 		} catch (err: any) {
-			expect(err.message).toEqual(`'${participantId}' is not active.`);
+			// We expect failure.
 		}
 
 		await participantsHttpClient.approveParticipant({
 			participantId: participantId,
 			lastUpdated: 0,
-			maker: "",
+			maker: '',
 			makerLastUpdated: 0,
-			checker: "Johnny Vans",
+			checker: 'Johnny Vans',
 			checkerLastUpdated: 0,
 			checkerApproved: true,
-			feedback: "Great work."
+			feedback: 'Great work.'
 		});
 		await participantsHttpClient.createParticipantAccount(participant, partAcc);
 

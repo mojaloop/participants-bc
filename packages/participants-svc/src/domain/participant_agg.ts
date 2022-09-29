@@ -206,19 +206,17 @@ export class ParticipantAggregate {
         let existingById = null;
         const existingByName = await this._repo.fetchWhereName(participant.name);
 
-        if(participant.id){
-            existingById = await this._repo.fetchWhereId(participant.id);
-        }
-        if (existingById || existingByName){
+        if (participant.id) existingById = await this._repo.fetchWhereId(participant.id);
+
+        if (existingById || existingByName) {
             this._logger.debug("trying to create duplicate participant");
             throw new ParticipantCreateValidationError(`'${participant.name}' already exists`);
         }
 
-        if(!participant.id){
-            participant.id = randomUUID();
-        }
+        if (!participant.id) participant.id = randomUUID();
+
         participant.isActive = false;
-        participant.createdBy = secCtx.username;
+        participant.createdBy = secCtx ? secCtx.username : 'unknown';
         participant.createdDate = Date.now();
         participant.lastUpdated = participant.createdDate;
 
@@ -242,7 +240,7 @@ export class ParticipantAggregate {
         const existing: Participant | null = await this._repo.fetchWhereId(participantId);
         if (existing == null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
-        if(existing.createdBy === secCtx.username){
+        if(secCtx && existing.createdBy === secCtx.username) {
             await this._auditClient.audit(
                 AuditedActionNames.PARTICIPANT_APPROVED, false,
                 this._getAuditSecCtx(secCtx),
@@ -290,7 +288,6 @@ export class ParticipantAggregate {
                 this._getAuditSecCtx(secCtx),
                 [{key:"participantId", value: participantId}]
         );
-
     }
 
     async activateParticipant(secCtx:CallSecurityContext, participantId:string): Promise<void> {
@@ -390,7 +387,6 @@ export class ParticipantAggregate {
         delete account.balanceDebit;
         delete account.balanceCredit;
 
-
         const successLocalAcc = await this._repoAccount.addAccount(participantId, account);
         if (!successLocalAcc) throw new InvalidParticipantError(`Unable to add local account ${account.type}`);
 
@@ -399,7 +395,6 @@ export class ParticipantAggregate {
                 this._getAuditSecCtx(secCtx),
                 [{key:"participantId", value: participantId}]
         );
-
     }
 
     async removeParticipantAccount(secCtx:CallSecurityContext, participantId:string, account: ParticipantAccount): Promise<void> {
@@ -418,5 +413,4 @@ export class ParticipantAggregate {
                 [{key:"participantId", value: participantId}]
         );
     }
-
 }

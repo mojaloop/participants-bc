@@ -58,6 +58,7 @@ import {MongoDBParticipantsAccountRepo} from "../infrastructure/mongodb_particip
 import {RestAccountsAndBalances} from "../infrastructure/rest_acc_bal";
 import {ParticipantAggregate} from "../domain/participant_agg";
 import {addPrivileges} from "./config/privileges";
+import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
 
 const PRODUCTION_MODE = process.env["PRODUCTION_MODE"] || false;
 
@@ -75,7 +76,7 @@ const AUTH_Z_SVC_JWKS_URL = process.env["AUTH_Z_SVC_JWKS_URL"] || "http://localh
 const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3202";
 
 const KAFKA_URL = process.env["KAFKA_URL"] || "localhost:9092";
-const MONGO_URL = process.env["MONGO_URL"] || "mongodb://localhost:27017/";
+const MONGO_URL = process.env["MONGO_URL"] || "mongodb://root:example@localhost:27017/";
 const ACCOUNTS_BALANCES_URL = process.env["ACCOUNTS_BALANCES_URL"] || "http://localhost:3020/";
 
 const KAFKA_AUDITS_TOPIC = process.env["KAFKA_AUDITS_TOPIC"] || "audits";
