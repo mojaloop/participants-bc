@@ -31,19 +31,19 @@
 "use strict"
 
 export declare type JournalAccount = {
-    id: string
+    id?: string
     type: string
     state: string
-    currency: number
-    balanceDebit: bigint
-    balanceCredit: bigint
+    currencyCode: string
+    debitBalance: string
+    creditBalance: string
     externalId?: string
 }
 
 export declare type JournalEntry = {
-    id: string
-    currency: number
-    amount: bigint
+    id?: string
+    currencyCode: string
+    amount: string
     accountDebit: string
     accountCredit: string
     timestamp: number
@@ -55,10 +55,12 @@ export declare type JournalEntry = {
 export interface IAccountsBalancesAdapter {
     init(): Promise<void>;
 
-    createAccount(account: JournalAccount): Promise<boolean>;
+    createAccount(account: JournalAccount): Promise<string>;
     getAccount(accountId: string): Promise<JournalAccount | null>;
+
     getAccounts(participantId: string): Promise<JournalAccount[] | null>;
-    createJournalEntry(account: JournalEntry): Promise<boolean>;
+
+    createJournalEntry(account: JournalEntry): Promise<string>;
 
     destroy (): Promise<void>
 }

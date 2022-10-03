@@ -55,17 +55,17 @@ import {MongoDBParticipantsEndpointRepo } from "../infrastructure/mongodb_partic
 import {MongoDBParticipantsRepo} from "../infrastructure/mongodb_participants_repo";
 import {MongoDBParticipantsApprovalRepo} from "../infrastructure/mongodb_participants_approval_repo";
 import {MongoDBParticipantsAccountRepo} from "../infrastructure/mongodb_participants_account_repo";
-import {RestAccountsAndBalances} from "../infrastructure/rest_acc_bal";
+
 import {ParticipantAggregate} from "../domain/participant_agg";
 import {addPrivileges} from "./config/privileges";
-import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
 import { Server } from "net";
+import {GrpcAccountsAndBalancesAdapter} from "../infrastructure/grpc_acc_bal_adapter";
 
 const PRODUCTION_MODE = process.env["PRODUCTION_MODE"] || false;
 
 const BC_NAME = "participants-bc";
 const APP_NAME = "participants-svc";
-const APP_VERSION = "0.0.3";
+const APP_VERSION = process.env.npm_package_version || "0.0.3";
 const LOGLEVEL = LogLevel.DEBUG;
 
 const SVC_DEFAULT_HTTP_PORT = 3010;
@@ -78,7 +78,7 @@ const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhos
 
 const KAFKA_URL = process.env["KAFKA_URL"] || "localhost:9092";
 const MONGO_URL = process.env["MONGO_URL"] || "mongodb://root:example@localhost:27017/";
-const ACCOUNTS_BALANCES_URL = process.env["ACCOUNTS_BALANCES_URL"] || "http://localhost:3020/";
+const ACCOUNTS_BALANCES_URL = process.env["ACCOUNTS_BALANCES_URL"] || "localhost:5678";
 
 const KAFKA_AUDITS_TOPIC = process.env["KAFKA_AUDITS_TOPIC"] || "audits";
 const KAFKA_LOGS_TOPIC = process.env["KAFKA_LOGS_TOPIC"] || "logs";
@@ -157,7 +157,7 @@ async function start():Promise<void>{
     repoPartEndpoint = new MongoDBParticipantsEndpointRepo(MONGO_URL, logger);
     repoPartApproval = new MongoDBParticipantsApprovalRepo(MONGO_URL, logger);
     repoPartAccount = new MongoDBParticipantsAccountRepo(MONGO_URL, logger);
-    restAccAndBal = new RestAccountsAndBalances(ACCOUNTS_BALANCES_URL, logger);
+    restAccAndBal = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_URL, logger);
 
     participantAgg = new ParticipantAggregate(
             repoPart,

@@ -48,14 +48,14 @@ export class RestAccountsAndBalances implements IAccountsBalancesAdapter {
         this._initialized = true;
     }
     
-    async createAccount(account: JournalAccount): Promise<boolean> {
+    async createAccount(account: JournalAccount): Promise<string> {
 
-        return true;//TODO @jason, implement...
+        return "true";//TODO @jason, implement...
     }
 
-    async createJournalEntry(entry: JournalEntry): Promise<boolean> {
+    async createJournalEntry(entry: JournalEntry): Promise<string> {
 
-        return true;//TODO @jason, implement...
+        return "true";//TODO @jason, implement...
     }
 
     async getAccount(accName: string): Promise<JournalAccount | null> {

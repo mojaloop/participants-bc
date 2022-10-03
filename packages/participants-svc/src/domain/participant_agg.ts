@@ -195,8 +195,8 @@ export class ParticipantAggregate {
             const jAcc = accBalAccounts.find(value => value.id === acc.id);
             if (jAcc == null) continue;
 
-            acc.balanceDebit = jAcc.balanceDebit;
-            acc.balanceCredit = jAcc.balanceCredit;
+            acc.debitBalance = jAcc.debitBalance;
+            acc.creditBalance = jAcc.creditBalance;
         }
         return accounts;
     }
@@ -356,39 +356,43 @@ export class ParticipantAggregate {
 
         const accBalAccount : JournalAccount = {
             id: account.id,
-            type: 'position',
-            state: 'active',
-            currency: account.currency,
-            balanceDebit: 0n,
-            balanceCredit: 0n,
+            type: "position",
+            state: "active",
+            currencyCode: account.currencyCode,
+            debitBalance: "0",
+            creditBalance: "0",
             externalId: participantId
         }
-        let success = await this._accBal.createAccount(accBalAccount);
-        if (!success) {
+
+        try{
+            let accountId:string = await this._accBal.createAccount(accBalAccount);
+            account.id = accountId;
+        }catch(err){
+            this._logger.error(err);
             throw new UnableToCreateAccountUpstream(`'${existing.name}' account '${account.type}' failed upstream.`);
         }
 
-        if (account.balanceCredit != null && account.balanceCredit > 0) {
-            const hubAccountForDeposit = 'deposit';//TODO @jason, lookup...
-            const journal: JournalEntry = {
-                id: `uuid`,
-                currency: account.currency,
-                amount: account.balanceCredit,
-                accountDebit: hubAccountForDeposit,
-                accountCredit: account.id,
-                timestamp: Date.now(),
-                externalId: `initial-deposit`,
-                externalCategory: `deposit`,
-            };
-            success = await this._accBal.createJournalEntry(journal);
-            if (!success) {
-                throw new UnableToCreateAccountUpstream(`'${existing.name}' account '${account.type}' balance update failed upstream.`);
-            }
-        }
+        // if (account.creditBalance != null && account.creditBalance > 0) {
+        //     const hubAccountForDeposit = "deposit";//TODO @jason, lookup...
+        //     const journal: JournalEntry = {
+        //         id: undefined,
+        //         currencyCode: account.currencyCode,
+        //         amount: account.creditBalance,
+        //         accountDebit: hubAccountForDeposit,
+        //         accountCredit: account.id,
+        //         timestamp: Date.now(),
+        //         externalId: `initial-deposit`,
+        //         externalCategory: `deposit`,
+        //     };
+        //     success = await this._accBal.createJournalEntry(journal);
+        //     if (!success) {
+        //         throw new UnableToCreateAccountUpstream(`'${existing.name}' account '${account.type}' balance update failed upstream.`);
+        //     }
+        // }
 
         // We store balances in acc+balances:
-        delete account.balanceDebit;
-        delete account.balanceCredit;
+        delete account.debitBalance;
+        delete account.creditBalance;
 
         const successLocalAcc = await this._repoAccount.addAccount(participantId, account);
         if (!successLocalAcc) throw new InvalidParticipantError(`Unable to add local account ${account.type}`);

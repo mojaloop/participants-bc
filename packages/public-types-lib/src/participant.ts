@@ -28,42 +28,42 @@
  --------------
 ******/
 
-'use strict'
+"use strict";
 
 /** Participants **/
 export declare type Participant = {
-  id: string
-  name: string
-  isActive: boolean
-  description: string
-  createdDate: number
-  createdBy: string
-  lastUpdated: number
-  participantEndpoints: ParticipantEndpoint[]
-  participantAccounts: ParticipantAccount[]
+  id: string;
+  name: string;
+  isActive: boolean;
+  description: string;
+  createdDate: number;
+  createdBy: string;
+  lastUpdated: number;
+  participantEndpoints: ParticipantEndpoint[];
+  participantAccounts: ParticipantAccount[];
 }
 
 export declare type ParticipantEndpoint = {
-  type: string
-  value: string
+  type: string;
+  value: string;
 }
 
 export declare type ParticipantAccount = {
-  id: string
-  type: number//TODO move
-  //isActive: boolean//TODO do we need this?
-  currency: number//TODO move
-  balanceDebit?: bigint
-  balanceCredit?: bigint
+  id: string;
+  type: number;       //TODO move
+  //isActive: boolean //TODO do we need this?
+  currencyCode: string;   //TODO move
+  debitBalance?: string;
+  creditBalance?: string;
 }
 
 export declare type ParticipantApproval = {
-  participantId: string
-  lastUpdated: number
-  maker: string
-  makerLastUpdated: number
-  checker: string
-  checkerLastUpdated: number
-  checkerApproved: boolean
-  feedback: string
+  participantId: string;
+  lastUpdated: number;
+  maker: string;
+  makerLastUpdated: number;
+  checker: string;
+  checkerLastUpdated: number;
+  checkerApproved: boolean;
+  feedback: string;
 }
