@@ -30,49 +30,38 @@
 
 "use strict"
 
-import {AuthorizationClient} from "@mojaloop/security-bc-client-lib";
+
 import {ParticipantPrivilegeNames} from "../../domain/privilege_names";
 
-export function addPrivileges(authorizationClient: AuthorizationClient): void {
-    authorizationClient.addPrivilege(
-            ParticipantPrivilegeNames.VIEW_PARTICIPANT,
-            "View Participant",
-            "Allows retrieving the list of participants and individual participant records"
-    );
+export const AppPrivilegesDefinition = [
+    {
+        privId: ParticipantPrivilegeNames.VIEW_PARTICIPANT,
+        labelName: "View Participant",
+        description: "Allows retrieving the list of participants and individual participant records"
+    }, {
+        privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT,
+        labelName: "Create Participant",
+        description: "Allows the creation of a participant record in the system"
+    }, {
+        privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT,
+        labelName: "Approve Participant",
+        description: "Allows the approval of an unapproved participant"
+    }, {
+        privId: ParticipantPrivilegeNames.ENABLE_PARTICIPANT,
+        labelName: "Enable Participant",
+        description: "Allows the enabling of a disabled participant"
+    }, {
+        privId: ParticipantPrivilegeNames.DISABLE_PARTICIPANT,
+        labelName: "Disable Participant",
+        description: "Allows the disabling of an enabled participant"
+    }, {
+        privId: ParticipantPrivilegeNames.MANAGE_ENDPOINTS,
+        labelName: "Manage Participant Endpoints",
+        description: "Allows adding and changing participant's endpoint records"
+    }, {
+        privId: ParticipantPrivilegeNames.MANAGE_ACCOUNTS,
+        labelName: "Manage Participant Accounts",
+        description: "Allows adding and changing participant's accounts records"
+    },
+]
 
-    authorizationClient.addPrivilege(
-            ParticipantPrivilegeNames.CREATE_PARTICIPANT,
-        "Create Participant",
-        "Allows the creation of a participant record in the system"
-    );
-
-    authorizationClient.addPrivilege(
-            ParticipantPrivilegeNames.APPROVE_PARTICIPANT,
-            "Approve Participant",
-            "Allows the approval of an unapproved participant"
-    );
-
-    authorizationClient.addPrivilege(
-            ParticipantPrivilegeNames.ENABLE_PARTICIPANT,
-            "Enable Participant",
-            "Allows the enabling of a disabled participant"
-    );
-
-    authorizationClient.addPrivilege(
-            ParticipantPrivilegeNames.DISABLE_PARTICIPANT,
-            "Disable Participant",
-            "Allows the disabling of an enabled participant"
-    );
-
-    authorizationClient.addPrivilege(
-            ParticipantPrivilegeNames.MANAGE_ENDPOINTS,
-            "Manage Participant Endpoints",
-            "Allows adding and changing participant's endpoint records"
-    );
-
-    authorizationClient.addPrivilege(
-            ParticipantPrivilegeNames.MANAGE_ACCOUNTS,
-            "Manage Participant Accounts",
-            "Allows adding and changing participant's accounts records"
-    );
-}

@@ -31,7 +31,7 @@
 'use strict'
 
 import {IParticipantsRepository} from "../domain/repo_interfaces";
-import {Participant, ParticipantApproval} from "@mojaloop/participant-bc-public-types-lib";
+import {Participant} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, FilterQuery, MongoClient} from 'mongodb'
 
@@ -48,7 +48,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
     private readonly _collectionNameApproval: string = 'participantApproval';
 
     constructor(_mongoUri: string, logger: ILogger) {
-        this._logger = logger;
+        this._logger = logger.createChild(this.constructor.name);
         this._mongoUri = _mongoUri;
     }
 
@@ -67,6 +67,27 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         this._collectionParticipant = db.collection(this._collectionNameParticipant);
         this._collectionApproval = db.collection(this._collectionNameApproval);
         this._initialized = true;
+        this._logger.info("MongoDBParticipantsRepo - initialized");
+    }
+
+    private _stripMongoId(participant:Participant):Participant{
+        delete (participant as any)._id;
+        return participant;
+    }
+
+    async fetchAll():Promise<Participant[]>{
+        const found:Participant[] = await this._collectionParticipant.find({}).toArray();
+        return found.map(this._stripMongoId);
+    }
+
+    async fetchWhereId(participantId: string): Promise<Participant | null> {
+        const found:Participant|null = await this._collectionParticipant.findOne({ id: participantId });
+        return found ? this._stripMongoId(found) : null;
+    }
+
+    async fetchWhereName(participantName: string): Promise<Participant | null> {
+        const found:Participant|null = await this._collectionParticipant.findOne({ name: participantName });
+        return found ? this._stripMongoId(found) : null;
     }
 
     async fetchWhereIds(ids: string[]): Promise<Participant[]> {
@@ -76,72 +97,40 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
             const existing = await this.fetchWhereId(id);
             if (existing !== null) returnVal.push(existing)
         }
-        return returnVal;
+
+        return returnVal.map(this._stripMongoId);
     }
 
-    async fetchAll():Promise<Participant[]>{
-        return await this._collectionParticipant.find({}).toArray();
+    async create(participant: Participant): Promise<boolean> {
+        this._logger.info(`Name:  ${participant.name} - created in:`);
+        const result = await this._collectionParticipant.insertOne(participant);
+
+        return result.insertedCount === 1;
     }
 
-    async fetchWhereName(participantName: string): Promise<Participant | null> {
-        return await this._collectionParticipant.findOne({ name: participantName });
-    }
-    
-    async fetchWhereId(participantId: string): Promise<Participant | null> {
-        return await this._collectionParticipant.findOne({ id: participantId });
-    }
-
-    async updateApprovalForChecker(participantApp: ParticipantApproval): Promise<boolean> {
-        const updated = Date.now();
-        const result = await this._collectionParticipant.updateOne(
-            { participantId: participantApp.participantId },
-            {
-                $set: {
-                    lastUpdated: updated,
-                    makerLastUpdated: updated,
-                    maker : participantApp.maker
-                },
-                $currentDate: { lastModified: true }
-            }
-        );
-        //confirm the result shows we updated one record
-        return (result.modifiedCount === 1);
-    }
-
-    async insert(participant: Participant): Promise<boolean> {
-        this._logger.info(`Name:  ${participant.name} - stored for Participants-BC:`);
-        let result = await this._collectionParticipant.insertOne(participant);
-        let success = result.insertedCount === 1;
-        if (success) {
-            const updated = Date.now();
-            const approval = {
-                participantId : participant.id,
-                lastUpdated : updated,
-                maker: participant.createdBy,
-                makerLastUpdated: updated
-            };
-            result = await this._collectionApproval.insertOne(approval);
-            success = result.insertedCount === 1;
-        }
-        return success;
-    }
-
-    async update(participant: Participant): Promise<boolean> {
+    async store(participant: Participant): Promise<boolean> {
         const updated = Date.now();
         const result = await this._collectionParticipant.updateOne(
             { id: participant.id },
             {
                 $set: {
+                    id: participant.id,
                     name: participant.name,
                     isActive: participant.isActive,
                     description: participant.description,
-                    createdDate: participant.createdDate,
                     createdBy: participant.createdBy,
-                    lastUpdated: updated,
+                    createdDate: participant.createdDate,
+
+                    approved: participant.approved,
+                    approvedBy: participant.approvedBy,
+                    approvedDate: participant.approvedDate,
+
+                    lastUpdated: participant.approvedDate,
+                    participantAllowedSourceIps: participant.participantAllowedSourceIps,
                     participantEndpoints: participant.participantEndpoints,
-                    participantAccounts: participant.participantAccounts
-                },
-                $currentDate: { lastModified: true }
+                    participantAccounts: participant.participantAccounts,
+                    changeLog: participant.changeLog
+                }
             }
         );
         return (result.modifiedCount === 1)

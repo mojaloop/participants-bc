@@ -66,8 +66,8 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
             state: account.state as AccountState,
             type: account.type as AccountType,
             currencyCode: account.currencyCode,
-            creditBalance: account.creditBalance,
-            debitBalance: account.debitBalance,
+            creditBalance: account.creditBalance || "0",
+            debitBalance: account.debitBalance || "0",
             timestampLastJournalEntry: null
         };
 
@@ -116,7 +116,7 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
         return ret;
     }
 
-    async getAccounts(externalId: string): Promise<JournalAccount[] | null> {
+    async getParticipantAccounts(externalId: string): Promise<JournalAccount[] | null> {
         const foundAccounts:IAccountDto[] = await this._client.getAccountsByExternalId(externalId);
         if(!foundAccounts){
             return null;
@@ -131,7 +131,7 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
             ret.push({
                 id: foundAcc.id!,
                 type: foundAcc.type,
-                externalId: foundAcc.externalId || undefined,
+                externalId: foundAcc.externalId || externalId,
                 state: foundAcc.state,
                 currencyCode: foundAcc.currencyCode,
                 debitBalance: foundAcc.creditBalance,

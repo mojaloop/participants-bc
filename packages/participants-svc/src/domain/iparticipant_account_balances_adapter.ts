@@ -28,27 +28,28 @@
  --------------
  ******/
 
-"use strict"
+"use strict";
 
 export declare type JournalAccount = {
-    id?: string
-    type: string
-    state: string
-    currencyCode: string
-    debitBalance: string
-    creditBalance: string
-    externalId?: string
+    id?: string;
+    type: string;                       // possible values from accounts and balances are "POSITION", "SETTLEMENT" and "FEE"
+    currencyCode: string;               // ISO
+
+    state?: string;                     // state is controlled by accounts and balances possible values are "ACTIVE" and "DELETED"
+    debitBalance?: string;              // controlled by accounts and balances
+    creditBalance?: string;             // controlled by accounts and balances
+    externalId?: string;                // controlled by accounts and balances
 }
 
 export declare type JournalEntry = {
-    id?: string
-    currencyCode: string
-    amount: string
-    accountDebit: string
-    accountCredit: string
-    timestamp: number
-    externalId?: string
-    externalCategory?: string
+    id?: string;
+    currencyCode: string;
+    amount: string;
+    accountDebit: string;
+    accountCredit: string;
+    timestamp: number;
+    externalId?: string;
+    externalCategory?: string;
 }
 
 
@@ -58,9 +59,9 @@ export interface IAccountsBalancesAdapter {
     createAccount(account: JournalAccount): Promise<string>;
     getAccount(accountId: string): Promise<JournalAccount | null>;
 
-    getAccounts(participantId: string): Promise<JournalAccount[] | null>;
+    getParticipantAccounts(participantId: string): Promise<JournalAccount[] | null>;
 
     createJournalEntry(account: JournalEntry): Promise<string>;
 
-    destroy (): Promise<void>
+    destroy(): Promise<void>;
 }

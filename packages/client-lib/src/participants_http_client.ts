@@ -32,18 +32,10 @@ import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
 	Participant,
 	ParticipantAccount,
-	ParticipantApproval,
 	ParticipantEndpoint
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
 	ConnectionRefusedError,
-	UnableToApproveParticipantError,
-	UnableToCreateParticipantAccountError,
-	UnableToCreateParticipantEndpointError,
-	UnableToCreateParticipantError, UnableToDeleteParticipantAccountError,
-	UnableToDeleteParticipantEndpointError,
-	UnableToDisableParticipantError,
-	UnableToEnableParticipantError,
 	UnableToGetParticipantAccountError,
 	UnableToGetParticipantEndpointsError,
 	UnableToGetParticipantError,
@@ -137,7 +129,7 @@ export class ParticipantsHttpClient {
 	async getParticipantsByIds(ids : string[]): Promise<Participant[] | null> {
 		try {
 			const axiosResponse: AxiosResponse = await this.httpClient.get(
-				`/participants/${ids.toString()}/multi`,
+				`/participants/${ids.join(",")}/multi`,
 				{
 					validateStatus: (statusCode: number) => {
 						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
@@ -170,72 +162,6 @@ export class ParticipantsHttpClient {
 		}
 	}
 
-	async createParticipant(participant: Participant): Promise<Participant | null> {
-		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.post("/participants", participant);
-			return axiosResponse.data;
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToCreateParticipantError);
-			return null;
-		}
-	}
-
-	async approveParticipant(partApproval: ParticipantApproval): Promise<void> {
-		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.put(
-				`/participants/${partApproval.participantId}/approve`, partApproval);
-			if (axiosResponse.status !== 200) throw new UnableToApproveParticipantError(
-				`Participant ${partApproval.participantId} not approved [${axiosResponse.status}].`
-			);
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToApproveParticipantError);
-		}
-	}
-
-	async disableParticipant(participantId: string): Promise<void> {
-		try {
-			const partApproval : ParticipantApproval = {
-				participantId,
-				lastUpdated: 0,
-				maker: "",
-				makerLastUpdated: 0,
-				checker: "",
-				checkerLastUpdated: 0,
-				checkerApproved: false,
-				feedback: ""
-			}
-			const axiosResponse: AxiosResponse = await this.httpClient.put(
-				`/participants/${partApproval.participantId}/disable`, partApproval);
-			if (axiosResponse.status !== 200) throw new UnableToDisableParticipantError(
-				`Participant ${partApproval.participantId} not disabled [${axiosResponse.status}].`
-			);
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToDisableParticipantError);
-		}
-	}
-
-	async enableParticipant(participantId: string): Promise<void> {
-		try {
-			const partApproval : ParticipantApproval = {
-				participantId,
-				lastUpdated: 0,
-				maker: "",
-				makerLastUpdated: 0,
-				checker: "",
-				checkerLastUpdated: 0,
-				checkerApproved: false,
-				feedback: ""
-			}
-			const axiosResponse: AxiosResponse = await this.httpClient.put(
-				`/participants/${partApproval.participantId}/enable`, partApproval);
-			if (axiosResponse.status !== 200) throw new UnableToEnableParticipantError(
-				`Participant ${partApproval.participantId} not enabled [${axiosResponse.status}].`
-			);
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToEnableParticipantError);
-		}
-	}
-
 	async getParticipantEndpointsById(participantId: string): Promise<ParticipantEndpoint[] | null> {
 		try {
 			const axiosResponse: AxiosResponse = await this.httpClient.get(
@@ -251,39 +177,6 @@ export class ParticipantsHttpClient {
 		} catch (e: unknown) {
 			this._handleServerError(e, UnableToGetParticipantEndpointsError);
 			throw new UnableToGetParticipantEndpointsError((e as any)?.message);
-		}
-	}
-
-	async createParticipantEndpoint(
-		participant: Participant,
-		partEndpoint: ParticipantEndpoint
-	): Promise<void> {
-		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.post(
-				`/participants/${participant.id}/endpoint`, partEndpoint);
-			if (axiosResponse.status !== 200) throw new UnableToCreateParticipantEndpointError(
-				`Create Participant Endpoint for ${participant.id} failed [${axiosResponse.status}].`
-			);
-			return axiosResponse.data;
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToCreateParticipantEndpointError);
-		}
-	}
-
-	async deleteParticipantEndpoint(
-		participant: Participant,
-		partEndpoint: ParticipantEndpoint
-	): Promise<void> {
-		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.delete(
-				`/participants/${participant.id}/endpoint`,
-				{ data : { source: partEndpoint } });
-			if (axiosResponse.status !== 200) throw new UnableToDeleteParticipantEndpointError(
-				`Delete Participant Endpoint for ${participant.id} failed [${axiosResponse.status}].`
-			);
-			return axiosResponse.data;
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToDeleteParticipantEndpointError);
 		}
 	}
 
@@ -305,37 +198,4 @@ export class ParticipantsHttpClient {
 		}
 	}
 
-	async createParticipantAccount(
-		participant: Participant,
-		partAccount: ParticipantAccount
-	): Promise<void> {
-		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.post(
-				`/participants/${participant.id}/account`, partAccount);
-			if (axiosResponse.status !== 200) throw new UnableToCreateParticipantAccountError(
-				`Create Participant Account for ${participant.id} failed [${axiosResponse.status}].`
-			);
-			return axiosResponse.data;
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToCreateParticipantAccountError);
-		}
-	}
-
-	async deleteParticipantAccount(
-		participant: Participant,
-		partAccount: ParticipantAccount
-	): Promise<void> {
-		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.delete(
-				`/participants/${participant.id}/account`,
-				{ data : { source: partAccount } });
-			if (axiosResponse.status !== 200) throw new UnableToDeleteParticipantAccountError(
-				`Delete Participant Account for ${participant.id} failed [${axiosResponse.status}].`
-			);
-			return axiosResponse.data;
-		} catch (e: unknown) {
-			this._handleServerError(e, UnableToDeleteParticipantAccountError);
-			throw new UnableToDeleteParticipantAccountError((e as any)?.message);
-		}
-	}
 }

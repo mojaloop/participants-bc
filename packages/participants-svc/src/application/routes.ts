@@ -36,14 +36,19 @@ import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
     Participant,
     ParticipantAccount,
-    ParticipantApproval,
     ParticipantEndpoint
 } from "@mojaloop/participant-bc-public-types-lib";
 import {ParticipantAggregate} from "../domain/participant_agg";
 
 import {
-    InvalidParticipantError, NoAccountsError, NoEndpointsError, ParticipantCreateValidationError, ParticipantNotActive,
-    ParticipantNotFoundError, UnauthorizedError
+    InvalidParticipantError,
+    MakerCheckerViolationError,
+    NoAccountsError,
+    NoEndpointsError,
+    ParticipantCreateValidationError,
+    ParticipantNotActive,
+    ParticipantNotFoundError,
+    UnauthorizedError
 } from "../domain/errors";
 import {CallSecurityContext, TokenHelper} from "@mojaloop/security-bc-client-lib";
 
@@ -62,7 +67,7 @@ export class ExpressRoutes {
     private _mainRouter = express.Router();
 
     constructor(participantsAgg: ParticipantAggregate, tokenHelper: TokenHelper, logger: ILogger) {
-        this._logger = logger;
+        this._logger = logger.createChild("ExpressRoutes");
         this._tokenHelper = tokenHelper;
         this._participantsAgg = participantsAgg;
 
@@ -78,18 +83,19 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id", this.participantById.bind(this));
         this._mainRouter.post("/participants", this.participantCreate.bind(this));
         this._mainRouter.put("/participants/:id/approve", this.participantApprove.bind(this));
-        this._mainRouter.put("/participants/:id/disable", this.deActivateParticipant.bind(this));
+        this._mainRouter.put("/participants/:id/disable", this.deactivateParticipant.bind(this));
         this._mainRouter.put("/participants/:id/enable", this.activateParticipant.bind(this));
 
         // endpoint
         this._mainRouter.get("/participants/:id/endpoints", this.endpointsByParticipantId.bind(this));
-        this._mainRouter.post("/participants/:id/endpoint", this.participantEndpointCreate.bind(this));
-        this._mainRouter.delete("/participants/:id/endpoint", this.participantEndpointDelete.bind(this));
+        this._mainRouter.post("/participants/:id/endpoints", this.participantEndpointCreate.bind(this));
+        this._mainRouter.put("/participants/:id/endpoints/:endpointId", this.participantEndpointChange.bind(this));
+        this._mainRouter.delete("/participants/:id/endpoints/:endpointId", this.participantEndpointDelete.bind(this));
 
         // account
         this._mainRouter.get("/participants/:id/accounts", this.accountsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/account", this.participantAccountCreate.bind(this));
-        this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
+        // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
     }
 
     private async _authenticationMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -142,6 +148,26 @@ export class ExpressRoutes {
         return res.send({resp: "example worked"});
     }
 
+    private _handleUnauthorizedError(err:Error, res: express.Response):boolean{
+        let handled = false;
+        if (err instanceof UnauthorizedError || err instanceof MakerCheckerViolationError) {
+            this._logger.warn(err.message);
+            res.status(403).json({
+                status: "error",
+                msg: err.message
+            });
+            handled = true;
+        }else if (err instanceof ParticipantNotFoundError) {
+            res.status(404).json({
+                status: "error",
+                msg: "Participant not found."
+            });
+            handled = true;
+        }
+
+        return handled;
+    }
+
     private async getAllParticipants(req: express.Request, res: express.Response, next: express.NextFunction) {
         this._logger.debug("Fetching all participants");
 
@@ -149,18 +175,13 @@ export class ExpressRoutes {
             const fetched = await this._participantsAgg.getAllParticipants(req.securityContext!);
             res.send(fetched);
         } catch (err: any) {
-            this._logger.error(`Err All Participants [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: "No participants found."
-                });
-            }
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
         }
     }
 
@@ -173,18 +194,13 @@ export class ExpressRoutes {
             const fetched = await this._participantsAgg.getParticipantsByIds(req.securityContext!, idSplit);
             res.send(fetched);
         } catch (err: any) {
-            this._logger.error(`Err Participants By Ids [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: "No participants found."
-                });
-            }
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
         }
     }
 
@@ -196,18 +212,13 @@ export class ExpressRoutes {
             const fetched = await this._participantsAgg.getParticipantById(req.securityContext!, id);
             res.send(fetched);
         } catch (err: any) {
-            this._logger.error(`Err Participant By Id [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: `No participant with id ${id}.`
-                });
-            }
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
         }
     }
 
@@ -216,17 +227,15 @@ export class ExpressRoutes {
         this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
 
         try {
-            const created = await this._participantsAgg.createParticipant(req.securityContext!, data);
-            this._logger.debug(`Created Participant [${JSON.stringify(created)}].`);
-            res.send(created);
+            const createdId = await this._participantsAgg.createParticipant(req.securityContext!, data);
+            this._logger.debug(`Created Participant with ID: ${createdId}.`);
+            res.send({
+                id: createdId
+            });
         } catch (err: any) {
-            this._logger.error(`Err Participant Create [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantCreateValidationError) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantCreateValidationError) {
                 res.status(400).json({
                     status: "error",
                     msg: `Validation failure: ${err.message}.`
@@ -237,13 +246,151 @@ export class ExpressRoutes {
                     msg: `Unable to store participant. ${err.message}.`
                 });
             } else {
+                this._logger.error(err);
                 res.status(500).json({
                     status: "error",
-                    msg: "unknown error"
+                    msg: err.message
                 });
             }
         }
     }
+
+    private async participantApprove(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const id = req.params["id"] ?? null;
+        const actionNote:string | null = req.body?.note || null;
+        this._logger.debug(`Received request to approve Participant with ID: ${id}.`);
+
+        try {
+            await this._participantsAgg.approveParticipant(req.securityContext!, id, actionNote);
+            res.send();
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
+        }
+    }
+
+    private async deactivateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const id = req.params["id"] ?? null;
+        const actionNote:string | null = req.body?.note || null;
+        this._logger.debug(`Received request to deActivateParticipant Participant with ID: ${id}.`);
+
+        try {
+            await this._participantsAgg.deactivateParticipant(req.securityContext!, id, actionNote);
+            res.send();
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
+        }
+    }
+
+    private async activateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const id = req.params["id"] ?? null;
+        const actionNote:string | null = req.body?.note || null;
+        this._logger.debug(`Received request to activateParticipant Participant with ID: ${id}.`);
+
+        try {
+            await this._participantsAgg.activateParticipant(req.securityContext!, id, actionNote);
+            res.send();
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
+        }
+    }
+
+
+    /*
+    * Accounts
+    * */
+
+    private async accountsByParticipantId(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const id = req.params["id"] ?? null;
+        this._logger.debug(`Fetching Accounts for Participant [${id}].`);
+
+        try {
+            const fetched = await this._participantsAgg.getParticipantAccountsById(req.securityContext!, id);
+            res.send(fetched);
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof NoAccountsError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+
+        }
+    }
+
+    private async participantAccountCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const id = req.params["id"] ?? null;
+        const data: ParticipantAccount = req.body;
+        this._logger.debug(`Received request to create participant account for participant with ID: ${id}.`);
+
+        try {
+            await this._participantsAgg.addParticipantAccount(req.securityContext!, id, data);
+            res.send();
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+    }
+
+    /* private async participantAccountDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
+       const id = req.params["id"] ?? null;
+       const data: ParticipantAccount = req.body.source;
+       this._logger.debug(`Removing Participant Account [${JSON.stringify(data)}] for [${id}].`);
+
+       try {
+           await this._participantsAgg.removeParticipantAccount(req.securityContext!, id, data);
+           res.send();
+       } catch (err: any) {
+          if(this._handleUnauthorizedError(err, res)) return;
+
+           this._logger.error(err);
+           res.status(500).json({
+               status: "error",
+               msg: err.message
+           });
+       }
+   }*/
+
+    /*
+    * Endpoints
+    * */
 
     private async endpointsByParticipantId(req: express.Request, res: express.Response, next: express.NextFunction) {
         const id = req.params["id"] ?? null;
@@ -254,46 +401,15 @@ export class ExpressRoutes {
             const fetched = await this._participantsAgg.getParticipantEndpointsById(req.securityContext!, id);
             res.send(fetched);
         } catch (err: any) {
-            this._logger.error(`Err Get Participant Endpoints [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError || err instanceof NoEndpointsError) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof NoEndpointsError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
                 });
             } else {
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message
-                });
-            }
-        }
-    }
-
-    private async accountsByParticipantId(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const id = req.params["id"] ?? null;
-        this._logger.debug(`Fetching Accounts for Participant [${id}].`);
-
-        try {
-            const fetched = await this._participantsAgg.getParticipantAccountsById(req.securityContext!, id);
-            res.send(fetched);
-        } catch (err: any) {
-            this._logger.error(`Err Get Participant Accounts by Id [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError || err instanceof NoAccountsError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else {
+                this._logger.error(err);
                 res.status(500).json({
                     status: "error",
                     msg: err.message
@@ -308,147 +424,49 @@ export class ExpressRoutes {
         this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${id}].`);
 
         try {
-            await this._participantsAgg.addParticipantEndpoint(req.securityContext!, id, data);
-            res.send();
+            const endpointId = await this._participantsAgg.addParticipantEndpoint(req.securityContext!, id, data);
+            res.send({
+                id: endpointId
+            });
         } catch (err: any) {
-            this._logger.error(`Err Create Participant Endpoint [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else {
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message
-                });
-            }
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
         }
     }
 
-    private async participantAccountCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const id = req.params["id"] ?? null;
-        const data: ParticipantAccount = req.body;
-        this._logger.debug(`Creating Participant Account [${JSON.stringify(data)}] for [${id}].`);
+    private async participantEndpointChange(req: express.Request, res: express.Response, next: express.NextFunction) {
+        const participantId = req.params["id"] ?? null;
+        const endpointId = req.params["endpointId"] ?? null;
+        const data: ParticipantEndpoint = req.body;
 
-        try {
-            await this._participantsAgg.addParticipantAccount(req.securityContext!, id, data);
-            res.send();
-        } catch (err: any) {
-            this._logger.error(`Err Add Participant Account [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else {
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message
-                });
-            }
+        if(endpointId !== data.id ){
+            res.status(400).json({
+                status: "error",
+                msg: "endpoint id in url and object don't match"
+            });
+            return;
         }
-    }
 
-    private async participantApprove(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const id = req.params["id"] ?? null;
-        const data: ParticipantApproval = req.body;
-        this._logger.debug(`Approving Participant [${JSON.stringify(data)}] for [${id}].`);
+        this._logger.debug(`Changing endpoints for Participant [${participantId}].`);
 
         try {
-            await this._participantsAgg.approveParticipant(
-                    req.securityContext!,
-                    id,
-                    data.checker,
-                    data.feedback
-            );
+            await this._participantsAgg.changeParticipantEndpoint(req.securityContext!, participantId, data);
             res.send();
         } catch (err: any) {
-            this._logger.error(`Err Approve Participant [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof NoEndpointsError) {
                 res.status(404).json({
                     status: "error",
                     msg: err.message
                 });
             } else {
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message
-                });
-            }
-        }
-    }
-
-    private async deActivateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const id = req.params["id"] ?? null;
-        const data: ParticipantApproval = req.body;
-        this._logger.debug(`Disable Participant [${JSON.stringify(data)}] for [${id}].`);
-
-        try {
-            await this._participantsAgg.deActivateParticipant(req.securityContext!, id);
-            res.send();
-        } catch (err: any) {
-            this._logger.error(`Err De-Activate Participant [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else {
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message
-                });
-            }
-        }
-    }
-
-    private async activateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const id = req.params["id"] ?? null;
-        const data: ParticipantApproval = req.body;
-        this._logger.debug(`Enable Participant [${JSON.stringify(data)}] for [${id}].`);
-
-        try {
-            await this._participantsAgg.activateParticipant(req.securityContext!, id);
-            res.send();
-        } catch (err: any) {
-            this._logger.error(`Err Activate Participant [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else {
+                this._logger.error(err);
                 res.status(500).json({
                     status: "error",
                     msg: err.message
@@ -458,61 +476,28 @@ export class ExpressRoutes {
     }
 
     private async participantEndpointDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const id = req.params["id"] ?? null;
-        const data: ParticipantEndpoint = req.body.source;
-        this._logger.debug(`Removing Participant Endpoint [${JSON.stringify(data)}] for [${id}].`);
+        const participantId = req.params["id"] ?? null;
+        const endpointId = req.params["endpointId"] ?? null;
+
+
+        this._logger.debug(`Removing Participant Endpoint id: ${endpointId} from participant with ID: ${participantId}.`);
 
         try {
-            await this._participantsAgg.removeParticipantEndpoint(req.securityContext!, id, data);
+            await this._participantsAgg.removeParticipantEndpoint(req.securityContext!, participantId, endpointId);
             res.send();
         } catch (err: any) {
-            this._logger.error(`Err Remove Participant Endpoint [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else {
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message
-                });
-            }
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: err.message
+            });
         }
     }
 
-    private async participantAccountDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const id = req.params["id"] ?? null;
-        const data: ParticipantAccount = req.body.source;
-        this._logger.debug(`Removing Participant Account [${JSON.stringify(data)}] for [${id}].`);
 
-        try {
-            await this._participantsAgg.removeParticipantAccount(req.securityContext!, id, data);
-            res.send();
-        } catch (err: any) {
-            this._logger.error(`Err Remove Participant Account [${JSON.stringify(err)}].`);
-            if (err instanceof UnauthorizedError) {
-                res.status(403).json({
-                    status: "error",
-                    msg: "Unauthorized"
-                });
-            } else if (err instanceof ParticipantNotFoundError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message
-                });
-            } else {
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message
-                });
-            }
-        }
-    }
+
+
 
 }

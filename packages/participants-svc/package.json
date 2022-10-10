@@ -1,6 +1,6 @@
 {
   "name": "@mojaloop/participants-bc-svc",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "mojaloop participants service",
   "license": "Apache-2.0",
   "homepage": "https://github.com/mojaloop/participants-bc/",
@@ -16,14 +16,10 @@
   "files": [
     "/dist"
   ],
-  "pre-commit": [
-    "dep:check",
-    "build",
-    "lint",
-    "test:unit"
-  ],
   "scripts": {
-    "start": "node dist/application/index.js",
+    "start": "npm run service",
+    "start:dev": "npm run build && npm run service",
+    "service": "node dist/application/index.js",
     "build": "tsc",
     "watch": "tsc -w",
     "clean": "rm -Rf dist",
@@ -45,14 +41,14 @@
   "dependencies": {
     "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.0.3",
     "@mojaloop/accounts-and-balances-bc-public-types-lib": "~0.0.3",
-    "@mojaloop/auditing-bc-client-lib": "^0.0.6",
-    "@mojaloop/auditing-bc-public-types-lib": "^0.0.7",
-    "@mojaloop/logging-bc-client-lib": "^0.0.10",
-    "@mojaloop/logging-bc-public-types-lib": "^0.0.3",
-    "@mojaloop/participant-bc-public-types-lib": "^0.0.1",
-    "@mojaloop/platform-configuration-bc-client-lib": "^0.0.5",
-    "@mojaloop/security-bc-client-lib": "^0.0.4",
-    "@mojaloop/security-bc-public-types-lib": "^0.0.5",
+    "@mojaloop/auditing-bc-client-lib": "~0.0.6",
+    "@mojaloop/auditing-bc-public-types-lib": "~0.0.7",
+    "@mojaloop/logging-bc-client-lib": "~0.1.14",
+    "@mojaloop/logging-bc-public-types-lib": "~0.1.12",
+    "@mojaloop/participant-bc-public-types-lib": "*",
+    "@mojaloop/platform-configuration-bc-client-lib": "~0.1.10",
+    "@mojaloop/security-bc-client-lib": "~0.0.56",
+    "@mojaloop/security-bc-public-types-lib": "~0.0.10",
     "express": "^4.18.1",
     "mongodb": "^3.6.3"
   },

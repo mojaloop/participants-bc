@@ -10,30 +10,30 @@ More information on how to install NVM: https://github.com/nvm-sh/nvm
 ## Build
 
 ```bash
-yarn build
+npm run build
 ```
 
 ## Run this service
 
 Anywhere in the repo structure:
 ```bash
-yarn modules/participants-svc start
+npm -w modules/participants-svc start
 ```
 
 ## Auto build (watch)
 
 ```bash
-yarn watch
+npm run watch
 ```
 
 ## Unit Tests
 
 ```bash
-yarn test:unit
+npm run test:unit
 ```
 
 ## Integration Tests
 
 ```bash
-yarn test:integration
+npm run test:integration
 ```

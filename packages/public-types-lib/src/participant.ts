@@ -25,10 +25,16 @@
  * Coil
  - Jason Bruwer <jason.bruwer@coil.com>
 
+ * Crosslake
+ - Pedro Sousa Barreto <pedrob@crosslaketech.com>
+
  --------------
 ******/
 
 "use strict";
+
+// import {verify} from "crypto";
+// import {NetworkInterfaceInfo} from "os";
 
 /** Participants **/
 export declare type Participant = {
@@ -36,34 +42,72 @@ export declare type Participant = {
   name: string;
   isActive: boolean;
   description: string;
-  createdDate: number;
+
   createdBy: string;
+  createdDate: number;
+
+  approved: boolean;
+  approvedBy: string | null;
+  approvedDate: number | null;
+
   lastUpdated: number;
+
+  participantAllowedSourceIps: ParticipantAllowedSourceIps[];
   participantEndpoints: ParticipantEndpoint[];
   participantAccounts: ParticipantAccount[];
+
+  changeLog:ParticipantActivityLogEntry[];
 }
 
+export declare type ParticipantAllowedSourceIps = {
+  id: string;                                             // uuid of the source IP
+  cidr:string;                                            // proper cidr format
+  // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
+  portMode: "ANY" | "SPECIFIC" | "RANGE";
+  ports?: number[];                                       // using a single or multiple ports
+  portRange?:{ rangeFirst: number, rangeLast: number;};   // port range
+}
+
+export declare type PartipantEndpointType = "FSPIOP" | "ISO20022";
+export declare type PartipantEndpointProtocol = "HTTPs/REST";
+
 export declare type ParticipantEndpoint = {
-  type: string;
-  value: string;
+  id: string;                                             // uuid of the endpoint
+  type: PartipantEndpointType;                            // "FSPIOP" | "ISO20022"
+  protocol: PartipantEndpointProtocol;                                 // for now only "HTTPs/REST";
+  value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
 }
 
 export declare type ParticipantAccount = {
-  id: string;
-  type: number;       //TODO move
-  //isActive: boolean //TODO do we need this?
-  currencyCode: string;   //TODO move
-  debitBalance?: string;
-  creditBalance?: string;
+  id: string;                                             // uuid of the account (from the external accounts and balances system)
+  type: string;
+  //isActive: boolean                                     //TODO do we need this?
+  currencyCode: string;                                   //TODO move
+  debitBalance?: string;                                  // output only, we don't store this here
+  creditBalance?: string;                                 // output only, we don't store this here
 }
 
-export declare type ParticipantApproval = {
-  participantId: string;
-  lastUpdated: number;
-  maker: string;
-  makerLastUpdated: number;
-  checker: string;
-  checkerLastUpdated: number;
-  checkerApproved: boolean;
-  feedback: string;
+export declare type ParticipantChangeType =
+        "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
+        | "ADD_ACCOUNT" | "REMOVE_ACCOUNT"
+        | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
+        | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP";
+
+export declare type ParticipantActivityLogEntry = {
+  changeType: ParticipantChangeType;
+  user: string;
+  timestamp: number;
+  notes: string | null;
 }
+//
+// export declare type ParticipantApproval = {
+//   participantId: string;
+//   lastUpdated: number;
+//   maker: string;
+//   makerLastUpdated: number;
+//   checker: string;
+//   checkerLastUpdated: number;
+//   checkerApproved: boolean;
+//   feedback: string;
+// }
+

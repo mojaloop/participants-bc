@@ -30,60 +30,20 @@
 
 "use strict"
 
-import {
-    Participant,
-    ParticipantAccount,
-    ParticipantApproval,
-    ParticipantEndpoint
-} from "@mojaloop/participant-bc-public-types-lib";
+import { Participant } from "@mojaloop/participant-bc-public-types-lib";
 
 export interface IParticipantsRepository {
     init(): Promise<void>;
 
     //Participant
-    insert(participant: Participant): Promise<boolean>;
-    update(participant: Participant): Promise<boolean>;
-    fetchWhereName(participantName: string): Promise<Participant | null>;
-    fetchWhereId(id: string): Promise<Participant | null>;
+    create(participant: Participant): Promise<boolean>;
+    store(participant: Participant): Promise<boolean>;
 
-    fetchWhereIds(id: string[]): Promise<Participant[]>;
     fetchAll():Promise<Participant[]>;
-
-    //Approvals
-    //TODO needs their own repository, not to conflict...
-    updateApprovalForChecker(participantApp: ParticipantApproval): Promise<boolean>;
-
-    destroy (): Promise<void>
-}
-
-export interface IParticipantsAccountRepository {
-    init(): Promise<void>;
-
-    addAccount(participantId: string, toAdd: ParticipantAccount): Promise<boolean>;
-    removeAccount(participantId: string, toRemove: ParticipantAccount): Promise<boolean>;
-    fetchWhereParticipantId(participantId: string): Promise<ParticipantAccount[] | null>;
-    fetchWhereParticipantIdAndType(participantId: string, type: number): Promise<ParticipantAccount | null>;
+    fetchWhereId(id: string): Promise<Participant | null>;
+    fetchWhereName(participantName: string): Promise<Participant | null>;
+    fetchWhereIds(id: string[]): Promise<Participant[]>;
 
     destroy (): Promise<void>
 }
 
-export interface IParticipantsApprovalRepository {
-    init(): Promise<void>;
-
-    //TODO @jason remove
-    approve(participantId: string, approved: ParticipantApproval): Promise<boolean>;
-
-    destroy (): Promise<void>
-}
-
-export interface IParticipantsEndpointRepository {
-    init(): Promise<void>;
-
-    //TODO move to aggregate.
-    addEndpoint(participantId: string, toAdd: ParticipantEndpoint): Promise<boolean>;
-    removeEndpoint(participantId: string, toRemove: ParticipantEndpoint): Promise<boolean>;
-    fetchWhereParticipantId(participantId: string): Promise<ParticipantEndpoint[] | null>;
-    fetchWhereParticipantIdAndType(participantId: string, type: string): Promise<ParticipantEndpoint | null>;
-
-    destroy (): Promise<void>
-}

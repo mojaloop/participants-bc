@@ -31,7 +31,7 @@
 "use strict";
 
 import {
-    AppConfiguration,
+    ConfigurationClient,
     DefaultConfigProvider
 } from "@mojaloop/platform-configuration-bc-client-lib";
 import { ConfigParameterTypes } from "@mojaloop/platform-configuration-bc-types-lib";
@@ -40,9 +40,8 @@ import {LogLevel} from "@mojaloop/logging-bc-public-types-lib/dist/index";
 // configs - constants / code dependent
 const BC_NAME = "participants-bc";
 const APP_NAME = "participants-svc";
-const APP_VERSION = "0.0.1";
-const LOGLEVEL = LogLevel.DEBUG;
-const CONFIGSET_VERSION = "0.0.1";
+const APP_VERSION = process.env.npm_package_version || "0.0.3";
+const CONFIGSET_VERSION = "0.0.3";
 
 // configs - non-constants
 const ENV_NAME = process.env["ENV_NAME"] || "dev";
@@ -50,17 +49,17 @@ const CONFIG_SVC_BASEURL = process.env["CONFIG_SVC_BASEURL"] || "http://localhos
 
 const defaultConfigProvider: DefaultConfigProvider = new DefaultConfigProvider(CONFIG_SVC_BASEURL);
 
-const appConfig = new AppConfiguration(ENV_NAME, BC_NAME, APP_NAME, CONFIGSET_VERSION, defaultConfigProvider);
+const configClient = new ConfigurationClient(ENV_NAME, BC_NAME, APP_NAME, APP_VERSION, CONFIGSET_VERSION, defaultConfigProvider);
 
 /*
 * Add application parameters here
 * */
-appConfig.addNewParam(
-        "service-http-port",
-        ConfigParameterTypes.INT_NUMBER,
-        3000,
-        "Http port where the webservice will listen in - v"+CONFIGSET_VERSION
+configClient.appConfigs.addNewParam(
+        "MAKER_CHECKER_ENABLED",
+        ConfigParameterTypes.BOOL,
+        true,
+        "Enable maker-checker enforcement in participants"
 );
 
-export = appConfig;
+export = configClient;
 

@@ -29,3 +29,5 @@
 
 export * from "./participants_http_client";
 export * from "./errors";
+
+export * from "@mojaloop/participant-bc-public-types-lib";

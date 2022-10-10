@@ -32,12 +32,22 @@
 
 export class UnauthorizedError extends Error {}
 export class MakerCheckerViolationError extends Error {}
+
 export class ParticipantNotFoundError extends Error {}
 export class ParticipantCreateValidationError extends Error {}
 export class InvalidParticipantError extends Error {}
-export class EndpointTypeExistsError extends Error {}
-export class AccountTypeExistsError extends Error {}
+
+export class CannotAddDuplicateEndpointError extends Error {}
+export class EndpointNotFoundError extends Error {}
+
+export class CannotAddDuplicateAccountError extends Error {}
+export class AccountNotFoundError extends Error {}
+
+// export class EndpointTypeExistsError extends Error {}
+// export class AccountTypeExistsError extends Error {}
+
 export class NoAccountsError extends Error {}
 export class NoEndpointsError extends Error {}
 export class UnableToCreateAccountUpstream extends Error {}
 export class ParticipantNotActive extends Error {}
+export class CouldNotStoreParticipant extends Error {}

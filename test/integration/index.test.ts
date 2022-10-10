@@ -32,11 +32,10 @@ import {ParticipantsHttpClient, UnableToCreateParticipantAccountError} from "@mo
 import {
     Participant,
     ParticipantAccount,
-    ParticipantApproval,
     ParticipantEndpoint
 } from "@mojaloop/participant-bc-public-types-lib";
 import {KafkaLogger} from "@mojaloop/logging-bc-client-lib";
-import {MLKafkaProducerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
+import {MLKafkaRawProducerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
 import * as Crypto from "crypto";
 import {ConsoleLogger} from "@mojaloop/logging-bc-public-types-lib/dist/console_logger";
 
@@ -104,8 +103,13 @@ describe("participant - integration tests", () => {
             createdDate: 0,
             createdBy: "",
             lastUpdated: 0,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            participantAllowedSourceIps: [],
             participantEndpoints: [],
-            participantAccounts: []
+            participantAccounts: [],
+            changeLog: []
         };
         const participantReceived: Participant|null = await participantsHttpClient.createParticipant(participant);
         expect(participantReceived?.id).toEqual(participantId);
@@ -133,8 +137,13 @@ describe("participant - integration tests", () => {
             createdDate: 0,
             createdBy: "",
             lastUpdated: 0,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            participantAllowedSourceIps: [],
             participantEndpoints: [],
-            participantAccounts: []
+            participantAccounts: [],
+            changeLog: []
         };
         const participantCreated: Participant|null = await participantsHttpClient.createParticipant(participant);
         expect(participantCreated).toBeDefined();
@@ -158,213 +167,4 @@ describe("participant - integration tests", () => {
         }
     });
 
-    // Test participant approval:
-    test("approve participant by id", async () => {
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
-
-        const participantId: string = Crypto.randomUUID();
-        const participant: Participant = {
-            id: participantId,
-            name: `Snow White - ${participantId}`,
-            isActive: true,
-            description: "",
-            createdDate: 0,
-            createdBy: "",
-            lastUpdated: 0,
-            participantEndpoints: [],
-            participantAccounts: []
-        };
-        const participantCreated: Participant|null = await participantsHttpClient.createParticipant(participant);
-        expect(participantCreated).toBeDefined();
-        expect(participantCreated?.id).toEqual(participantId);
-
-        const approval: ParticipantApproval = {
-            participantId: participantId,
-            lastUpdated: 0,
-            maker: '',
-            makerLastUpdated: 0,
-            checker: 'Johnny',
-            checkerLastUpdated: 0,
-            checkerApproved: true,
-            feedback: ''
-        }
-
-        participantsHttpClient.setAccessToken(USER2_TOKEN);
-
-        await participantsHttpClient.approveParticipant(approval);
-        const partById = await participantsHttpClient.getParticipantById(participantId);
-
-        expect(partById).toBeDefined()
-        if (partById) {
-            expect(partById.id).toEqual(participantId);
-            expect(partById.name).toEqual(participant.name);
-            expect(partById.isActive).toEqual(true);
-        }
-    });
-
-    // Test participant disable/enable:
-    test("disable and enable participant by id", async () => {
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
-
-        const participantId: string = Crypto.randomUUID();
-        const participant: Participant = {
-            id: participantId,
-            name: `Mickey Mouse - ${participantId}`,
-            isActive: true,
-            description: '',
-            createdDate: 0,
-            createdBy: '',
-            lastUpdated: 0,
-            participantEndpoints: [],
-            participantAccounts: []
-        };
-        const participantCreated: Participant| null = await participantsHttpClient.createParticipant(participant);
-        expect(participantCreated).toBeDefined();
-        expect(participantCreated?.id).toEqual(participantId);
-
-        const approval: ParticipantApproval = {
-            participantId: participantId,
-            lastUpdated: 0,
-            maker: "",
-            makerLastUpdated: 0,
-            checker: "Johnny Vans",
-            checkerLastUpdated: 0,
-            checkerApproved: true,
-            feedback: "You have been approved."
-        }
-
-        participantsHttpClient.setAccessToken(USER2_TOKEN);
-
-        await participantsHttpClient.approveParticipant(approval);
-        const partById = await participantsHttpClient.getParticipantById(participantId);
-
-        expect(partById).toBeDefined()
-        if (partById) {
-            expect(partById.id).toEqual(participantId);
-            expect(partById.name).toEqual(participant.name);
-            expect(partById.isActive).toEqual(true);
-        }
-
-        await participantsHttpClient.disableParticipant(participantId);
-        const partDisabledById = await participantsHttpClient.getParticipantById(participantId);
-        expect(partDisabledById).toBeDefined()
-        if (partDisabledById) {
-            expect(partDisabledById.id).toEqual(participantId);
-            expect(partDisabledById.name).toEqual(participant.name);
-            expect(partDisabledById.isActive).toEqual(false);
-        }
-
-        await participantsHttpClient.enableParticipant(participantId);
-        const partEnabledById = await participantsHttpClient.getParticipantById(participantId);
-        expect(partEnabledById).toBeDefined()
-        if (partEnabledById) {
-            expect(partEnabledById.id).toEqual(participantId);
-            expect(partEnabledById.name).toEqual(participant.name);
-            expect(partEnabledById.isActive).toEqual(true);
-        }
-    });
-
-    // Create participant endpoint by id:
-    test("create/delete/get participant endpoint for participant", async () => {
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
-
-        const participantId: string = Crypto.randomUUID();
-        const participant: Participant = {
-            id: participantId,
-            name: `Aladdin - ${participantId}`,
-            isActive: true,
-            description: "",
-            createdDate: 0,
-            createdBy: "",
-            lastUpdated: 0,
-            participantEndpoints: [],
-            participantAccounts: []
-        };
-        const participantCreated: Participant | null = await participantsHttpClient.createParticipant(participant);
-        expect(participantCreated).toBeDefined();
-        expect(participantCreated?.id).toEqual(participantId);
-
-        const partEnd: ParticipantEndpoint = {
-            type: "main",
-            value: "http://txn"
-        }
-
-        await participantsHttpClient.createParticipantEndpoint(participant, partEnd);
-        const partEndById = await participantsHttpClient.getParticipantEndpointsById(participantId);
-        expect(partEndById).toBeDefined();
-        if (partEndById) {
-            expect(partEndById.length).toEqual(1);
-            expect(partEndById[0].type).toEqual(partEnd.type);
-            expect(partEndById[0].value).toEqual(partEnd.value);
-        }
-
-        await participantsHttpClient.deleteParticipantEndpoint(participant, partEnd);
-        const endpointsPostDel = await participantsHttpClient.getParticipantEndpointsById(participantId);
-        expect(endpointsPostDel).toBeNull();
-    });
-
-    // Create participant account by id:
-    test("create/delete/get participant account for participant", async () => {
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
-
-        const participantId: string = Crypto.randomUUID();
-        const participant: Participant = {
-            id: participantId,
-            name: `Robin Hood - ${participantId}`,
-            isActive: true,
-            description: "",
-            createdDate: 0,
-            createdBy: "",
-            lastUpdated: 0,
-            participantEndpoints: [],
-            participantAccounts: []
-        };
-        const participantCreated: Participant| null = await participantsHttpClient.createParticipant(participant);
-        expect(participantCreated).toBeDefined();
-        expect(participantCreated?.id).toEqual(participantId);
-
-        const accId: string = Crypto.randomUUID();
-        const partAcc: ParticipantAccount = {
-            id: accId,
-            type: 1,
-            currencyCode: "EUR"
-        }
-
-        try {
-            await participantsHttpClient.createParticipantAccount(participant, partAcc);
-            fail('Not allowed to create an account for an inactive participant.')
-        } catch (err: any) {
-            // We expect failure.
-        }
-
-        participantsHttpClient.setAccessToken(USER2_TOKEN);
-
-        await participantsHttpClient.approveParticipant({
-            participantId: participantId,
-            lastUpdated: 0,
-            maker: '',
-            makerLastUpdated: 0,
-            checker: 'Johnny Vans',
-            checkerLastUpdated: 0,
-            checkerApproved: true,
-            feedback: 'Great work.'
-        });
-
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
-
-        await participantsHttpClient.createParticipantAccount(participant, partAcc);
-
-        const partAccsById = await participantsHttpClient.getParticipantAccountsById(participantId);
-        expect(partAccsById).toBeDefined();
-        if (partAccsById) {
-            expect(partAccsById.length).toEqual(1);
-            //expect(partAccsById[0].id).toEqual(partAcc.id);
-            expect(partAccsById[0].type).toEqual(partAcc.type);
-            expect(partAccsById[0].currencyCode).toEqual(partAcc.currencyCode);
-        }
-
-        await participantsHttpClient.deleteParticipantAccount(participant, partAcc);
-        const accountsPostDel = await participantsHttpClient.getParticipantAccountsById(participantId);
-        expect(accountsPostDel).toBeNull();
-    });
 });

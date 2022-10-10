@@ -1,5 +1,5 @@
-# Participants BC - Service
-Mojaloop vNext Typescript BC Participants Service
+# Participants BC - Public Types
+Mojaloop vNext Typescript BC Participants Public Types
 
 ## Notes
 
@@ -10,30 +10,6 @@ More information on how to install NVM: https://github.com/nvm-sh/nvm
 ## Build
 
 ```bash
-yarn build
+npm run build
 ```
 
-## Run this service
-
-Anywhere in the repo structure:
-```bash
-yarn modules/participants-svc start
-```
-
-## Auto build (watch)
-
-```bash
-yarn watch
-```
-
-## Unit Tests
-
-```bash
-yarn test:unit
-```
-
-## Integration Tests
-
-```bash
-yarn test:integration
-```

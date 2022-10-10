@@ -1,12 +1,16 @@
 {
   "name": "@mojaloop/participants-bc-client-lib",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Participants BC - Client",
   "license": "Apache-2.0",
   "homepage": "https://github.com/mojaloop/participants-bc/tree/main/modules/client",
   "bugs": {
     "url": "https://github.com/mojaloop/participants-bc/issues#readme"
   },
+  "keywords": [
+    "mojaloop",
+    "vnext"
+  ],
   "contributors": [
     "Jason Bruwer <jason.bruwer@coil.com>"
   ],
@@ -35,13 +39,20 @@
     "audit:check": "npm npm audit",
     "dep:check": "ncu -e 2",
     "dep:update": "ncu -u",
-    "npm_publish": "npm version patch && npm publish --tag=latest --access public"
+    "npm_publish": "npm version patch && npm publish --tag=latest --access public",
+    "TEST_prepack": "node -p \"require('./package.json').bundledDependencies.join('\\n')\" | xargs -t -I  %  sh -c 'mkdir -p node_modules/%; cp -r $(npm root)/%/* node_modules/%'",
+    "TEST_postpack": "rm -Rf node_modules"
   },
   "devDependencies": {
     "@mojaloop/logging-bc-public-types-lib": "^0.0.3",
+    "@mojaloop/participant-bc-public-types-lib": "~0.0.2",
     "nock": "^13.2.9"
   },
   "dependencies": {
     "axios": "^0.27.2"
-  }
+  },
+  "bundledDependencies": [
+    "@mojaloop/participant-bc-public-types-lib",
+    "@mojaloop/logging-bc-public-types-lib"
+  ]
 }

@@ -6,11 +6,17 @@
 [![NPM Vulnerabilities](https://img.shields.io/snyk/vulnerabilities/npm/@mojaloop/participants-bc-client-lib.svg?style=flat)](https://www.npmjs.com/package/@mojaloop/participants-bc-client-lib)
 [![CircleCI](https://circleci.com/gh/mojaloop/participants-bc.svg?style=svg)](https://circleci.com/gh/mojaloop/participants-bc)
 
-This is the client library for the Accounts and Balances bounded context.  
-It allows for the following operations:
-- **Create participant**: create a single participant.
-- **Create participant endpoint**: create a single participant endpoint.
-- **Create participant account**: create a single participant account.
+This is a readonly client library for the Accounts and Balances bounded context.  
+It allows for the following readonly operations:
+- **getAllParticipants**: get all registered participants.
+- **getParticipantsByIds**: et multiple participants with an array of Ids.
+- **getParticipantById**: get a single participant by its Id.
+- **getParticipantEndpointsById**: get the endpoint list of participant by its Id.
+- **getParticipantAccountsById**: get the account list of participant by its Id (this is the only call that includes balances - fetched from the Accounts and Balances Services by the Participants Service).
+
+
+**NOTE**: requests require an access token and access will be controlled by the server
+
 
 ## Install
 ```

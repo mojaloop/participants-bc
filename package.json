@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "prepare": "husky install",
+    "start:participants-svc": "npm -w @mojaloop/participants-bc-svc run start",
     "clean": "npm -ws -p run clean",
     "clean:dist": "npm -ws -p run clean:dist",
     "clean:node-modules": "rm -rf node_modules && npm -ws -p run clean:node-modules",
@@ -20,6 +21,7 @@
     "dep:check": "npm -ws -p run dep:check",
     "lint": "npm -ws -p run lint",
     "build": "npm -ws -p run build",
+    "docker:build": "npm run build && docker build . -t \"mojaloop/participants-bc-participants-svc\"",
     "clean-and-build": "npm run clean && npm run build",
     "test:unit": "npm -ws -p run test:unit",
     "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
@@ -29,7 +31,6 @@
   "devDependencies": {
     "@types/jest": "^27.0.3",
     "@types/node": "^16.11.9",
-    "@types/node-cache": "^4.2.5",
     "@typescript-eslint/eslint-plugin": "^5.22.0",
     "@typescript-eslint/parser": "^5.22.0",
     "eslint": "^8.14.0",
