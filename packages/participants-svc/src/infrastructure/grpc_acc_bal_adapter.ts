@@ -116,6 +116,10 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
         return ret;
     }
 
+    getAccounts(accountIds: string[]): Promise<JournalAccount[]>{
+        throw new Error("not implemented");
+    }
+
     async getParticipantAccounts(externalId: string): Promise<JournalAccount[] | null> {
         const foundAccounts:IAccountDto[] = await this._client.getAccountsByExternalId(externalId);
         if(!foundAccounts){

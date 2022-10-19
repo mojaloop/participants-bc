@@ -36,7 +36,7 @@ import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
     Participant,
     ParticipantAccount,
-    ParticipantEndpoint
+    ParticipantEndpoint, ParticipantFundsMovement
 } from "@mojaloop/participant-bc-public-types-lib";
 import {ParticipantAggregate} from "../domain/participant_agg";
 
@@ -96,6 +96,10 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id/accounts", this.accountsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/account", this.participantAccountCreate.bind(this));
         // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
+
+        // funds management
+        this._mainRouter.post("/participants/:id/funds", this.participantFundsMovCreate.bind(this));
+        this._mainRouter.post("/participants/:id/funds/:fundsMovId/approve", this.participantFundsMovApprove.bind(this));
     }
 
     private async _authenticationMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -349,8 +353,10 @@ export class ExpressRoutes {
         this._logger.debug(`Received request to create participant account for participant with ID: ${id}.`);
 
         try {
-            await this._participantsAgg.addParticipantAccount(req.securityContext!, id, data);
-            res.send();
+            const createdId = await this._participantsAgg.addParticipantAccount(req.securityContext!, id, data);
+            res.send({
+                id: createdId
+            });
         } catch (err: any) {
             if(this._handleUnauthorizedError(err, res)) return;
 
@@ -497,7 +503,67 @@ export class ExpressRoutes {
     }
 
 
+    /*
+    * Funds management
+    * */
 
+    private async participantFundsMovCreate(req: express.Request, res: express.Response, next: express.NextFunction){
+        const id = req.params["id"] ?? null;
+        const fundsMov:ParticipantFundsMovement = req.body;
+
+        this._logger.debug(`Received request to create a funds movement for participant with ID: ${id}`);
+
+        try {
+            const createdId = await this._participantsAgg.createFundsMovement(req.securityContext!, id, fundsMov);
+            res.send({
+                id: createdId
+            });
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+
+    }
+
+    private async participantFundsMovApprove(req: express.Request, res: express.Response, next: express.NextFunction){
+        const id = req.params["id"] ?? null;
+        const fundsMovId = req.params["fundsMovId"] ?? null;
+
+        this._logger.debug(`Received request to approve a funds movement for participant with ID: ${id} and fundsMovId: ${fundsMovId}`);
+
+        try {
+            await this._participantsAgg.approveFundsMovement(req.securityContext!, id, fundsMovId);
+            res.send();
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+
+    }
 
 
 }

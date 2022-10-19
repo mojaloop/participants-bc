@@ -36,10 +36,13 @@
 // import {verify} from "crypto";
 // import {NetworkInterfaceInfo} from "os";
 
+export declare type ParticipantType = "HUB" | "DFSP";
+
 /** Participants **/
 export declare type Participant = {
   id: string;
   name: string;
+  type: ParticipantType;
   isActive: boolean;
   description: string;
 
@@ -56,7 +59,27 @@ export declare type Participant = {
   participantEndpoints: ParticipantEndpoint[];
   participantAccounts: ParticipantAccount[];
 
+  fundsMovements: ParticipantFundsMovement[];
   changeLog:ParticipantActivityLogEntry[];
+}
+
+export declare type ParticipantFundsMovementDirection = "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL";
+
+export declare type ParticipantFundsMovement = {
+  id: string;
+  createdBy: string;
+  createdDate: number;
+  approved: boolean;
+  approvedBy: string | null;
+  approvedDate: number | null;
+
+  direction: ParticipantFundsMovementDirection;
+  currencyCode: string;
+  amount: string;
+
+  transferId: string | null;
+  extReference: string | null;
+  note: string | null;
 }
 
 export declare type ParticipantAllowedSourceIps = {
@@ -78,9 +101,11 @@ export declare type ParticipantEndpoint = {
   value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
 }
 
+export declare type ParticipantAccountType = "HUB_ASSET" | "POSITION" | "SETTLEMENT";
+
 export declare type ParticipantAccount = {
   id: string;                                             // uuid of the account (from the external accounts and balances system)
-  type: string;
+  type: ParticipantAccountType;
   //isActive: boolean                                     //TODO do we need this?
   currencyCode: string;                                   //TODO move
   debitBalance?: string;                                  // output only, we don't store this here
@@ -91,7 +116,8 @@ export declare type ParticipantChangeType =
         "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
         | "ADD_ACCOUNT" | "REMOVE_ACCOUNT"
         | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
-        | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP";
+        | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
+        | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL";
 
 export declare type ParticipantActivityLogEntry = {
   changeType: ParticipantChangeType;
@@ -99,6 +125,9 @@ export declare type ParticipantActivityLogEntry = {
   timestamp: number;
   notes: string | null;
 }
+
+
+
 //
 // export declare type ParticipantApproval = {
 //   participantId: string;

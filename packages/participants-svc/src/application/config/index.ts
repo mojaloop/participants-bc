@@ -40,7 +40,7 @@ import {LogLevel} from "@mojaloop/logging-bc-public-types-lib/dist/index";
 // configs - constants / code dependent
 const BC_NAME = "participants-bc";
 const APP_NAME = "participants-svc";
-const APP_VERSION = process.env.npm_package_version || "0.0.3";
+const APP_VERSION = process.env.npm_package_version || "0.0.4";
 const CONFIGSET_VERSION = "0.0.3";
 
 // configs - non-constants
@@ -60,6 +60,13 @@ configClient.appConfigs.addNewParam(
         true,
         "Enable maker-checker enforcement in participants"
 );
+
+// configClient.appConfigs.addNewParam(
+//         "MAX_VALUE_PER_DEPOSIT",
+//         ConfigParameterTypes.BOOL,
+//         true,
+//         "Enable maker-checker enforcement in participants"
+// );
 
 export = configClient;
 

@@ -54,6 +54,7 @@ import {GrpcAccountsAndBalancesAdapter} from "../infrastructure/grpc_acc_bal_ada
 import configClient from "./config";
 import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib";
 import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
+import {TigerBeetleAdapter} from "../infrastructure/tb_acc_bal_adapter";
 
 const BC_NAME = configClient.boundedContextName;
 const APP_NAME = configClient.applicationName;
@@ -84,6 +85,9 @@ const kafkaProducerOptions = {
 
 let globalLogger: ILogger;
 
+// TODO currency list should come from the platform configuration service/client
+const CURRENCY_LIST = ["EUR", "USD", "TZS"];
+
 export class Service {
     static logger: ILogger;
     static app: Express;
@@ -102,6 +106,8 @@ export class Service {
             repoPart?: IParticipantsRepository,
             accAndBalAdapter?: IAccountsBalancesAdapter
     ): Promise<void> {
+        console.log(`Service starting with PID: ${process.pid}`);
+
         /// start config client - this is not mockable (can use STANDALONE MODE if desired)
         await configClient.init();
         await configClient.bootstrap(true);
@@ -155,23 +161,31 @@ export class Service {
         // repos and aggregate
         if(!repoPart){
             repoPart = new MongoDBParticipantsRepo(MONGO_URL, logger);
+
         }
         this.repoPart = repoPart;
 
         // Accounts and Balances Client
+        // if(!accAndBalAdapter){
+        //     accAndBalAdapter = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_URL, logger);
+        // }
+        // this.accountsBalancesAdapter = accAndBalAdapter;
+
+
         if(!accAndBalAdapter){
-            accAndBalAdapter = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_URL, logger);
+            this.accountsBalancesAdapter = new TigerBeetleAdapter(0, ["127.0.0.1:3000"], this.logger);
         }
-        this.accountsBalancesAdapter = accAndBalAdapter;
+        //this.accountsBalancesAdapter = accAndBalAdapter;
 
 
         // create the aggregate
         this.participantAgg = new ParticipantAggregate(
-                repoPart,
-                accAndBalAdapter,
-                auditClient,
-                authorizationClient,
-                logger
+                this.repoPart,
+                this.accountsBalancesAdapter,
+                this.auditClient,
+                this.authorizationClient,
+                CURRENCY_LIST,
+                this.logger
         );
 
         await this.participantAgg.init();
@@ -226,7 +240,13 @@ export class Service {
 
 async function _handle_int_and_term_signals(signal: NodeJS.Signals): Promise<void> {
     console.info(`Service - ${signal} received - cleaning up...`);
+    let clean_exit = false;
+    setTimeout(args => { clean_exit || process.exit(99);}, 5000);
+
+    // call graceful stop routine
     await Service.stop();
+
+    clean_exit = true;
     process.exit();
 }
 
@@ -241,4 +261,6 @@ process.on("exit", async () => {
 });
 process.on("uncaughtException", (err: Error) => {
     globalLogger.error(err);
+    console.log("UncaughtException - EXITING...");
+    process.exit(999);
 });

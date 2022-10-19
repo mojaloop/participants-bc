@@ -56,9 +56,8 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         try {
             this._mongoClient = await MongoClient.connect(this._mongoUri, { useNewUrlParser: true });
         } catch (err: any) {
-            const errMsg: string = err?.message?.toString();
-            this._logger.isWarnEnabled() && this._logger.warn(`MongoDbParticipantRepo - init failed with error: ${errMsg}`);
-            this._logger.isErrorEnabled() && this._logger.error(err);
+            this._logger.error(err);
+            this._logger.isWarnEnabled() && this._logger.warn(`MongoDbParticipantRepo - init failed with error: ${err?.message?.toString()}`);
             throw (err);
         }
         if (this._mongoClient === null) throw new Error('Couldn\'t instantiate mongo client');
@@ -129,6 +128,8 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
                     participantAllowedSourceIps: participant.participantAllowedSourceIps,
                     participantEndpoints: participant.participantEndpoints,
                     participantAccounts: participant.participantAccounts,
+
+                    fundsMovements: participant.fundsMovements,
                     changeLog: participant.changeLog
                 }
             }
