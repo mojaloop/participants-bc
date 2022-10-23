@@ -28,7 +28,7 @@
  --------------
  ******/
 
-'use strict'
+"use strict";
 
 export class UnauthorizedError extends Error {}
 export class MakerCheckerViolationError extends Error {}
@@ -53,3 +53,5 @@ export class NoEndpointsError extends Error {}
 export class UnableToCreateAccountUpstream extends Error {}
 export class ParticipantNotActive extends Error {}
 export class CouldNotStoreParticipant extends Error {}
+
+export class ParticipantAlreadyApproved extends Error {}

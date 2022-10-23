@@ -42,6 +42,8 @@ import {
 	UnableToGetParticipantsError, UnauthorizedError
 } from "./errors";
 
+const DEFAULT_TIMEOUT_MS = 5000;
+
 export class ParticipantsHttpClient {
 	// Properties received through the constructor.
 	private readonly logger: ILogger;
@@ -54,7 +56,7 @@ export class ParticipantsHttpClient {
 		logger: ILogger,
 		baseUrlHttpService: string,
 		accessToken: string,
-		timeoutMs: number
+		timeoutMs: number = DEFAULT_TIMEOUT_MS
 	) {
 		this.logger = logger;
 		this.accessToken = accessToken;

@@ -53,6 +53,8 @@ export declare type JournalEntry = {
     externalCategory?: string;
 }
 
+export class TransferWouldExceedCreditsError extends Error{}
+export class TransferWouldExceedDebitsError extends Error{}
 
 export interface IAccountsBalancesAdapter {
     init(): Promise<void>;

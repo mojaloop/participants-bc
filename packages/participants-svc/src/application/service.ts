@@ -64,9 +64,10 @@ const LOG_LEVEL: LogLevel = process.env["LOG_LEVEL"] as LogLevel || LogLevel.DEB
 
 const SVC_DEFAULT_HTTP_PORT = 3010;
 
-const AUTH_Z_TOKEN_ISSUER_NAME = process.env["AUTH_Z_TOKEN_ISSUER_NAME"] || "http://localhost:3201/"
-const AUTH_Z_TOKEN_AUDIENCE = process.env["AUTH_Z_TOKEN_AUDIENCE"] || "mojaloop.vnext.default_audience"
-const AUTH_Z_SVC_JWKS_URL = process.env["AUTH_Z_SVC_JWKS_URL"] || "http://localhost:3201/.well-known/jwks.json";
+const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3201";
+const AUTH_N_TOKEN_ISSUER_NAME = process.env["AUTH_N_TOKEN_ISSUER_NAME"] || "http://localhost:3201/"
+const AUTH_N_TOKEN_AUDIENCE = process.env["AUTH_N_TOKEN_AUDIENCE"] || "mojaloop.vnext.default_audience"
+const AUTH_N_SVC_JWKS_URL = process.env["AUTH_N_SVC_JWKS_URL"] || `${AUTH_N_SVC_BASEURL}/.well-known/jwks.json`;
 
 const AUTH_Z_SVC_BASEURL = process.env["AUTH_Z_SVC_BASEURL"] || "http://localhost:3202";
 
@@ -78,6 +79,11 @@ const KAFKA_AUDITS_TOPIC = process.env["KAFKA_AUDITS_TOPIC"] || "audits";
 const KAFKA_LOGS_TOPIC = process.env["KAFKA_LOGS_TOPIC"] || "logs";
 const AUDIT_KEY_FILE_PATH = process.env["AUDIT_KEY_FILE_PATH"] || "/app/data/audit_private_key.pem";
 
+const TIGERBEETLE_CLUSTER_ID = process.env["TIGERBEETLE_CLUSTER_ID"] ? parseInt(process.env["TIGERBEETLE_CLUSTER_ID"]) : 0;
+// host:port format, split by commas - ex: "127.0.0.1:3000" or "192.168.1.1:3000,192.168.1.2:3000"
+const TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES = process.env["TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES"] ? process.env["TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES"].split(",") :  ["127.0.0.1:3000"];
+
+const USE_TIGERBEETLE = process.env["USE_TIGERBEETLE"] ? true : true; // default is to use it
 
 const kafkaProducerOptions = {
     kafkaBrokerList: KAFKA_URL
@@ -166,16 +172,14 @@ export class Service {
         this.repoPart = repoPart;
 
         // Accounts and Balances Client
-        // if(!accAndBalAdapter){
-        //     accAndBalAdapter = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_URL, logger);
-        // }
-        // this.accountsBalancesAdapter = accAndBalAdapter;
-
-
         if(!accAndBalAdapter){
-            this.accountsBalancesAdapter = new TigerBeetleAdapter(0, ["127.0.0.1:3000"], this.logger);
+            if(USE_TIGERBEETLE){
+                accAndBalAdapter = new TigerBeetleAdapter(TIGERBEETLE_CLUSTER_ID, TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES, this.logger);
+            }else{
+                accAndBalAdapter = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_URL, logger);
+            }
         }
-        //this.accountsBalancesAdapter = accAndBalAdapter;
+        this.accountsBalancesAdapter = accAndBalAdapter;
 
 
         // create the aggregate
@@ -191,7 +195,7 @@ export class Service {
         await this.participantAgg.init();
 
         // token helper
-        this.tokenHelper = new TokenHelper(AUTH_Z_TOKEN_ISSUER_NAME, AUTH_Z_SVC_JWKS_URL, AUTH_Z_TOKEN_AUDIENCE, logger);
+        this.tokenHelper = new TokenHelper(AUTH_N_TOKEN_ISSUER_NAME, AUTH_N_SVC_JWKS_URL, AUTH_N_TOKEN_AUDIENCE, logger);
         await this.tokenHelper.init();
 
         this.setupExpress();

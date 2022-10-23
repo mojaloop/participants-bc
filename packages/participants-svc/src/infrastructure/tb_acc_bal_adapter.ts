@@ -31,14 +31,24 @@
 "use strict";
 
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
-import {IAccountsBalancesAdapter, JournalAccount, JournalEntry} from "../domain/iparticipant_account_balances_adapter";
+import {
+    IAccountsBalancesAdapter,
+    JournalAccount,
+    JournalEntry,
+    TransferWouldExceedCreditsError, TransferWouldExceedDebitsError
+} from "../domain/iparticipant_account_balances_adapter";
 import * as TB from "tigerbeetle-node";
 import {randomUUID} from "crypto";
+import * as net from "net";
+import * as dns from "dns";
+
+
+const CONNECTION_TIMEOUT_MS = 5000;
 
 export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
     private _logger: ILogger;
     private readonly _clusterId: number;
-    private readonly _replicaAddresses: string[];
+    private _replicaAddresses: string[];
     private _client: TB.Client;
 
     constructor(clusterId: number, replicaAddresses: string[], logger: ILogger) {
@@ -48,12 +58,67 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
     }
 
     async init(): Promise<void> {
+        this._logger.debug("Init starting..");
+
+        await this._parseAndLookupReplicaAddresses();
+
+        this._logger.info(`TigerBeetleAdapter.init() creating client instance to clusterId: ${this._clusterId} and replica addresses: ${this._replicaAddresses}...`)
         this._client = TB.createClient({
             cluster_id: this._clusterId,
             replica_addresses: this._replicaAddresses
         });
 
-        this._logger.info("GrpcAccountsAndBalancesAdapter initialised successfully");
+        // make sure we don't wait forever if TB is not there
+        const timeout = setTimeout(()=>{
+            const err = new Error("TigerBeetleAdapter - timeout initialising client");
+            this._logger.error(err);
+            throw err;
+        }, CONNECTION_TIMEOUT_MS);
+
+        // hack to test if TB client is connected
+        try{
+            await this._client.lookupAccounts([99999999999942n]); // any account id will do
+            clearTimeout(timeout);
+            this._logger.info("TigerBeetleAdapter initialised successfully");
+        }catch(err){
+            this._logger.error("TigerBeetleAdapter initialisation failed");
+        }
+
+    }
+
+    // check if addresses are IPs or names, resolve if names
+    private async _parseAndLookupReplicaAddresses():Promise<void>{
+        console.table(this._replicaAddresses);
+
+        const replicaIpAddresses:string[] = [];
+        for(const addr of this._replicaAddresses) {
+            this._logger.debug(`Parsing addr: ${addr}`);
+            const parts = addr.split(":");
+            if(!parts){
+                const err = new Error(`Cannot parse replicaAddresses in TigerBeetleAdapter.init() - value: "${addr}"`);
+                this._logger.error(err.message);
+                throw err;
+            }
+            this._logger.debug(`\t addr parts are: ${parts[0]} and ${parts[1]}`);
+
+            if(net.isIP(parts[0]) === 0){
+                this._logger.debug(`\t addr part[0] is not an IP address, looking it up..`);
+                await dns.promises.lookup(parts[0], {family:4}).then((resp) =>{
+                    this._logger.debug(`\t lookup result is: ${resp.address}`);
+                    replicaIpAddresses.push(`${resp.address}:${parts[1]}`);
+                }).catch((error:Error)=>{
+                    const err = new Error(`Lookup error while parsing replicaAddresses in TigerBeetleAdapter.init() - cannot resolve: "${addr[0]}" of "${addr}"`);
+                    this._logger.error(err.message);
+                    throw err;
+                });
+            }else{
+                this._logger.debug(`\t lookup not necessary, adding addr directly`);
+                replicaIpAddresses.push(addr);
+            }
+        }
+
+        this._replicaAddresses = replicaIpAddresses;
+        console.table(this._replicaAddresses);
     }
 
     // inspired from https://stackoverflow.com/a/53751162/5743904
@@ -67,8 +132,12 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
 
     private _bigIntToUuid(bi:bigint): string{
         let str = bi.toString(16);
+
+        while(str.length<32){
+            str = "0"+str;
+        }
         if(str.length !== 32){
-            this._logger.warn("_bigIntToUuid() got string that is not 32 chars long");
+            this._logger.warn(`_bigIntToUuid() got string that is not 32 chars long: "${str}"`);
         }else{
             str = str.substring(0, 8)+"-"+str.substring(8, 12)+"-"+str.substring(12, 16)+"-"+str.substring(16, 20)+"-"+str.substring(20);
         }
@@ -79,13 +148,23 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
     async createAccount(account: JournalAccount): Promise<string> {
         const id = account.id || randomUUID();
 
+        let flags= 0;
+        switch(account.type){
+            case "POSITION":
+                flags |= TB.AccountFlags.debits_must_not_exceed_credits;
+                break;
+            case "HUB_ASSET":
+                flags |= TB.AccountFlags.credits_must_not_exceed_debits;
+                break;
+        }
+
         const tbAccount = {
             id: this._uuidToBigint(id), // u128
             user_data: 0n, // u128, opaque third-party identifier to link this account to an external entity:
             reserved: Buffer.alloc(48, 0), // [48]u8
             ledger: 1,   // u32, ledger value
             code: 718, // u16, a chart of accounts code describing the type of account (e.g. clearing, settlement)
-            flags: 0,  // u16
+            flags: flags,  // u16
             debits_pending: 0n,  // u64
             debits_posted: 0n,  // u64
             credits_pending: 0n, // u64
@@ -129,7 +208,13 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
         const errors = await this._client.createTransfers([transfer])
 
         if(errors.length){
-            throw new Error("Cannot create createJournalEntry - error code: "+errors[0].code);
+            if(errors[0].code === TB.CreateTransferError.exceeds_credits){
+                throw new TransferWouldExceedCreditsError();
+            }else if(errors[0].code === TB.CreateTransferError.exceeds_debits){
+                throw new TransferWouldExceedDebitsError();
+            }else{
+                throw new Error("Cannot create createJournalEntry - error code: "+errors[0].code);
+            }
         }
 
         return id;

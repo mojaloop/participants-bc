@@ -23,7 +23,7 @@
     "watch": "tsc -w",
     "clean": "rm -Rf dist",
     "clean:dist": "rm -rf dist",
-    "clean:node-modules": "rm -rf node_modules",
+    "clean:npm": "rm -rf node_modules",
     "clean:dist-and-node-modules": "rm -rf dist node_modules",
     "pretest": "npm run build",
     "standard": "npm run lint",

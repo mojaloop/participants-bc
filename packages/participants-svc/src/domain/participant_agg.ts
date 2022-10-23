@@ -47,7 +47,7 @@ import {
     EndpointNotFoundError, InvalidAccountError,
     InvalidParticipantError,
     MakerCheckerViolationError,
-    NoAccountsError,
+    NoAccountsError, ParticipantAlreadyApproved,
     ParticipantCreateValidationError,
     ParticipantNotFoundError,
     UnableToCreateAccountUpstream,
@@ -309,9 +309,15 @@ export class ParticipantAggregate {
             }
         }
 
+        // make sure participant id fits 32 char length (as per FSPIOP definition)
+        if(!inputParticipant.id || inputParticipant.id.length>32){
+            inputParticipant.id = randomUUID();
+            inputParticipant.id = inputParticipant.id.replace(/-/g, "");
+        }
+
         const now = Date.now();
         const createdParticipant: Participant = {
-            id: inputParticipant.id ?? randomUUID(),
+            id: inputParticipant.id,
             name: inputParticipant.name,
             type: inputParticipant.type,
             isActive: false,
@@ -357,16 +363,19 @@ export class ParticipantAggregate {
         const existing: Participant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
-        if (secCtx && existing.createdBy===secCtx.username) {
+        if(existing.approved) throw new ParticipantAlreadyApproved(`Participant with ID: '${participantId}' is already approved.`);
+
+        if (secCtx && existing.createdBy === secCtx.username) {
             await this._auditClient.audit(
                     AuditedActionNames.PARTICIPANT_APPROVED, false,
                     this._getAuditSecCtx(secCtx),
                     [{key: "participantId", value: participantId}]
             );
-            throw new MakerCheckerViolationError(`Maker check violation - Cannot approve participant with ID: '${participantId}'.`);
+            throw new MakerCheckerViolationError("Maker check violation - Same user cannot create and approve a participant");
         }
 
         const now = Date.now();
+        // existing.isActive = true;
         existing.approved = true;
         existing.approvedBy = secCtx.username;
         existing.approvedDate = now;
@@ -740,7 +749,7 @@ export class ParticipantAggregate {
         const hub = await this._getHub();
 
         const participant: Participant | null = await this._repo.fetchWhereId(participantId);
-        if (participant==null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        if (!participant) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         const positionAccount = participant.participantAccounts.find(value => value.currencyCode === fundsMov.currencyCode && value.type === "POSITION");
         if(!positionAccount){
@@ -788,7 +797,7 @@ export class ParticipantAggregate {
         if (!participantId) throw new ParticipantNotFoundError("participantId cannot be empty");
 
         const participant: Participant | null = await this._repo.fetchWhereId(participantId);
-        if (participant==null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        if (!participant) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         const fundsMov = participant.fundsMovements.find(value => value.id === fundsMovId);
         if(!fundsMov){
@@ -800,6 +809,16 @@ export class ParticipantAggregate {
 
         // now we can enforce the correct privilege
         this._enforcePrivilege(secCtx, fundsMov.direction === "FUNDS_DEPOSIT" ? ParticipantPrivilegeNames.APPROVE_FUNDS_DEPOSIT : ParticipantPrivilegeNames.APPROVE_FUNDS_WITHDRAWAL);
+
+        if (secCtx && fundsMov.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                    fundsMov.direction === "FUNDS_DEPOSIT" ? "FUNDS_DEPOSIT" : "FUNDS_WITHDRAWAL",
+                    false,
+                    this._getAuditSecCtx(secCtx),
+                    [{key: "participantId", value: participantId}]
+            );
+            throw new MakerCheckerViolationError("Maker check violation - Same user cannot create and approve participant a funds movement");
+        }
 
         // find accounts
         const hub = await this._getHub();
@@ -818,8 +837,8 @@ export class ParticipantAggregate {
         const entry:JournalEntry = {
             id: randomUUID(),
             amount: fundsMov.amount,
-            accountDebit: positionAccount.id,
-            accountCredit: hubAssetAccount.id,
+            accountDebit: hubAssetAccount.id,
+            accountCredit: positionAccount.id,
             currencyCode: fundsMov.currencyCode,
             externalId: undefined,
             externalCategory: undefined,
@@ -858,4 +877,37 @@ export class ParticipantAggregate {
         return;
     }
 
+    async simulateTransfer(secCtx: CallSecurityContext, payerId:string, payeeId:string, amount:number, currencyCode:string):Promise<string>{
+        // find participants
+        const payer: Participant | null = await this._repo.fetchWhereId(payerId);
+        if (!payer) throw new ParticipantNotFoundError(`Payer participant with ID: '${payerId}' not found.`);
+        const payee: Participant | null = await this._repo.fetchWhereId(payeeId);
+        if (!payee) throw new ParticipantNotFoundError(`Payee participant with ID: '${payeeId}' not found.`);
+
+        // find accounts
+        const payerPosAccount = payer.participantAccounts.find(value => value.currencyCode === currencyCode && value.type === "POSITION");
+        if(!payerPosAccount) throw new AccountNotFoundError(`Cannot find a payer's position account for currency: ${currencyCode}`);
+        const payeePosAccount = payee.participantAccounts.find(value => value.currencyCode === currencyCode && value.type === "POSITION");
+        if(!payeePosAccount) throw new AccountNotFoundError(`Cannot find a payer's position account for currency: ${currencyCode}`);
+
+        // transfer
+        const now = Date.now();
+        const entry:JournalEntry = {
+            id: randomUUID(),
+            amount: amount.toString(),
+            accountDebit: payerPosAccount.id,
+            accountCredit: payeePosAccount.id,
+            currencyCode: currencyCode,
+            externalId: undefined,
+            externalCategory: undefined,
+        }
+
+        const transferId = await this._accBal.createJournalEntry(entry).catch((error:Error) => {
+            this._logger.error(error);
+            throw error;
+        });
+
+        return transferId;
+    }
+    
 }

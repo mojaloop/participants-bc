@@ -51,6 +51,9 @@ import {
     UnauthorizedError
 } from "../domain/errors";
 import {CallSecurityContext, TokenHelper} from "@mojaloop/security-bc-client-lib";
+import {
+    TransferWouldExceedCreditsError, TransferWouldExceedDebitsError
+} from "../domain/iparticipant_account_balances_adapter";
 
 // Extend express request to include our security fields
 declare module "express-serve-static-core" {
@@ -100,6 +103,9 @@ export class ExpressRoutes {
         // funds management
         this._mainRouter.post("/participants/:id/funds", this.participantFundsMovCreate.bind(this));
         this._mainRouter.post("/participants/:id/funds/:fundsMovId/approve", this.participantFundsMovApprove.bind(this));
+
+        // simulate transfers
+        this._mainRouter.post("/simulatetransfer", this.simulateTransfer.bind(this));
     }
 
     private async _authenticationMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
@@ -565,5 +571,42 @@ export class ExpressRoutes {
 
     }
 
+
+    private async simulateTransfer(req: express.Request, res: express.Response, next: express.NextFunction){
+        this._logger.debug("Received request to simulateTransfer");
+
+        try {
+            const transferId = await this._participantsAgg.simulateTransfer(req.securityContext!, req.body.payerId, req.body.payeeId, req.body.amount, req.body.currencyCode);
+            res.send({
+                transferId:transferId
+            });
+        } catch (err: any) {
+            if(this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message
+                });
+            } else if (err instanceof TransferWouldExceedCreditsError) {
+                res.status(400).json({
+                    status: "error",
+                    msg: "Transfer would exceed credits on account"
+                });
+            } else if (err instanceof TransferWouldExceedDebitsError) {
+                res.status(400).json({
+                    status: "error",
+                    msg: "Transfer would exceed debits on account"
+                });
+            }else{
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message
+                });
+            }
+        }
+
+    }
 
 }
