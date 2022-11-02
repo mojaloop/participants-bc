@@ -33,9 +33,8 @@ import {AuditSecurityContext, IAuditClient} from "@mojaloop/auditing-bc-public-t
 import {
     Participant,
     ParticipantAccount,
-    ParticipantAccountType,
+    ParticipantAccountType, ParticipantActivityLogEntry,
     ParticipantEndpoint, ParticipantFundsMovement,
-    ParticipantType
 } from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 
@@ -241,7 +240,7 @@ export class ParticipantAggregate {
         if(!participant) return;
 
         // sort changeLog desc
-        participant.changeLog.sort((a, b) => b.timestamp - a.timestamp);
+        participant.changeLog.sort((a: ParticipantActivityLogEntry, b: ParticipantActivityLogEntry) => b.timestamp - a.timestamp);
     }
 
     async getAllParticipants(secCtx: CallSecurityContext): Promise<Participant[]> {
@@ -272,7 +271,7 @@ export class ParticipantAggregate {
         return parts;
     }
 
-    async getParticipantByName(secCtx: CallSecurityContext, participantName: string): Promise<Participant> {
+    /*async getParticipantByName(secCtx: CallSecurityContext, participantName: string): Promise<Participant> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
         const part: Participant | null = await this._repo.fetchWhereName(participantName);
@@ -280,7 +279,7 @@ export class ParticipantAggregate {
 
         this._applyDefaultSorts(part);
         return part;
-    }
+    }*/
 
     async createParticipant(secCtx: CallSecurityContext, inputParticipant: Participant): Promise<string> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT);
@@ -493,7 +492,7 @@ export class ParticipantAggregate {
         // TODO validate endpoint format
 
         if (endpoint.id || existing.participantEndpoints.length > 0) {
-            if (existing.participantEndpoints.find(value => value.id===endpoint.id)) {
+            if (existing.participantEndpoints.find((value:ParticipantEndpoint) => value.id===endpoint.id)) {
                 throw new CannotAddDuplicateEndpointError();
             }
         } else {
@@ -538,7 +537,7 @@ export class ParticipantAggregate {
 
 
         let foundEndpoint;
-        if (!endpoint.id || !(foundEndpoint = await existing.participantEndpoints.find(value => value.id === endpoint.id))) {
+        if (!endpoint.id || !(foundEndpoint = await existing.participantEndpoints.find((value:ParticipantEndpoint) => value.id === endpoint.id))) {
             throw new EndpointNotFoundError();
         }
 
@@ -580,12 +579,12 @@ export class ParticipantAggregate {
 
         if (!existing.participantEndpoints
                 || existing.participantEndpoints.length <= 0
-                || !existing.participantEndpoints.find(value => value.id===endpointId)) {
+                || !existing.participantEndpoints.find((value:ParticipantEndpoint) => value.id===endpointId)) {
             this._logger.debug(`Trying to remove not found endpoint from Participant with ID: '${participantId}'`);
             throw new EndpointNotFoundError();
         }
 
-        existing.participantEndpoints = existing.participantEndpoints.filter(value => value.id!==endpointId);
+        existing.participantEndpoints = existing.participantEndpoints.filter((value:ParticipantEndpoint) => value.id!==endpointId);
         existing.changeLog.push({
             changeType: "REMOVE_ENDPOINT",
             user: secCtx.username,
@@ -632,7 +631,7 @@ export class ParticipantAggregate {
         if (!existing.participantAccounts) {
             existing.participantAccounts = [];
         } else {
-            if (existing.participantAccounts.find(value => value.id===account.id || (value.type===account.type && value.currencyCode===account.currencyCode))) {
+            if (existing.participantAccounts.find((value:ParticipantAccount) => value.id===account.id || (value.type===account.type && value.currencyCode===account.currencyCode))) {
                 throw new CannotAddDuplicateAccountError("An account with that id, or the same type and currency exists already");
             }
         }
@@ -715,7 +714,7 @@ export class ParticipantAggregate {
 
         if (accounts.length > 0) {
             // Obtain the most recent account balances:
-            const accBalAccounts = await this._accBal.getAccounts(accounts.map(value => value.id));
+            const accBalAccounts = await this._accBal.getAccounts(accounts.map((value:ParticipantAccount) => value.id));
 
             if (!accBalAccounts) {
                 const err = new NoAccountsError("Could not get participant accounts from accountsAndBalances adapter for participant id: " + existing.id);
@@ -751,11 +750,11 @@ export class ParticipantAggregate {
         const participant: Participant | null = await this._repo.fetchWhereId(participantId);
         if (!participant) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
-        const positionAccount = participant.participantAccounts.find(value => value.currencyCode === fundsMov.currencyCode && value.type === "POSITION");
+        const positionAccount = participant.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "POSITION");
         if(!positionAccount){
             throw new AccountNotFoundError(`Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`);
         }
-        const hubAssetAccount = hub.participantAccounts.find(value => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_ASSET");
+        const hubAssetAccount = hub.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_ASSET");
         if(!hubAssetAccount){
             throw new AccountNotFoundError(`Cannot find a participant's settlement account for currency: ${fundsMov.currencyCode}`);
         }
@@ -799,7 +798,7 @@ export class ParticipantAggregate {
         const participant: Participant | null = await this._repo.fetchWhereId(participantId);
         if (!participant) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
-        const fundsMov = participant.fundsMovements.find(value => value.id === fundsMovId);
+        const fundsMov = participant.fundsMovements.find((value:ParticipantFundsMovement ) => value.id === fundsMovId);
         if(!fundsMov){
             throw new AccountNotFoundError(`Cannot find a participant's funds movement with id: ${fundsMovId}`);
         }
@@ -822,11 +821,11 @@ export class ParticipantAggregate {
 
         // find accounts
         const hub = await this._getHub();
-        const hubAssetAccount = hub.participantAccounts.find(value => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_ASSET");
+        const hubAssetAccount = hub.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_ASSET");
         if(!hubAssetAccount){
             throw new AccountNotFoundError(`Cannot find a hub's assets account for currency: ${fundsMov.currencyCode}`);
         }
-        const positionAccount = participant.participantAccounts.find(value => value.currencyCode === fundsMov.currencyCode && value.type === "POSITION");
+        const positionAccount = participant.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "POSITION");
         if(!positionAccount){
             throw new AccountNotFoundError(`Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`);
         }
@@ -837,17 +836,17 @@ export class ParticipantAggregate {
         const entry:JournalEntry = {
             id: randomUUID(),
             amount: fundsMov.amount,
-            accountDebit: hubAssetAccount.id,
-            accountCredit: positionAccount.id,
+            accountDebit: fundsMov.direction === "FUNDS_DEPOSIT" ?  hubAssetAccount.id : positionAccount.id,
+            accountCredit: fundsMov.direction === "FUNDS_DEPOSIT" ? positionAccount.id : hubAssetAccount.id,
             currencyCode: fundsMov.currencyCode,
             externalId: undefined,
             externalCategory: undefined,
         }
 
 
-        fundsMov.transferId = await this._accBal.createJournalEntry(entry).catch(reason => {
-            if(reason instanceof Error) throw reason;
-            throw new Error(reason);
+        fundsMov.transferId = await this._accBal.createJournalEntry(entry).catch((error:Error) => {
+            this._logger.error(error);
+            throw error;
         });
 
         fundsMov.approved = true;
@@ -885,13 +884,13 @@ export class ParticipantAggregate {
         if (!payee) throw new ParticipantNotFoundError(`Payee participant with ID: '${payeeId}' not found.`);
 
         // find accounts
-        const payerPosAccount = payer.participantAccounts.find(value => value.currencyCode === currencyCode && value.type === "POSITION");
+        const payerPosAccount = payer.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === currencyCode && value.type === "POSITION");
         if(!payerPosAccount) throw new AccountNotFoundError(`Cannot find a payer's position account for currency: ${currencyCode}`);
-        const payeePosAccount = payee.participantAccounts.find(value => value.currencyCode === currencyCode && value.type === "POSITION");
+        const payeePosAccount = payee.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === currencyCode && value.type === "POSITION");
         if(!payeePosAccount) throw new AccountNotFoundError(`Cannot find a payer's position account for currency: ${currencyCode}`);
 
         // transfer
-        const now = Date.now();
+        // const now = Date.now();
         const entry:JournalEntry = {
             id: randomUUID(),
             amount: amount.toString(),

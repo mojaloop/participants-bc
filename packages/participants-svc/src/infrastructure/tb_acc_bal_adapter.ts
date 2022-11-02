@@ -209,9 +209,9 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
 
         if(errors.length){
             if(errors[0].code === TB.CreateTransferError.exceeds_credits){
-                throw new TransferWouldExceedCreditsError();
+                throw new TransferWouldExceedCreditsError("Transfer would exceed account limits");
             }else if(errors[0].code === TB.CreateTransferError.exceeds_debits){
-                throw new TransferWouldExceedDebitsError();
+                throw new TransferWouldExceedDebitsError("Transfer would exceed account limits");
             }else{
                 throw new Error("Cannot create createJournalEntry - error code: "+errors[0].code);
             }

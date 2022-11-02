@@ -560,7 +560,17 @@ export class ExpressRoutes {
                     status: "error",
                     msg: err.message
                 });
-            } else {
+            } else if (err instanceof TransferWouldExceedCreditsError) {
+                res.status(400).json({
+                    status: "error",
+                    msg: "Transfer would exceed credits on account"
+                });
+            } else if (err instanceof TransferWouldExceedDebitsError) {
+                res.status(400).json({
+                    status: "error",
+                    msg: "Transfer would exceed debits on account"
+                });
+            }else {
                 this._logger.error(err);
                 res.status(500).json({
                     status: "error",
@@ -591,12 +601,12 @@ export class ExpressRoutes {
             } else if (err instanceof TransferWouldExceedCreditsError) {
                 res.status(400).json({
                     status: "error",
-                    msg: "Transfer would exceed credits on account"
+                    msg: err.message
                 });
             } else if (err instanceof TransferWouldExceedDebitsError) {
                 res.status(400).json({
                     status: "error",
-                    msg: "Transfer would exceed debits on account"
+                    msg: err.message
                 });
             }else{
                 this._logger.error(err);
