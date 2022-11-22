@@ -44,7 +44,7 @@ After running the docker-compose-infra we can start participants-bc
 npm run start:participants-svc
 ```
 
-To run participats-bc locally, you need to pass 2 env vars like this
+To run participats-bc locally, you need to pass 2 env vars like this in root directory
 
 ```shell
 export AUDIT_KEY_FILE_PATH=$(pwd)/packages/participants-svc/dist/tmp_key_file
