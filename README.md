@@ -13,8 +13,11 @@ nvm use
 ```
 
 # Build
-Run: `npm install`
-Then: `npm run build`
+
+```shell
+npm install
+npm run build
+```
 
 # Test
 
@@ -23,7 +26,7 @@ Then: `npm run build`
 npm run test:unit  
 ```
 
-## Run the services 
+## Integration
 
 ### Startup supporting services
 
@@ -35,23 +38,22 @@ Use https://github.com/mojaloop/platform-shared-tools/tree/main/packages/deploym
 
 Follow instructions in the docker-compose-cross-cutting `README.md` to run the supporting services.
 
-## Integration:
 
-1. Startup supporting services via (See `README.md`);
+After running the docker-compose-infra we can start participants-bc
 ```shell
-cd docker-compose
-docker-compose up -d
-docker-compose logs -f # tail the logs
+npm run start:participants-svc
 ```
-2. Clone `https://github.com/mojaloop/security-bc`
-3. Setup and start `security-bc`
-4. Execute the `requests/Mojaloop-vNext.postman_collection.json` Postman collection to create all necessary security configuration
-5. Update authentication file on the `security-bc` to associate your user with the `participant-bc` role
-6. Start the `participants-bc` service:
+
+To run participats-bc locally, you need to pass 2 env vars like this
+
 ```shell
-npm run start
+export AUDIT_KEY_FILE_PATH=$(pwd)/packages/participants-svc/dist/tmp_key_file
+export MONGO_URL=mongodb://root:mongoDbPas42@127.0.0.1:27017
 ```
-7. Run the integration tests:
+
+
+## Run the integration test:
+
 ```shell
 npm run test:integration
 ```

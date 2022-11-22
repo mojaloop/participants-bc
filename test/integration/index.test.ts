@@ -109,7 +109,9 @@ describe("participant - integration tests", () => {
             participantAllowedSourceIps: [],
             participantEndpoints: [],
             participantAccounts: [],
-            changeLog: []
+            changeLog: [],
+            type: "HUB",
+            fundsMovements: []
         };
         const participantReceived: Participant|null = await participantsHttpClient.createParticipant(participant);
         expect(participantReceived?.id).toEqual(participantId);
@@ -143,7 +145,9 @@ describe("participant - integration tests", () => {
             participantAllowedSourceIps: [],
             participantEndpoints: [],
             participantAccounts: [],
-            changeLog: []
+            changeLog: [],
+            type: "HUB",
+            fundsMovements: []
         };
         const participantCreated: Participant|null = await participantsHttpClient.createParticipant(participant);
         expect(participantCreated).toBeDefined();
