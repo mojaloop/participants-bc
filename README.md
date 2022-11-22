@@ -4,6 +4,12 @@
 # Install
 1. Install `npm`
 2. Install `nvm` via `https://github.com/nvm-sh/nvm`
+    Insted use following command to install nvm
+```shell
+sudo apt install curl 
+curl https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash 
+source ~/.bashrc
+```
 3. Make use of correct NodeJS (see below `nve`):
 
 ## Make use of correct NodeJS:
