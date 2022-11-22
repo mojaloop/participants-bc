@@ -77,7 +77,9 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
 
         // hack to test if TB client is connected
         try{
-            await this._client.lookupAccounts([99999999999942n]); // any account id will do
+            console.log('Here starting lookup')
+            const result = await this._client.lookupAccounts([99999999999942n]); // any account id will do
+            console.log(result)
             clearTimeout(timeout);
             this._logger.info("TigerBeetleAdapter initialised successfully");
         }catch(err){

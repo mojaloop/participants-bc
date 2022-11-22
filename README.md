@@ -23,6 +23,18 @@ Then: `npm run build`
 npm run test:unit  
 ```
 
+## Run the services 
+
+### Startup supporting services
+
+Use https://github.com/mojaloop/platform-shared-tools/tree/main/packages/deployment/docker-compose-infra
+
+Follow instructions in the docker-compose-infra `README.md` to run the supporting services.  
+
+Use https://github.com/mojaloop/platform-shared-tools/tree/main/packages/deployment/docker-compose-cross-cutting
+
+Follow instructions in the docker-compose-cross-cutting `README.md` to run the supporting services.
+
 ## Integration:
 
 1. Startup supporting services via (See `README.md`);
