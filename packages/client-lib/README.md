@@ -6,16 +6,17 @@
 [![NPM Vulnerabilities](https://img.shields.io/snyk/vulnerabilities/npm/@mojaloop/participants-bc-client-lib.svg?style=flat)](https://www.npmjs.com/package/@mojaloop/participants-bc-client-lib)
 [![CircleCI](https://circleci.com/gh/mojaloop/participants-bc.svg?style=svg)](https://circleci.com/gh/mojaloop/participants-bc)
 
-This is a readonly client library for the Accounts and Balances bounded context.  
+This is a readonly HTTP client library for the Participants bounded context.
+
 It allows for the following readonly operations:
 - **getAllParticipants**: get all registered participants.
-- **getParticipantsByIds**: et multiple participants with an array of Ids.
+- **getParticipantsByIds**: get multiple participants whose ids match the provided array of Ids.
 - **getParticipantById**: get a single participant by its Id.
-- **getParticipantEndpointsById**: get the endpoint list of participant by its Id.
-- **getParticipantAccountsById**: get the account list of participant by its Id (this is the only call that includes balances - fetched from the Accounts and Balances Services by the Participants Service).
+- **getParticipantEndpointsById**: get the endpoint list of a participant by its Id.
+- **getParticipantAccountsById**: get the account list of a participant by its Id _(This is the only call that includes balances - fetched from the Accounts and Balances Services by the Participants Service)_.
 
 
-**NOTE**: This client requires an instance of a IAuthenticatedHttpRequester with adequate credentials from the Authentication BC
+**NOTE**: This client requires an instance of a IAuthenticatedHttpRequester with adequate credentials from the Authentication BC to be passed in the constructor
 
 
 ## Install
@@ -44,15 +45,17 @@ const logger: ILogger = new ConsoleLogger();
 
 // IAuthenticatedHttpRequester consts
 const AUTH_TOKEN_ENPOINT = "http://localhost:3201/token";
-const USERNAME = "user";					// only needed for user logins (password grant)
-const PASSWORD = "superPass";				// only needed for user logins (password grant)
-const CLIENT_ID = "security-bc-ui";			// always required
-const CLIENT_SECRET = "client_secret"; 		// only needed for app logins (client_credentials grant)
+const USERNAME = "user";                // only needed for user logins (password grant)
+const PASSWORD = "superPass";           // only needed for user logins (password grant)
+const CLIENT_ID = "security-bc-ui";     // always required
+const CLIENT_SECRET = "client_secret";  // only needed for app logins (client_credentials grant)
 
 // create the instance of IAuthenticatedHttpRequester
 const authRequester = new AuthenticatedHttpRequester(logger, AUTH_TOKEN_ENPOINT);
+
 // set user credentials example (password grant)
 authRequester.setUserCredentials(CLIENT_ID, USERNAME, PASSWORD);
+
 // set app credentials example (client_credentials grant)
 // authRequester.setAppCredentials(CLIENT_ID, CLIENT_SECRET);
 

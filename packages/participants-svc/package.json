@@ -46,8 +46,8 @@
     "@mojaloop/logging-bc-client-lib": "~0.1.17",
     "@mojaloop/logging-bc-public-types-lib": "~0.1.14",
     "@mojaloop/platform-configuration-bc-client-lib": "~0.1.15",
-    "@mojaloop/security-bc-client-lib": "~0.1.2",
-    "@mojaloop/security-bc-public-types-lib": "~0.0.15",
+    "@mojaloop/security-bc-client-lib": "~0.1.3",
+    "@mojaloop/security-bc-public-types-lib": "~0.1.3",
     "express": "^4.18.2",
     "mongodb": "^4.13.0",
     "tigerbeetle-node": "^0.11.6"
