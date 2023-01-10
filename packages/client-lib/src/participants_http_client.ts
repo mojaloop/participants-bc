@@ -27,7 +27,6 @@
 
 "use strict";
 
-import axios, {AxiosInstance, AxiosResponse, AxiosError} from "axios";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
 	Participant,
@@ -35,168 +34,165 @@ import {
 	ParticipantEndpoint
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
-	ConnectionRefusedError,
-	UnableToGetParticipantAccountError,
-	UnableToGetParticipantEndpointsError,
-	UnableToGetParticipantError,
-	UnableToGetParticipantsError, UnauthorizedError
+	UnableToCreateParticipantError,
+	UnableToGetParticipantsError,
 } from "./errors";
+import {IAuthenticatedHttpRequester} from "@mojaloop/security-bc-client-lib";
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
-export class ParticipantsHttpClient {
+export class ParticipantsHttpClient{
 	// Properties received through the constructor.
-	private readonly logger: ILogger;
+	private readonly _logger: ILogger;
 	// Other properties.
-	private readonly httpClient: AxiosInstance;
+	private readonly _baseUrlHttpService:string;
+	private readonly _authRequester: IAuthenticatedHttpRequester;
 	private readonly UNKNOWN_ERROR_MESSAGE: string = "Unknown error";
 	private accessToken: string;
 
 	constructor(
 		logger: ILogger,
 		baseUrlHttpService: string,
-		accessToken: string,
+		authRequester: IAuthenticatedHttpRequester,
 		timeoutMs: number = DEFAULT_TIMEOUT_MS
 	) {
-		this.logger = logger;
-		this.accessToken = accessToken;
+		this._logger = logger;
+		this._baseUrlHttpService = baseUrlHttpService;
+		this._authRequester = authRequester;
 
-		this.httpClient = axios.create({
-			baseURL: baseUrlHttpService,
-			headers: {
-				"Content-Type": "application/json",
-				"Authorization": `Bearer ${accessToken}`
-			},
-			timeout: timeoutMs
-		});
-
-		// Set the AUTH token for any request
-		this.httpClient.interceptors.request.use((config)=>{
-			config.headers!.Authorization =  this.accessToken ? `Bearer ${this.accessToken}` : '';
-			return config;
-		});
-	}
-	
-	setAccessToken(accessToken: string): void {
-		this.accessToken = accessToken;
 	}
 
-	private _checkUnauthorizedResponse(axiosError: AxiosError){
-		if(axiosError.response && axiosError.response.status === 403)
-			throw new UnauthorizedError();
-	}
 
-	private _handleServerError<T extends Error>(err: unknown, errorType: new(msg:string) => T):void{
-		const axiosError: AxiosError = err as AxiosError;
-
-		this._checkUnauthorizedResponse(axiosError);
-
-		// handle connection refused
-		if(axiosError.code === "ECONNREFUSED"){
-			const err = new ConnectionRefusedError();
-			this.logger.error(err);
-			throw err;
-		}
-
-		// handle errors with an data.msg prop in the body
-		if (axiosError.response !== undefined) {
-			const errMsg =  (axiosError.response.data as any).msg || "unknown error";
-			const err = new errorType(errMsg);
-			this.logger.error(err);
-			throw err;
-		}
-
-		// handle everything else
-		throw new errorType(this.UNKNOWN_ERROR_MESSAGE);
-	}
-
-	async getAllParticipants(): Promise<Participant[] | null> {
+	async createParticipant(participant:Participant): Promise<string> {
 		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.get(
-				'/participants',
-				{
-					validateStatus: (statusCode: number) => {
-						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
-					}
-				}
-			);
-			if (axiosResponse.status === 404) return null;
-			return axiosResponse.data;
+			const url = new URL("/participants", this._baseUrlHttpService).toString();
+			const request = new Request(url, {
+				method: "POST",
+				body: JSON.stringify(participant)
+			});
+
+			const resp = await this._authRequester.fetch(request);
+
+			if (resp.status != 200) {
+				throw new UnableToCreateParticipantError();
+			}
+
+			const data = await resp.text();
+			return data;
 		} catch (e: unknown) {
-			this._handleServerError(e, UnableToGetParticipantsError);
-			return null;
+			if (e instanceof Error) throw e;
+			// handle everything else
+			throw new UnableToCreateParticipantError();
 		}
 	}
 
-	async getParticipantsByIds(ids : string[]): Promise<Participant[] | null> {
+	async getAllParticipants(): Promise<Participant[]> {
 		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.get(
-				`/participants/${ids.join(",")}/multi`,
-				{
-					validateStatus: (statusCode: number) => {
-						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
-					}
-				}
-			);
-			if (axiosResponse.status === 404) return null;
-			return axiosResponse.data;
+			const url = new URL("/participants", this._baseUrlHttpService).toString();
+			const resp = await this._authRequester.fetch(url);
+
+			if(resp.status != 200 && resp.status != 404){
+				throw new UnableToGetParticipantsError();
+			}
+
+			if(resp.status == 404){
+				return [];
+			}
+
+			const data = await resp.json();
+			return data;
 		} catch (e: unknown) {
-			this._handleServerError(e, UnableToGetParticipantsError);
-			return null;
+			if (e instanceof Error) throw e;
+			// handle everything else
+			throw new UnableToGetParticipantsError();
+		}
+	}
+
+	async getParticipantsByIds(ids : string[]): Promise<Participant[]> {
+		try {
+			const url = new URL(`/participants/${ids.join(",")}/multi`, this._baseUrlHttpService).toString();
+			const resp = await this._authRequester.fetch(url);
+
+			if (resp.status!=200 && resp.status!=404) {
+				throw new UnableToGetParticipantsError();
+			}
+
+			if (resp.status==404) {
+				return [];
+			}
+
+			const data = await resp.json();
+			return data;
+		} catch (e: unknown) {
+			if (e instanceof Error) throw e;
+			// handle everything else
+			throw new UnableToGetParticipantsError();
 		}
 	}
 
 	async getParticipantById(participantId: string): Promise<Participant | null> {
 		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.get(
-				`/participants/${participantId}`,
-				{
-					validateStatus: (statusCode: number) => {
-						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
-					}
-				}
-			);
-			if (axiosResponse.status === 404) return null;
-			return axiosResponse.data;
+			const url = new URL(`/participants/${participantId}`, this._baseUrlHttpService).toString();
+			const resp = await this._authRequester.fetch(url);
+
+			if (resp.status!=200 && resp.status!=404) {
+				throw new UnableToGetParticipantsError();
+			}
+
+			if (resp.status == 404) {
+				return null;
+			}
+
+			const data = await resp.json();
+			return data;
 		} catch (e: unknown) {
-			this._handleServerError(e, UnableToGetParticipantError);
-			return null;
+			if (e instanceof Error) throw e;
+			// handle everything else
+			throw new UnableToGetParticipantsError();
 		}
 	}
 
 	async getParticipantEndpointsById(participantId: string): Promise<ParticipantEndpoint[] | null> {
 		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.get(
-				`/participants/${participantId}/endpoints`,
-				{
-					validateStatus: (statusCode: number) => {
-						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
-					}
-				}
-			);
-			if (axiosResponse.status === 404) return null;
-			return axiosResponse.data;
+			const url = new URL(`/participants/${participantId}/endpoints`, this._baseUrlHttpService).toString();
+			const resp = await this._authRequester.fetch(url);
+
+			if (resp.status!=200 && resp.status!=404) {
+				throw new UnableToGetParticipantsError();
+			}
+
+			if (resp.status==404) {
+				return [];
+			}
+
+			const data = await resp.json();
+			return data;
 		} catch (e: unknown) {
-			this._handleServerError(e, UnableToGetParticipantEndpointsError);
-			throw new UnableToGetParticipantEndpointsError((e as any)?.message);
+			if (e instanceof Error) throw e;
+			// handle everything else
+			throw new UnableToGetParticipantsError();
 		}
 	}
 
 	async getParticipantAccountsById(participantId: string): Promise<ParticipantAccount[] | null> {
 		try {
-			const axiosResponse: AxiosResponse = await this.httpClient.get(
-				`/participants/${participantId}/accounts`,
-				{
-					validateStatus: (statusCode: number) => {
-						return statusCode === 200 || statusCode === 404; // Resolve only 200s and 404s.
-					}
-				}
-			);
-			if (axiosResponse.status === 404) return null;
-			return axiosResponse.data;
+			const url = new URL(`/participants/${participantId}/accounts`, this._baseUrlHttpService).toString();
+			const resp = await this._authRequester.fetch(url);
+
+			if (resp.status!=200 && resp.status!=404) {
+				throw new UnableToGetParticipantsError();
+			}
+
+			if (resp.status==404) {
+				return [];
+			}
+
+			const data = await resp.json();
+			return data;
 		} catch (e: unknown) {
-			this._handleServerError(e, UnableToGetParticipantAccountError);
-			return null;
+			if (e instanceof Error) throw e;
+			// handle everything else
+			throw new UnableToGetParticipantsError();
 		}
 	}
 

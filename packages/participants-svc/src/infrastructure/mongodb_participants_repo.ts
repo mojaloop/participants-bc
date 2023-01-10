@@ -33,7 +33,7 @@
 import {IParticipantsRepository} from "../domain/repo_interfaces";
 import {Participant} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
-import {Collection, FilterQuery, MongoClient} from 'mongodb'
+import {Collection, MongoClient, WithId} from "mongodb";
 
 export class MongoDBParticipantsRepo implements IParticipantsRepository {
     private _mongoUri: string;
@@ -54,7 +54,8 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 
     async init(): Promise<void>{
         try {
-            this._mongoClient = await MongoClient.connect(this._mongoUri, { useNewUrlParser: true });
+            // this._mongoClient = await MongoClient.connect(this._mongoUri, { useNewUrlParser: true });
+            this._mongoClient = await MongoClient.connect(this._mongoUri);
         } catch (err: any) {
             this._logger.error(err);
             this._logger.isWarnEnabled() && this._logger.warn(`MongoDbParticipantRepo - init failed with error: ${err?.message?.toString()}`);
@@ -69,24 +70,19 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         this._logger.info("MongoDBParticipantsRepo - initialized");
     }
 
-    private _stripMongoId(participant:Participant):Participant{
-        delete (participant as any)._id;
-        return participant;
-    }
-
     async fetchAll():Promise<Participant[]>{
-        const found:Participant[] = await this._collectionParticipant.find({}).toArray();
-        return found.map(this._stripMongoId);
+        const found = await this._collectionParticipant.find({}).project({_id: 0}).toArray();
+        return found as Participant[];
     }
 
     async fetchWhereId(participantId: string): Promise<Participant | null> {
-        const found:Participant|null = await this._collectionParticipant.findOne({ id: participantId });
-        return found ? this._stripMongoId(found) : null;
+        const found = await this._collectionParticipant.findOne({id: participantId}, {projection:{_id: 0}});
+        return found as Participant | null;
     }
 
     async fetchWhereName(participantName: string): Promise<Participant | null> {
-        const found:Participant|null = await this._collectionParticipant.findOne({ name: participantName });
-        return found ? this._stripMongoId(found) : null;
+        const found = await this._collectionParticipant.findOne({ name: participantName }, {projection: {_id: 0}});
+        return found as Participant | null;
     }
 
     async fetchWhereIds(ids: string[]): Promise<Participant[]> {
@@ -97,14 +93,14 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
             if (existing !== null) returnVal.push(existing)
         }
 
-        return returnVal.map(this._stripMongoId);
+        return returnVal;
     }
 
     async create(participant: Participant): Promise<boolean> {
         this._logger.info(`Name:  ${participant.name} - created in:`);
         const result = await this._collectionParticipant.insertOne(participant);
 
-        return result.insertedCount === 1;
+        return result.acknowledged;
     }
 
     async store(participant: Participant): Promise<boolean> {

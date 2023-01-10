@@ -33,8 +33,7 @@
     "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
     "audit:check": "npm npm audit",
     "dep:check": "ncu -e 2",
-    "dep:update": "ncu -u",
-    "npm_publish": "npm version patch && npm publish --tag=latest --access public"
+    "dep:update": "ncu -u"
   },
   "dependencies": {},
   "devDependencies": {}

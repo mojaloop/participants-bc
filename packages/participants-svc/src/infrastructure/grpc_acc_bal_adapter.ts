@@ -71,7 +71,7 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
             timestampLastJournalEntry: null
         };
 
-        const createdId = await this._client.createAccount(accountDto).catch(reason => {
+        const createdId = await this._client.createAccount(accountDto).catch((reason: any) => {
             this._logger.error(reason);
             throw new Error("Could not create account in remote system: "+reason);
         });
@@ -90,7 +90,7 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
           timestamp: null
         } ;
 
-        const createdId = await this._client.createJournalEntries([entryDto]).catch(reason => {
+        const createdId = await this._client.createJournalEntries([entryDto]).catch((reason: any) => {
             this._logger.error(reason);
             throw new Error("Could not create journalEntry in remote system: "+reason);
         });

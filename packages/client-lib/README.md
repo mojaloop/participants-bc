@@ -15,7 +15,7 @@ It allows for the following readonly operations:
 - **getParticipantAccountsById**: get the account list of participant by its Id (this is the only call that includes balances - fetched from the Accounts and Balances Services by the Participants Service).
 
 
-**NOTE**: requests require an access token and access will be controlled by the server
+**NOTE**: This client requires an instance of a IAuthenticatedHttpRequester with adequate credentials from the Authentication BC
 
 
 ## Install
@@ -31,28 +31,52 @@ npm install @mojaloop/participants-bc-client-lib
 
 import {ILogger, ConsoleLogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
+	AuthenticatedHttpRequester,
+	IAuthenticatedHttpRequester
+} from "@mojaloop/security-bc-client-lib";
+import {
     AccountsAndBalancesClient,
     IAccountDTO,
     IJournalEntryDTO
 } from "@mojaloop/participants-bc-client-lib";
 
-const PARTICIPANTS_URL: string = "http://localhost:1234";
+const logger: ILogger = new ConsoleLogger();
+
+// IAuthenticatedHttpRequester consts
+const AUTH_TOKEN_ENPOINT = "http://localhost:3201/token";
+const USERNAME = "user";					// only needed for user logins (password grant)
+const PASSWORD = "superPass";				// only needed for user logins (password grant)
+const CLIENT_ID = "security-bc-ui";			// always required
+const CLIENT_SECRET = "client_secret"; 		// only needed for app logins (client_credentials grant)
+
+// create the instance of IAuthenticatedHttpRequester
+const authRequester = new AuthenticatedHttpRequester(logger, AUTH_TOKEN_ENPOINT);
+// set user credentials example (password grant)
+authRequester.setUserCredentials(CLIENT_ID, USERNAME, PASSWORD);
+// set app credentials example (client_credentials grant)
+// authRequester.setAppCredentials(CLIENT_ID, CLIENT_SECRET);
+
+// ParticipantsHttpClient constants
+const PARTICIPANTS_BASE_URL: string = "http://localhost:3010";
 const HTTP_CLIENT_TIMEOUT_MS: number = 10_000;
 
-const ACCESS_TOKEN= "....jwt access token fetched from authentication client lib"
+const participantsClient = new ParticipantsHttpClient(logger, PARTICIPANTS_BASE_URL, authRequester);
 
-const logger: ILogger = new ConsoleLogger();
-const participantsClient: ParticipantsHttpClient = new ParticipantsHttpClient(
-    logger,
-    PARTICIPANTS_URL,
-    ACCESS_TOKEN,
-    HTTP_CLIENT_TIMEOUT_MS
-);
-```
-
-### How to set a new token
-```typescript
-participantsClient.setAccessToken("new access token string");
+await participantsClient.getAllParticipants().then(value => {
+	console.log(value);
+}).catch(reason => {
+	if(reason instanceof UnauthorizedError){
+		console.log("Invalid credentials");
+	}else if(reason instanceof ConnectionRefusedError){
+		console.log("Cannot connect to destination endpoint");
+	}else if(reason instanceof RequestTimeoutError) {
+		console.log("Timeout while waiting for request to finish");
+	}else if(reason instanceof MaxRetriesReachedError) {
+		console.log("Request max retries reached, giving up");
+	}else {
+		console.error(reason);
+	}
+});
 ```
 
 ## See Also

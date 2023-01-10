@@ -1,6 +1,6 @@
 {
   "name": "@mojaloop/participants-bc-client-lib",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "Participants BC - Client",
   "license": "Apache-2.0",
   "homepage": "https://github.com/mojaloop/participants-bc/tree/main/modules/client",
@@ -39,17 +39,16 @@
     "audit:check": "npm npm audit",
     "dep:check": "ncu -e 2",
     "dep:update": "ncu -u",
-    "npm_publish": "npm version patch && npm publish --tag=latest --access public",
     "TEST_prepack": "node -p \"require('./package.json').bundledDependencies.join('\\n')\" | xargs -t -I  %  sh -c 'mkdir -p node_modules/%; cp -r $(npm root)/%/* node_modules/%'",
     "TEST_postpack": "rm -Rf node_modules"
   },
   "devDependencies": {
-    "@mojaloop/logging-bc-client-lib": "~0.1.12",
-    "@mojaloop/participant-bc-public-types-lib": "~0.0.2",
+    "@mojaloop/logging-bc-client-lib": "~0.1.17",
+    "@mojaloop/participant-bc-public-types-lib": "~0.0.4",
     "nock": "^13.2.9"
   },
   "dependencies": {
-    "axios": "^0.27.2"
+    "@mojaloop/security-bc-client-lib": "~0.1.2"
   },
   "bundledDependencies": [
     "@mojaloop/participant-bc-public-types-lib",

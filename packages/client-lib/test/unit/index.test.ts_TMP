@@ -1,0 +1,83 @@
+"use strict"
+
+import * as nock from "nock";
+import {AuthenticatedHttpRequester, IAuthenticatedHttpRequester, UnauthorizedError} from "@mojaloop/security-bc-client-lib";
+import {ILogger, ConsoleLogger} from "@mojaloop/logging-bc-public-types-lib";
+import {ParticipantsHttpClient} from "../../src/participants_http_client";
+import {URL} from "url";
+
+
+let authRequester: IAuthenticatedHttpRequester;
+let participantsClient: ParticipantsHttpClient;
+let logger:ILogger = new ConsoleLogger();
+
+const AUTH_TOKEN_ENPOINT="http://localhost:3201/token";
+const USERNAME="user";
+const PASSWORD = "superPass";
+const CLIENT_ID = "security-bc-ui";
+const CLIENT_SECRET = "client_secret";
+
+const PARTICIPANTS_BASE_URL="http://localhost:3010";
+
+let loginNockScope: nock.Scope;
+let participantsNockScope: nock.Scope;
+
+describe('example test', () => {
+
+  beforeAll(async () => {
+    // Setup
+
+    authRequester = new AuthenticatedHttpRequester(logger, AUTH_TOKEN_ENPOINT);
+    authRequester.setUserCredentials(CLIENT_ID, USERNAME, PASSWORD);
+    authRequester.setAppCredentials(CLIENT_ID, CLIENT_SECRET);
+
+    participantsClient = new ParticipantsHttpClient(logger, PARTICIPANTS_BASE_URL, authRequester);
+
+    const loginUrl = new URL(AUTH_TOKEN_ENPOINT);
+    loginNockScope = nock(loginUrl.origin).persist().get(loginUrl.pathname).reply(200, {
+      "isMock": true, // indicative
+      "token_type": "Bearer",
+      "scope": null,
+      "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ik94cUxMbDlRdUVuaUNGTlpLblVpSkdTWHV6MGhRc0gyUHBiWXdsQW4xUEUifQ.eyJ0eXAiOiJCZWFyZXIiLCJhenAiOiJzZWN1cml0eS1iYy11aSIsInJvbGVzIjpbIjNmMmVkOWJlLTc4MTMtNGYxYi1iYjEyLWE2NWExODViMTY5YiJdLCJpYXQiOjE2NzMyOTQ4MDQsImV4cCI6MTY3Mzg5OTYwNCwiYXVkIjoibW9qYWxvb3Audm5leHQuZGVmYXVsdF9hdWRpZW5jZSIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzIwMS8iLCJzdWIiOiJ1c2VyOjp1c2VyIiwianRpIjoiMmI5MzIyZmQtMzNhZi00ZDJiLTk4N2UtMjQwNjlmMWM0M2ZiIn0.CIB8WSJXXz6ySX4AfxWZT7s9BQIroda60dCGObmqtBL_YMDyONjLr45zpXm-g-4ZijAR8zjZ60yepgifzTYPpI1rSHQ_M7dMM2BgXSKV7JgVuzsQqzJ5rzz9XnqfbbxZYs2okwEfEC9yogOibFs-DrqyqrltRB1sAGaQvQweaiZkIWIBMieo7zGcKhuRVaT09K3_dG-mxTctygyPOrIRSzPziCsmnDRBFQcL5YyugQ5U913JLZjJVUPGnP7OBAE8MfO8h9qDd4nx_5-DiAtEV4UBlhj-mxNJLq3s-9PXr_z25jmWQ5pT0-WeqA0B7H4x50HRlSOFiRayGoloBIZImQ",
+      "expires_in": 604800,
+      "refresh_token": null,
+      "refresh_token_expires_in": null
+    });
+
+    const participantsUrl = new URL(PARTICIPANTS_BASE_URL);
+    participantsNockScope = nock(participantsUrl.origin).persist().get(participantsUrl.pathname).reply(200, [{
+        id: 'hub',
+        name: 'HUB',
+        type: 'HUB',
+        isActive: true,
+        description: 'Hub participant account',
+        createdBy: '(system)',
+        createdDate: 1673294079492,
+        approved: true,
+        approvedBy: '(system)',
+        approvedDate: 1673294079492,
+        lastUpdated: 1673294079492,
+        participantAccounts: [],
+        participantEndpoints: [],
+        participantAllowedSourceIps: [],
+        fundsMovements: [],
+        changeLog: [[Object]]
+    }]);
+
+  });
+
+  afterAll(async () => {
+    // Cleanup
+  })
+
+  test("get all participants", async () => {
+
+    await participantsClient.getAllParticipants().then(value => {
+      console.log(value);
+    }).catch(reason => {
+      console.error(reason);
+    });
+    await expect(true)
+  });
+
+})

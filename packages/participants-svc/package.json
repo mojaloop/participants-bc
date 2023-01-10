@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "start": "npm run service",
-    "start:dev": "npm run build && npm run service",
+    "start:dev": "npm run build && AUDIT_KEY_FILE_PATH=./dist/tmp_key_file npm run service",
     "service": "node dist/application/index.js",
     "build": "tsc",
     "watch": "tsc -w",
@@ -34,27 +34,26 @@
     "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
     "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
     "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
-    "audit:check": "npm npm audit",
+    "audit:check": "npm audit",
     "dep:check": "ncu -e 2",
     "dep:update": "ncu -u"
   },
   "dependencies": {
-    "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.0.3",
-    "@mojaloop/accounts-and-balances-bc-public-types-lib": "~0.0.3",
-    "@mojaloop/auditing-bc-client-lib": "~0.0.6",
-    "@mojaloop/auditing-bc-public-types-lib": "~0.0.7",
-    "@mojaloop/logging-bc-client-lib": "~0.1.15",
-    "@mojaloop/logging-bc-public-types-lib": "~0.1.12",
-    "@mojaloop/participant-bc-public-types-lib": "*",
-    "@mojaloop/platform-configuration-bc-client-lib": "~0.1.10",
-    "@mojaloop/security-bc-client-lib": "~0.0.56",
-    "@mojaloop/security-bc-public-types-lib": "~0.0.10",
-    "express": "^4.18.1",
-    "mongodb": "^3.6.3",
-    "tigerbeetle-node": "^0.10.0"
+    "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "0.0.3",
+    "@mojaloop/accounts-and-balances-bc-public-types-lib": "0.0.3",
+    "@mojaloop/auditing-bc-client-lib": "~0.0.10",
+    "@mojaloop/auditing-bc-public-types-lib": "~0.0.11",
+    "@mojaloop/logging-bc-client-lib": "~0.1.17",
+    "@mojaloop/logging-bc-public-types-lib": "~0.1.14",
+    "@mojaloop/platform-configuration-bc-client-lib": "~0.1.15",
+    "@mojaloop/security-bc-client-lib": "~0.1.2",
+    "@mojaloop/security-bc-public-types-lib": "~0.0.15",
+    "express": "^4.18.2",
+    "mongodb": "^4.13.0",
+    "tigerbeetle-node": "^0.11.6"
   },
   "devDependencies": {
-    "@types/express": "^4.17.13",
-    "@types/mongodb": "^3.6.3"
+    "@mojaloop/participant-bc-public-types-lib": "*",
+    "@types/mongodb": "^4.0.6"
   }
 }

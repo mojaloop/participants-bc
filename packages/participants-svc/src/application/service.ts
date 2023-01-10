@@ -83,7 +83,7 @@ const TIGERBEETLE_CLUSTER_ID = process.env["TIGERBEETLE_CLUSTER_ID"] ? parseInt(
 // host:port format, split by commas - ex: "127.0.0.1:3000" or "192.168.1.1:3000,192.168.1.2:3000"
 const TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES = process.env["TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES"] ? process.env["TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES"].split(",") :  ["127.0.0.1:3000"];
 
-const USE_TIGERBEETLE = process.env["USE_TIGERBEETLE"] ? true : true; // default is to use it
+const DONT_USE_TIGERBEETLE = process.env["DONT_USE_TIGERBEETLE"] ? true : false; // default is to use it
 
 const kafkaProducerOptions = {
     kafkaBrokerList: KAFKA_URL
@@ -173,10 +173,10 @@ export class Service {
 
         // Accounts and Balances Client
         if(!accAndBalAdapter){
-            if(USE_TIGERBEETLE){
-                accAndBalAdapter = new TigerBeetleAdapter(TIGERBEETLE_CLUSTER_ID, TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES, this.logger);
-            }else{
+            if(DONT_USE_TIGERBEETLE) {
                 accAndBalAdapter = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_URL, logger);
+            } else {
+                accAndBalAdapter = new TigerBeetleAdapter(TIGERBEETLE_CLUSTER_ID, TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES, this.logger);
             }
         }
         this.accountsBalancesAdapter = accAndBalAdapter;
