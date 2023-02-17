@@ -30,19 +30,19 @@
 
 "use strict"
 
-import { Participant } from "@mojaloop/participant-bc-public-types-lib";
+import { IParticipant } from "@mojaloop/participant-bc-public-types-lib";
 
 export interface IParticipantsRepository {
     init(): Promise<void>;
 
     //Participant
-    create(participant: Participant): Promise<boolean>;
-    store(participant: Participant): Promise<boolean>;
+    create(participant: IParticipant): Promise<boolean>;
+    store(participant: IParticipant): Promise<boolean>;
 
-    fetchAll():Promise<Participant[]>;
-    fetchWhereId(id: string): Promise<Participant | null>;
-    fetchWhereName(participantName: string): Promise<Participant | null>;
-    fetchWhereIds(id: string[]): Promise<Participant[]>;
+    fetchAll():Promise<IParticipant[]>;
+    fetchWhereId(id: string): Promise<IParticipant | null>;
+    fetchWhereName(participantName: string): Promise<IParticipant | null>;
+    fetchWhereIds(id: string[]): Promise<IParticipant[]>;
 
     destroy (): Promise<void>
 }

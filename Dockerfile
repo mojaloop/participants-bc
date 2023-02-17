@@ -1,15 +1,14 @@
 ########################################
-FROM node:16.13-alpine as builder
+FROM node:18.13-alpine as builder
 
-# Create app directory
+# Create the project directory inside the container.
 WORKDIR /app
 
-# build requirements
-RUN apk --no-cache add git
-RUN apk add --no-cache -t build-dependencies make gcc g++ python3 libtool libressl-dev openssl-dev autoconf automake bash wget tar xz \
-    && cd $(npm root -g)/npm \
-    && npm config set unsafe-perm true \
-    && npm install -g node-gyp
+RUN apk add --no-cache -t build-dependencies git make gcc g++ python3 libtool autoconf pkgconfig automake bash # wget tar xz
+
+RUN cd $(npm root -g)/npm
+RUN npm config set unsafe-perm true
+RUN npm install -g node-gyp
 
 # A wildcard is used to ensure both package.json AND package-lock.json are copied
 COPY package*.json ./
@@ -45,7 +44,7 @@ COPY packages/participants-svc ./packages/participants-svc
 RUN npm run build
 
 ########################################
-FROM node:16.13-alpine
+FROM node:18.13-alpine
 WORKDIR /app
 
 COPY --from=builder /app .

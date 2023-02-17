@@ -28,7 +28,7 @@
  --------------
  ******/
 
-"use strict"
+"use strict";
 
 export enum ParticipantPrivilegeNames {
     VIEW_PARTICIPANT= "VIEW_PARTICIPANT",

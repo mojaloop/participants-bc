@@ -29,12 +29,12 @@
  ******/
 
 "use strict";
+/*
 
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import {JournalEntry, Account} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 import {
     IAccountsBalancesAdapter,
-    JournalAccount,
-    JournalEntry,
     TransferWouldExceedCreditsError, TransferWouldExceedDebitsError
 } from "../domain/iparticipant_account_balances_adapter";
 import * as TB from "tigerbeetle-node";
@@ -145,7 +145,7 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
         return str;
     }
 
-    async createAccount(account: JournalAccount): Promise<string> {
+    async createAccount(account: Account): Promise<string> {
         const id = account.id || randomUUID();
 
         let flags= 0;
@@ -153,9 +153,9 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
             case "POSITION":
                 flags |= TB.AccountFlags.debits_must_not_exceed_credits;
                 break;
-            case "HUB_ASSET":
-                flags |= TB.AccountFlags.credits_must_not_exceed_debits;
-                break;
+            // case "HUB_ASSET":
+            //     flags |= TB.AccountFlags.credits_must_not_exceed_debits;
+            //     break;
         }
 
         const tbAccount = {
@@ -189,8 +189,8 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
             id: this._uuidToBigint(id), // u128
             pending_id: 0n, // u128
             // Double-entry accounting:
-            debit_account_id: this._uuidToBigint(entry.accountDebit),  // u128
-            credit_account_id: this._uuidToBigint(entry.accountCredit), // u128
+            debit_account_id: this._uuidToBigint(entry.debitedAccountId),  // u128
+            credit_account_id: this._uuidToBigint(entry.creditedAccountId), // u128
             // Opaque third-party identifier to link this transfer to an external entity:
             user_data: 0n, // u128
             reserved: 0n, // u128
@@ -220,30 +220,34 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
         return id;
     }
 
-    async getAccount(accountId: string): Promise<JournalAccount | null>{
+    async getAccount(accountId: string): Promise<Account | null>{
         const accounts = await this.getAccounts([accountId]);
         return accounts[0] ?? null;
     }
 
-    async getAccounts(accountIds: string[]): Promise<JournalAccount[]>{
+    async getAccounts(accountIds: string[]): Promise<Account[]>{
         const ids:TB.AccountID[] = accountIds.map(value => this._uuidToBigint(value));
 
         const accounts = await this._client.lookupAccounts(ids);
 
-        const ret:JournalAccount[] = accounts.map(value => {
+        const ret:Account[] = accounts.map(value => {
             return {
                 id: this._bigIntToUuid(value.id),
                 type: String(value.flags),
                 currencyCode: String(value.code),
                 creditBalance: String(value.credits_posted),
-                debitBalance: String(value.debits_posted)
-            }
+                debitBalance: String(value.debits_posted),
+                balance: null,
+                ownerId: null,
+                state: "ACTIVE",
+                timestampLastJournalEntry: null
+            };
         });
 
         return ret;
     }
 
-    async getParticipantAccounts(externalId: string): Promise<JournalAccount[] | null> {
+    async getParticipantAccounts(externalId: string): Promise<Account[] | null> {
         throw new Error("not implemented");
     }
 
@@ -251,3 +255,4 @@ export class TigerBeetleAdapter implements IAccountsBalancesAdapter {
         await this._client.destroy();
     }
 }
+*/

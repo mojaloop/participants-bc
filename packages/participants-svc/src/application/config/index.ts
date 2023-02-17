@@ -45,9 +45,9 @@ const CONFIGSET_VERSION = "0.0.3";
 
 // configs - non-constants
 const ENV_NAME = process.env["ENV_NAME"] || "dev";
-const CONFIG_SVC_BASEURL = process.env["CONFIG_SVC_BASEURL"] || "http://localhost:3100";
 
-const defaultConfigProvider: DefaultConfigProvider = new DefaultConfigProvider(CONFIG_SVC_BASEURL);
+// use default url from PLATFORM_CONFIG_CENTRAL_URL env var
+const defaultConfigProvider: DefaultConfigProvider = new DefaultConfigProvider();
 
 const configClient = new ConfigurationClient(ENV_NAME, BC_NAME, APP_NAME, APP_VERSION, CONFIGSET_VERSION, defaultConfigProvider);
 

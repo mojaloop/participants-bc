@@ -18,7 +18,7 @@
   ],
   "scripts": {
     "start": "npm run service",
-    "start:dev": "npm run build && AUDIT_KEY_FILE_PATH=./dist/tmp_key_file npm run service",
+    "start:dev": "npm run build && PLATFORM_CONFIG_CENTRAL_URL=http://localhost:3100 AUDIT_KEY_FILE_PATH=./dist/tmp_key_file npm start",
     "service": "node dist/application/index.js",
     "build": "tsc",
     "watch": "tsc -w",
@@ -39,21 +39,22 @@
     "dep:update": "ncu -u"
   },
   "dependencies": {
-    "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "0.0.3",
-    "@mojaloop/accounts-and-balances-bc-public-types-lib": "0.0.3",
-    "@mojaloop/auditing-bc-client-lib": "~0.0.10",
-    "@mojaloop/auditing-bc-public-types-lib": "~0.0.11",
+    "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.1.1",
+    "@mojaloop/accounts-and-balances-bc-public-types-lib": "~0.0.15",
+    "@mojaloop/auditing-bc-client-lib": "~0.0.11",
+    "@mojaloop/auditing-bc-public-types-lib": "~0.0.12",
     "@mojaloop/logging-bc-client-lib": "~0.1.17",
     "@mojaloop/logging-bc-public-types-lib": "~0.1.14",
-    "@mojaloop/platform-configuration-bc-client-lib": "~0.1.15",
-    "@mojaloop/security-bc-client-lib": "~0.1.3",
-    "@mojaloop/security-bc-public-types-lib": "~0.1.3",
-    "express": "^4.18.2",
-    "mongodb": "^4.13.0",
-    "tigerbeetle-node": "^0.11.6"
+    "@mojaloop/platform-configuration-bc-client-lib": "~0.1.17",
+    "@mojaloop/platform-configuration-bc-public-types-lib": "~0.2.1",
+    "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib": "~0.3.27",
+    "@mojaloop/security-bc-client-lib": "~0.1.11",
+    "@mojaloop/security-bc-public-types-lib": "~0.1.11",
+    "express": "~4.18.2",
+    "mongodb": "~4.13.0",
+    "tigerbeetle-node": "0.11.10"
   },
   "devDependencies": {
-    "@mojaloop/participant-bc-public-types-lib": "*",
-    "@types/mongodb": "^4.0.6"
+    "@mojaloop/participant-bc-public-types-lib": "*"
   }
 }

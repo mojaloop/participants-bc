@@ -30,28 +30,10 @@
 
 "use strict";
 
-
-export declare type JournalAccount = {
-    id?: string;
-    type: string;       // possible values from accounts and balances are "POSITION", "SETTLEMENT" and "FEE"
-    currencyCode: string;               // ISO
-
-    state?: string;                     // state is controlled by accounts and balances possible values are "ACTIVE" and "DELETED"
-    debitBalance?: string;              // controlled by accounts and balances
-    creditBalance?: string;             // controlled by accounts and balances
-    externalId?: string;                // controlled by accounts and balances
-}
-
-export declare type JournalEntry = {
-    id?: string;
-    currencyCode: string;
-    amount: string;
-    accountDebit: string;
-    accountCredit: string;
-    timestamp?: number;
-    externalId?: string;
-    externalCategory?: string;
-}
+import {
+    AccountsAndBalancesAccount,
+    AccountsAndBalancesJournalEntry
+} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 
 export class TransferWouldExceedCreditsError extends Error{}
 export class TransferWouldExceedDebitsError extends Error{}
@@ -59,13 +41,17 @@ export class TransferWouldExceedDebitsError extends Error{}
 export interface IAccountsBalancesAdapter {
     init(): Promise<void>;
 
-    createAccount(account: JournalAccount): Promise<string>;
-    getAccount(accountId: string): Promise<JournalAccount | null>;
-    getAccounts(accountIds: string[]): Promise<JournalAccount[]>;
+    createAccount(account: AccountsAndBalancesAccount): Promise<string>;
+    getAccount(accountId: string): Promise<AccountsAndBalancesAccount | null>;
+    getAccounts(accountIds: string[]): Promise<AccountsAndBalancesAccount[]>;
 
-    getParticipantAccounts(participantId: string): Promise<JournalAccount[] | null>;
+    getParticipantAccounts(participantId: string): Promise<AccountsAndBalancesAccount[]>;
 
-    createJournalEntry(entry: JournalEntry): Promise<string>;
+    createJournalEntry(entry: AccountsAndBalancesJournalEntry): Promise<string>;
+
+    setToken(accessToken: string): void;
+    setUserCredentials(client_id: string, username: string, password: string): void;
+    setAppCredentials(client_id: string, client_secret: string): void;
 
     destroy(): Promise<void>;
 }

@@ -28,10 +28,10 @@
  --------------
  ******/
 
-'use strict'
+"use strict";
 
 import {IParticipantsRepository} from "../domain/repo_interfaces";
-import {Participant} from "@mojaloop/participant-bc-public-types-lib";
+import {IParticipant} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient, WithId} from "mongodb";
 
@@ -43,9 +43,9 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
     protected _collectionApproval: Collection;
 
     private _initialized: boolean = false;
-    private readonly _databaseName: string = 'participants';
-    private readonly _collectionNameParticipant: string = 'participant';
-    private readonly _collectionNameApproval: string = 'participantApproval';
+    private readonly _databaseName: string = "participants";
+    private readonly _collectionNameParticipant: string = "participant";
+    private readonly _collectionNameApproval: string = "participantApproval";
 
     constructor(_mongoUri: string, logger: ILogger) {
         this._logger = logger.createChild(this.constructor.name);
@@ -64,29 +64,47 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         if (this._mongoClient === null) throw new Error('Couldn\'t instantiate mongo client');
 
         const db = this._mongoClient.db(this._databaseName);
-        this._collectionParticipant = db.collection(this._collectionNameParticipant);
-        this._collectionApproval = db.collection(this._collectionNameApproval);
+
+
+        const collections = await db.listCollections().toArray();
+
+        // Check if the Participants collection already exists or create.
+        if(collections.find(col => col.name ===this._collectionNameParticipant)){
+            this._collectionParticipant = db.collection(this._collectionNameParticipant);
+        }else{
+            this._collectionParticipant = await db.createCollection(this._collectionNameParticipant);
+            await this._collectionParticipant.createIndex({"id": 1}, {unique: true});
+        }
+
+        // Check if the ParticipantApproval collection already exists or create.
+        if (collections.find(col => col.name===this._collectionNameApproval)) {
+            this._collectionApproval = db.collection(this._collectionNameApproval);
+        } else {
+            this._collectionApproval = await db.createCollection(this._collectionNameApproval);
+            await this._collectionApproval.createIndex({"id": 1}, {unique: true});
+        }
+
         this._initialized = true;
         this._logger.info("MongoDBParticipantsRepo - initialized");
     }
 
-    async fetchAll():Promise<Participant[]>{
+    async fetchAll():Promise<IParticipant[]>{
         const found = await this._collectionParticipant.find({}).project({_id: 0}).toArray();
-        return found as Participant[];
+        return found as IParticipant[];
     }
 
-    async fetchWhereId(participantId: string): Promise<Participant | null> {
+    async fetchWhereId(participantId: string): Promise<IParticipant | null> {
         const found = await this._collectionParticipant.findOne({id: participantId}, {projection:{_id: 0}});
-        return found as Participant | null;
+        return found as IParticipant | null;
     }
 
-    async fetchWhereName(participantName: string): Promise<Participant | null> {
+    async fetchWhereName(participantName: string): Promise<IParticipant | null> {
         const found = await this._collectionParticipant.findOne({ name: participantName }, {projection: {_id: 0}});
-        return found as Participant | null;
+        return found as IParticipant | null;
     }
 
-    async fetchWhereIds(ids: string[]): Promise<Participant[]> {
-        const returnVal : Participant[] = [];
+    async fetchWhereIds(ids: string[]): Promise<IParticipant[]> {
+        const returnVal : IParticipant[] = [];
 
         for (const id of ids) {
             const existing = await this.fetchWhereId(id);
@@ -96,14 +114,14 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         return returnVal;
     }
 
-    async create(participant: Participant): Promise<boolean> {
+    async create(participant: IParticipant): Promise<boolean> {
         this._logger.info(`Name:  ${participant.name} - created in:`);
         const result = await this._collectionParticipant.insertOne(participant);
 
         return result.acknowledged;
     }
 
-    async store(participant: Participant): Promise<boolean> {
+    async store(participant: IParticipant): Promise<boolean> {
         const updated = Date.now();
         const result = await this._collectionParticipant.updateOne(
             { id: participant.id },

@@ -1,6 +1,6 @@
 {
   "include": [
-    "src"
+    "**/src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
@@ -13,6 +13,9 @@
     "outDir": ".",   // prevents this tsconfig from compiling any files
     "target": "es2020",
     "module": "commonjs",
+    "types": [
+      "node"
+    ],
     "lib": [
       "es2020"
     ],

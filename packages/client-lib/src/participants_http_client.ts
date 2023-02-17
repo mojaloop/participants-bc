@@ -29,9 +29,7 @@
 
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
-	Participant,
-	ParticipantAccount,
-	ParticipantEndpoint
+	IParticipant, IParticipantAccount, IParticipantEndpoint
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
 	UnableToCreateParticipantError,
@@ -63,7 +61,7 @@ export class ParticipantsHttpClient{
 	}
 
 
-	async createParticipant(participant:Participant): Promise<string> {
+	async createParticipant(participant:IParticipant): Promise<string> {
 		try {
 			const url = new URL("/participants", this._baseUrlHttpService).toString();
 			const request = new Request(url, {
@@ -86,7 +84,7 @@ export class ParticipantsHttpClient{
 		}
 	}
 
-	async getAllParticipants(): Promise<Participant[]> {
+	async getAllParticipants(): Promise<IParticipant[]> {
 		try {
 			const url = new URL("/participants", this._baseUrlHttpService).toString();
 			const resp = await this._authRequester.fetch(url);
@@ -108,7 +106,7 @@ export class ParticipantsHttpClient{
 		}
 	}
 
-	async getParticipantsByIds(ids : string[]): Promise<Participant[]> {
+	async getParticipantsByIds(ids : string[]): Promise<IParticipant[]> {
 		try {
 			const url = new URL(`/participants/${ids.join(",")}/multi`, this._baseUrlHttpService).toString();
 			const resp = await this._authRequester.fetch(url);
@@ -130,7 +128,7 @@ export class ParticipantsHttpClient{
 		}
 	}
 
-	async getParticipantById(participantId: string): Promise<Participant | null> {
+	async getParticipantById(participantId: string): Promise<IParticipant | null> {
 		try {
 			const url = new URL(`/participants/${participantId}`, this._baseUrlHttpService).toString();
 			const resp = await this._authRequester.fetch(url);
@@ -152,7 +150,7 @@ export class ParticipantsHttpClient{
 		}
 	}
 
-	async getParticipantEndpointsById(participantId: string): Promise<ParticipantEndpoint[] | null> {
+	async getParticipantEndpointsById(participantId: string): Promise<IParticipantEndpoint[] | null> {
 		try {
 			const url = new URL(`/participants/${participantId}/endpoints`, this._baseUrlHttpService).toString();
 			const resp = await this._authRequester.fetch(url);
@@ -174,7 +172,7 @@ export class ParticipantsHttpClient{
 		}
 	}
 
-	async getParticipantAccountsById(participantId: string): Promise<ParticipantAccount[] | null> {
+	async getParticipantAccountsById(participantId: string): Promise<IParticipantAccount[] | null> {
 		try {
 			const url = new URL(`/participants/${participantId}/accounts`, this._baseUrlHttpService).toString();
 			const resp = await this._authRequester.fetch(url);

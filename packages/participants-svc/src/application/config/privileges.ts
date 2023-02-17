@@ -28,7 +28,7 @@
  --------------
  ******/
 
-"use strict"
+"use strict";
 
 
 import {ParticipantPrivilegeNames} from "../../domain/privilege_names";

@@ -28,37 +28,49 @@
  --------------
  ******/
 
-"use strict"
+"use strict";
+import {AccountsAndBalancesAccountType, AccountsAndBalancesAccount, AccountsAndBalancesJournalEntry} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 import {AuditSecurityContext, IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
+import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import {
+    IParticipant,
+    IParticipantAccount, IParticipantActivityLogEntry,
+    IParticipantEndpoint,
+    IParticipantFundsMovement
+} from "@mojaloop/participant-bc-public-types-lib";
+import {IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
+import {CallSecurityContext} from "@mojaloop/security-bc-client-lib";
+import {ForbiddenError, IAuthorizationClient, MakerCheckerViolationError, UnauthorizedError} from "@mojaloop/security-bc-public-types-lib";
+import {randomUUID} from "crypto";
+import {
+    ParticipantAccountTypes,
+    ParticipantChangeTypes, ParticipantEndpointProtocols,
+    ParticipantEndpointTypes, ParticipantFundsMovementDirections,
+    ParticipantTypes
+} from "./entities/enums";
 import {
     Participant,
     ParticipantAccount,
-    ParticipantAccountType, ParticipantActivityLogEntry,
-    ParticipantEndpoint, ParticipantFundsMovement,
-} from "@mojaloop/participant-bc-public-types-lib";
-import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+    ParticipantEndpoint,
+} from "./entities/participant";
 
 import {
     AccountNotFoundError,
     CannotAddDuplicateAccountError,
     CannotAddDuplicateEndpointError,
     CouldNotStoreParticipant,
-    EndpointNotFoundError, InvalidAccountError,
+    EndpointNotFoundError,
+    InvalidAccountError,
     InvalidParticipantError,
-    MakerCheckerViolationError,
-    NoAccountsError, ParticipantAlreadyApproved,
+     NoAccountsError,
+    ParticipantAlreadyApproved,
     ParticipantCreateValidationError,
     ParticipantNotFoundError,
     UnableToCreateAccountUpstream,
-    UnauthorizedError
-} from "./errors";
-import {IParticipantsRepository} from "./repo_interfaces";
-
-import {IAccountsBalancesAdapter, JournalAccount, JournalEntry} from "./iparticipant_account_balances_adapter";
-import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib";
-import {CallSecurityContext} from "@mojaloop/security-bc-client-lib";
+    } from "./errors";
+import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
 import {ParticipantPrivilegeNames} from "./privilege_names";
-import {randomUUID} from "crypto";
+import {IParticipantsRepository} from "./repo_interfaces";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -83,7 +95,9 @@ enum AuditedActionNames {
 export const HUB_PARTICIPANT_ID = "hub";
 
 export class ParticipantAggregate {
+
     private _logger: ILogger;
+    private _configClient: IConfigurationClient;
     private _repo: IParticipantsRepository;
     private _accBal: IAccountsBalancesAdapter;
     private _auditClient: IAuditClient;
@@ -91,13 +105,15 @@ export class ParticipantAggregate {
     private _currencyList: string[];
 
     constructor(
-            repo: IParticipantsRepository,
-            accBal: IAccountsBalancesAdapter,
-            auditClient: IAuditClient,
-            authorizationClient: IAuthorizationClient,
-            currencyList: string[],
-            logger: ILogger
+        configClient: IConfigurationClient,
+        repo: IParticipantsRepository,
+        accBal: IAccountsBalancesAdapter,
+        auditClient: IAuditClient,
+        authorizationClient: IAuthorizationClient,
+        currencyList: string[],
+        logger: ILogger,
     ) {
+        this._configClient = configClient;
         this._logger = logger.createChild(this.constructor.name);
         this._repo = repo;
         this._accBal = accBal;
@@ -122,79 +138,118 @@ export class ParticipantAggregate {
     }
 
     private async _bootstrapHubParticipant():Promise<void>{
-        let now = Date.now();
-        const hubParticipant:Participant= {
-            id: HUB_PARTICIPANT_ID,
-            name: "HUB",
-            type: "HUB",
-            isActive: true,
-            description: "Hub participant account",
-            createdBy: "(system)",
-            createdDate: now,
-            approved: true,
-            approvedBy: "(system)",
-            approvedDate: now,
-            lastUpdated: now,
-            participantAccounts: [],
-            participantEndpoints: [],
-            participantAllowedSourceIps: [],
-            fundsMovements: [],
-            changeLog: [{
-                changeType: "CREATE",
-                user: "(system)",
-                timestamp: now,
-                notes: "(participants-svc bootstrap routine)"
-            }]
-        }
+        const userAndRole = "(system)";
+
+        const hubParticipant = Participant.CreateHub(
+            HUB_PARTICIPANT_ID,
+            "Hub participant account",
+            userAndRole,
+            "(participants-svc bootstrap routine)"
+        );
+
         if (!await this._repo.create(hubParticipant))
             throw new CouldNotStoreParticipant("Unable to create HUB participant successfully!");
 
-        await this._auditClient.audit(
-                AuditedActionNames.PARTICIPANT_CREATED, true,
-                {
-                    userId: "(system)",
-                    role: "(system)",
-                    appId: "participants-svc"
-                },
-                [{key: "participantId", value: hubParticipant.id}]
-        );
 
 
-        now = Date.now();
         // Create the accounts for each currency
         for(const currency of this._currencyList){
-            const participantAccount : ParticipantAccount = {
+            // Hub Multilateral Net Settlement (HMLNS) account
+            // participant account
+            const participantHMLNSAccount : ParticipantAccount = {
                 id: randomUUID(),
-                type: "HUB_ASSET",
-                currencyCode: currency
+                type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
+                currencyCode: currency,
+                debitBalance: null,
+                creditBalance: null
+            };
+            const accBalHMLNSAccount: AccountsAndBalancesAccount = {
+                id: participantHMLNSAccount.id,
+                type: participantHMLNSAccount.type as AccountsAndBalancesAccountType, // "position",
+                state: "ACTIVE",
+                postedDebitBalance: null,
+                pendingDebitBalance: null,
+                postedCreditBalance: null,
+                pendingCreditBalance: null,
+                balance: null,
+                currencyCode: participantHMLNSAccount.currencyCode,
+                ownerId: hubParticipant.id,
+                timestampLastJournalEntry: null
             };
 
-            const accBalAccount: JournalAccount = {
-                id: participantAccount.id,
-                type: participantAccount.type, // "position",
-                state: "ACTIVE",
-                currencyCode: participantAccount.currencyCode,
-                externalId: hubParticipant.id
-            }
 
             try {
-                accBalAccount.id = await this._accBal.createAccount(accBalAccount);
-                hubParticipant.participantAccounts.push(participantAccount);
+                // this uses the initial security context/loginhelper, which is the service creds
+                participantHMLNSAccount.id = await this._accBal.createAccount(accBalHMLNSAccount);
+                hubParticipant.participantAccounts.push(participantHMLNSAccount);
                 hubParticipant.changeLog.push({
-                    changeType: "ADD_ACCOUNT",
+                    changeType: ParticipantChangeTypes.ADD_ACCOUNT,
                     user: "(system)",
-                    timestamp: now,
-                    notes: `(participants-svc bootstrap routine added accounts for: ${currency})`
+                    timestamp: hubParticipant.createdDate,
+                    notes: `(participants-svc bootstrap routine added HMLNS account for: ${currency})`
                 });
             } catch (err) {
                 this._logger.error(err);
-                throw new UnableToCreateAccountUpstream(`'${hubParticipant.name}' account '${participantAccount.type}' failed upstream.`);
+                throw new UnableToCreateAccountUpstream(`'${hubParticipant.name}' account '${participantHMLNSAccount.type}' failed upstream.`);
+            }
+
+
+
+            // Hub Reconciliation account
+            // participant account record (minimal
+            const participantReconAccount: ParticipantAccount = {
+                id: randomUUID(),
+                type: ParticipantAccountTypes.HUB_RECONCILIATION,
+                currencyCode: currency,
+                debitBalance: null,
+                creditBalance: null
+            };
+
+            // A&B account to be created
+            const accBalReconAccount: AccountsAndBalancesAccount = {
+                id: participantReconAccount.id,
+                type: participantReconAccount.type as AccountsAndBalancesAccountType, // "position",
+                state: "ACTIVE",
+                postedDebitBalance: null,
+                pendingDebitBalance: null,
+                postedCreditBalance: null,
+                pendingCreditBalance: null,
+                balance: null,
+                currencyCode: participantReconAccount.currencyCode,
+                ownerId: hubParticipant.id,
+                timestampLastJournalEntry: null
+            };
+            try {
+                // this uses the initial security context/loginhelper, which is the service creds
+                participantReconAccount.id = await this._accBal.createAccount(accBalReconAccount);
+                hubParticipant.participantAccounts.push(participantReconAccount);
+                hubParticipant.changeLog.push({
+                    changeType: ParticipantChangeTypes.ADD_ACCOUNT,
+                    user: "(system)",
+                    timestamp: hubParticipant.createdDate,
+                    notes: `(participants-svc bootstrap routine added Reconciliation account for: ${currency})`
+                });
+            } catch (err) {
+                this._logger.error(err);
+
+                throw new UnableToCreateAccountUpstream(`'${hubParticipant.name}' account '${participantReconAccount.type}' failed upstream.`);
             }
         }
+
 
         // store the participant that now has the accounts
         if (!await this._repo.store(hubParticipant))
             throw new CouldNotStoreParticipant("Unable to store HUB participant successfully!");
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_CREATED, true,
+            {
+                userId: userAndRole,
+                role: userAndRole,
+                appId: this._configClient.applicationName
+            },
+            [{key: "participantId", value: hubParticipant.id}]
+        );
 
         await this._auditClient.audit(
                 AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED, true,
@@ -211,11 +266,11 @@ export class ParticipantAggregate {
         return;
     }
 
-    private async _getHub():Promise<Participant>{
-        const hub: Participant | null = await this._repo.fetchWhereId(HUB_PARTICIPANT_ID);
+    private async _getHub():Promise<IParticipant>{
+        const hub: IParticipant | null = await this._repo.fetchWhereId(HUB_PARTICIPANT_ID);
         if(!hub){
             const err = new Error("Could not get hub participant in aggregate");
-            this._logger.error(err.message)
+            this._logger.error(err.message);
             throw err;
         }
         return hub;
@@ -226,45 +281,45 @@ export class ParticipantAggregate {
             userId: secCtx.username,
             role: "", // TODO get role
             appId: secCtx.clientId
-        }
+        };
     }
 
     private _enforcePrivilege(secCtx: CallSecurityContext, privName: string): void {
         for (const roleId of secCtx.rolesIds) {
             if (this._authorizationClient.roleHasPrivilege(roleId, privName)) return;
         }
-        throw new UnauthorizedError(`Required privilege "${privName}" not held by caller`);
+        throw new ForbiddenError(`Required privilege "${privName}" not held by caller`);
     }
 
-    private _applyDefaultSorts(participant:Participant):void{
+    private _applyDefaultSorts(participant:IParticipant):void{
         if(!participant) return;
 
         // sort changeLog desc
-        participant.changeLog.sort((a: ParticipantActivityLogEntry, b: ParticipantActivityLogEntry) => b.timestamp - a.timestamp);
+        participant.changeLog.sort((a: IParticipantActivityLogEntry, b: IParticipantActivityLogEntry) => b.timestamp - a.timestamp);
     }
 
-    async getAllParticipants(secCtx: CallSecurityContext): Promise<Participant[]> {
+    async getAllParticipants(secCtx: CallSecurityContext): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const list: Participant[] | null = await this._repo.fetchAll();
+        const list: IParticipant[] | null = await this._repo.fetchAll();
         list.forEach(this._applyDefaultSorts);
         return list;
     }
 
-    async getParticipantById(secCtx: CallSecurityContext, id: string): Promise<Participant> {
+    async getParticipantById(secCtx: CallSecurityContext, id: string): Promise<IParticipant> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const part: Participant | null = await this._repo.fetchWhereId(id);
+        const part: IParticipant | null = await this._repo.fetchWhereId(id);
         if (part==null) throw new ParticipantNotFoundError(`Participant with ID: '${id}' not found.`);
 
         this._applyDefaultSorts(part);
         return part;
     }
 
-    async getParticipantsByIds(secCtx: CallSecurityContext, ids: string[]): Promise<Participant[]> {
+    async getParticipantsByIds(secCtx: CallSecurityContext, ids: string[]): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const parts: Participant[] = await this._repo.fetchWhereIds(ids);
+        const parts: IParticipant[] = await this._repo.fetchWhereIds(ids);
         if (parts.length==0) throw new ParticipantNotFoundError(`Participant with IDs: '${ids}' not found.`);
 
         parts.forEach(this._applyDefaultSorts);
@@ -281,7 +336,7 @@ export class ParticipantAggregate {
         return part;
     }*/
 
-    async createParticipant(secCtx: CallSecurityContext, inputParticipant: Participant): Promise<string> {
+    async createParticipant(secCtx: CallSecurityContext, inputParticipant: IParticipant): Promise<string> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT);
 
         if (inputParticipant.name.trim().length==0) throw new ParticipantCreateValidationError("[name] cannot be empty");
@@ -318,7 +373,7 @@ export class ParticipantAggregate {
         const createdParticipant: Participant = {
             id: inputParticipant.id,
             name: inputParticipant.name,
-            type: inputParticipant.type,
+            type: inputParticipant.type as ParticipantTypes,
             isActive: false,
             description: inputParticipant.description,
             createdBy: secCtx.username,
@@ -332,7 +387,7 @@ export class ParticipantAggregate {
             participantAllowedSourceIps: [],
             fundsMovements:[],
             changeLog: [{
-                changeType: "CREATE",
+                changeType: ParticipantChangeTypes.CREATE,
                 user: secCtx.username,
                 timestamp: now,
                 notes: null
@@ -359,7 +414,7 @@ export class ParticipantAggregate {
 
         if (!participantId) throw new ParticipantNotFoundError("[id] cannot be empty");
 
-        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         if(existing.approved) throw new ParticipantAlreadyApproved(`Participant with ID: '${participantId}' is already approved.`);
@@ -380,7 +435,7 @@ export class ParticipantAggregate {
         existing.approvedDate = now;
 
         existing.changeLog.push({
-            changeType: "APPROVE",
+            changeType: ParticipantChangeTypes.APPROVE,
             user: secCtx.username,
             timestamp: now,
             notes: note
@@ -404,18 +459,18 @@ export class ParticipantAggregate {
 
         if (!participantId) throw new ParticipantNotFoundError("[id] cannot be empty");
 
-        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         if (existing.isActive){
-            this._logger.warn(`Trying to activate an already active participant with id: ${participantId}`)
+            this._logger.warn(`Trying to activate an already active participant with id: ${participantId}`);
             return;
         }
 
         existing.isActive = true;
 
         existing.changeLog.push({
-            changeType: "ACTIVATE",
+            changeType: ParticipantChangeTypes.ACTIVATE,
             user: secCtx.username,
             timestamp: Date.now(),
             notes: note
@@ -442,17 +497,17 @@ export class ParticipantAggregate {
 
         if (!participantId) throw new ParticipantNotFoundError("[id] cannot be empty");
 
-        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         if (!existing.isActive){
-            this._logger.warn(`Trying to deactivate an already active participant with id: ${participantId}`)
+            this._logger.warn(`Trying to deactivate an already active participant with id: ${participantId}`);
             return;
         }
 
         existing.isActive = false;
         existing.changeLog.push({
-            changeType: "DEACTIVATE",
+            changeType: ParticipantChangeTypes.DEACTIVATE,
             user: secCtx.username,
             timestamp: Date.now(),
             notes: note
@@ -479,12 +534,12 @@ export class ParticipantAggregate {
     * Endpoints
     * */
 
-    async addParticipantEndpoint(secCtx: CallSecurityContext, participantId: string, endpoint: ParticipantEndpoint): Promise<string> {
+    async addParticipantEndpoint(secCtx: CallSecurityContext, participantId: string, endpoint: IParticipantEndpoint): Promise<string> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
 
         if (participantId.trim().length==0) throw new ParticipantCreateValidationError("[id] cannot be empty");
 
-        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (existing==null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         if (!existing.participantEndpoints) existing.participantEndpoints = [];
@@ -492,16 +547,16 @@ export class ParticipantAggregate {
         // TODO validate endpoint format
 
         if (endpoint.id || existing.participantEndpoints.length > 0) {
-            if (existing.participantEndpoints.find((value:ParticipantEndpoint) => value.id===endpoint.id)) {
+            if (existing.participantEndpoints.find((value: IParticipantEndpoint) => value.id===endpoint.id)) {
                 throw new CannotAddDuplicateEndpointError();
             }
         } else {
             endpoint.id = randomUUID();
         }
 
-        existing.participantEndpoints.push(endpoint);
+        existing.participantEndpoints.push(endpoint as ParticipantEndpoint);
         existing.changeLog.push({
-            changeType: "ADD_ENDPOINT",
+            changeType: ParticipantChangeTypes.ADD_ENDPOINT,
             user: secCtx.username,
             timestamp: Date.now(),
             notes: null
@@ -525,30 +580,30 @@ export class ParticipantAggregate {
         return endpoint.id;
     }
 
-    async changeParticipantEndpoint(secCtx: CallSecurityContext, participantId: string, endpoint: ParticipantEndpoint): Promise<void> {
+    async changeParticipantEndpoint(secCtx: CallSecurityContext, participantId: string, endpoint: IParticipantEndpoint): Promise<void> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
 
         if (participantId.trim().length==0) throw new ParticipantCreateValidationError("[id] cannot be empty");
 
-        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (existing==null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         if (!existing.participantEndpoints) existing.participantEndpoints = [];
 
 
         let foundEndpoint;
-        if (!endpoint.id || !(foundEndpoint = await existing.participantEndpoints.find((value:ParticipantEndpoint) => value.id === endpoint.id))) {
+        if (!endpoint.id || !(foundEndpoint = await existing.participantEndpoints.find((value:IParticipantEndpoint) => value.id === endpoint.id))) {
             throw new EndpointNotFoundError();
         }
 
         // TODO validate endpoint format
-        foundEndpoint.type = endpoint.type;
-        foundEndpoint.protocol = endpoint.protocol;
+        foundEndpoint.type = endpoint.type as ParticipantEndpointTypes;
+        foundEndpoint.protocol = endpoint.protocol as ParticipantEndpointProtocols;
         foundEndpoint.value = endpoint.value;
 
 
         existing.changeLog.push({
-            changeType: "CHANGE_ENDPOINT",
+            changeType: ParticipantChangeTypes.CHANGE_ENDPOINT,
             user: secCtx.username,
             timestamp: Date.now(),
             notes: null
@@ -574,19 +629,19 @@ export class ParticipantAggregate {
 
         if (participantId.trim().length==0) throw new ParticipantCreateValidationError("[id] cannot be empty");
 
-        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (existing==null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
         if (!existing.participantEndpoints
                 || existing.participantEndpoints.length <= 0
-                || !existing.participantEndpoints.find((value:ParticipantEndpoint) => value.id===endpointId)) {
+                || !existing.participantEndpoints.find((value: IParticipantEndpoint) => value.id===endpointId)) {
             this._logger.debug(`Trying to remove not found endpoint from Participant with ID: '${participantId}'`);
             throw new EndpointNotFoundError();
         }
 
-        existing.participantEndpoints = existing.participantEndpoints.filter((value:ParticipantEndpoint) => value.id!==endpointId);
+        existing.participantEndpoints = existing.participantEndpoints.filter((value: IParticipantEndpoint) => value.id!==endpointId);
         existing.changeLog.push({
-            changeType: "REMOVE_ENDPOINT",
+            changeType: ParticipantChangeTypes.REMOVE_ENDPOINT,
             user: secCtx.username,
             timestamp: Date.now(),
             notes: null
@@ -606,10 +661,10 @@ export class ParticipantAggregate {
         );
     }
 
-    async getParticipantEndpointsById(secCtx: CallSecurityContext, id: string): Promise<ParticipantEndpoint[]> {
+    async getParticipantEndpointsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantEndpoint[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const part: Participant | null = await this._repo.fetchWhereId(id);
+        const part: IParticipant | null = await this._repo.fetchWhereId(id);
         if (!part) throw new ParticipantNotFoundError(`Participant with ID: '${id}' not found.`);
 
         return part.participantEndpoints || [];
@@ -619,50 +674,62 @@ export class ParticipantAggregate {
     * Accounts
     * */
 
-    async addParticipantAccount(secCtx: CallSecurityContext, participantId: string, account: ParticipantAccount): Promise<string> {
+    async addParticipantAccount(secCtx: CallSecurityContext, participantId: string, account: IParticipantAccount): Promise<string> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ACCOUNTS);
 
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
-        const existing: Participant | null = await this._repo.fetchWhereId(participantId);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
         // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
 
         if (!existing.participantAccounts) {
             existing.participantAccounts = [];
         } else {
-            if (existing.participantAccounts.find((value:ParticipantAccount) => value.id===account.id || (value.type===account.type && value.currencyCode===account.currencyCode))) {
+            if (existing.participantAccounts.find((value: IParticipantAccount) => value.id===account.id || (value.type===account.type && value.currencyCode===account.currencyCode))) {
                 throw new CannotAddDuplicateAccountError("An account with that id, or the same type and currency exists already");
             }
         }
 
-        if(account.type === "HUB_ASSET" && participantId !== HUB_PARTICIPANT_ID){
-            this._logger.warn("Only the hub can have accounts of type HUB_ASSET");
-            throw new InvalidAccountError("Only the hub can have accounts of type HUB_ASSET");
+        if((account.type === "HUB_MULTILATERAL_SETTLEMENT" || account.type==="HUB_RECONCILIATION")
+            && participantId !== HUB_PARTICIPANT_ID){
+            this._logger.warn("Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION");
+            throw new InvalidAccountError("Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION");
         }
 
-        const accBalAccount: JournalAccount = {
+        const accBalAccount: AccountsAndBalancesAccount = {
             id: account.id,
-            type: account.type, // "position",
+            type: account.type as AccountsAndBalancesAccountType, // "position",
             state: "ACTIVE",
             currencyCode: account.currencyCode,
-            externalId: participantId
-        }
+            ownerId: participantId,
+            balance: null,
+            postedDebitBalance: null,
+            pendingDebitBalance: null,
+            postedCreditBalance: null,
+            pendingCreditBalance: null,
+            timestampLastJournalEntry: null
+        };
 
         try {
+            this._accBal.setToken(secCtx.accessToken);
             accBalAccount.id = await this._accBal.createAccount(accBalAccount);
         } catch (err) {
             this._logger.error(err);
+            if(err instanceof UnauthorizedError) throw err;
+
             throw new UnableToCreateAccountUpstream(`'${existing.name}' account '${account.type}' failed upstream.`);
         }
 
         existing.participantAccounts.push({
             id: accBalAccount.id,
-            type: accBalAccount.type as ParticipantAccountType,
-            currencyCode: accBalAccount.currencyCode
+            type: accBalAccount.type as ParticipantAccountTypes,
+            currencyCode: accBalAccount.currencyCode,
+            creditBalance: null,
+            debitBalance: null
         });
         existing.changeLog.push({
-            changeType: "ADD_ACCOUNT",
+            changeType: ParticipantChangeTypes.ADD_ACCOUNT,
             user: secCtx.username,
             timestamp: Date.now(),
             notes: null
@@ -704,41 +771,42 @@ export class ParticipantAggregate {
     }*/
 
 
-    async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<ParticipantAccount[]> {
+    async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantAccount[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const existing: Participant | null = await this._repo.fetchWhereId(id);
+        const existing: IParticipant | null = await this._repo.fetchWhereId(id);
         if (!existing) throw new ParticipantNotFoundError(`Participant with ID: '${id}' not found.`);
 
-        const accounts = existing.participantAccounts || [];
+        const participantAccounts = existing.participantAccounts || [];
 
-        if (accounts.length > 0) {
+        if (participantAccounts.length > 0) {
             // Obtain the most recent account balances:
-            const accBalAccounts = await this._accBal.getAccounts(accounts.map((value:ParticipantAccount) => value.id));
+            this._accBal.setToken(secCtx.accessToken);
+            const accBalAccounts = await this._accBal.getAccounts(participantAccounts.map((value: IParticipantAccount) => value.id));
 
             if (!accBalAccounts) {
                 const err = new NoAccountsError("Could not get participant accounts from accountsAndBalances adapter for participant id: " + existing.id);
-                this._logger.error(err)
+                this._logger.error(err);
                 throw err;
             }
 
-            for (const acc of accounts) {
-                const jAcc = accBalAccounts.find(value => value.id===acc.id);
+            for (const pacc of participantAccounts) {
+                const jAcc = accBalAccounts.find(value => value.id===pacc.id);
                 if (jAcc==null) continue;
 
-                acc.debitBalance = jAcc.debitBalance;
-                acc.creditBalance = jAcc.creditBalance;
+                pacc.debitBalance = jAcc.postedDebitBalance || null;
+                pacc.creditBalance = jAcc.postedCreditBalance || null;
             }
         }
 
-        return accounts;
+        return participantAccounts;
     }
 
 
     /*
     * Funds management
     * */
-    async createFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMov:ParticipantFundsMovement){
+    async createFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMov:IParticipantFundsMovement){
         this._enforcePrivilege(secCtx, fundsMov.direction === "FUNDS_DEPOSIT" ? ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL);
 
         if (!participantId) throw new ParticipantNotFoundError("participantId cannot be empty");
@@ -747,15 +815,15 @@ export class ParticipantAggregate {
 
         const hub = await this._getHub();
 
-        const participant: Participant | null = await this._repo.fetchWhereId(participantId);
+        const participant: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!participant) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
-        const positionAccount = participant.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "POSITION");
+        const positionAccount = participant.participantAccounts.find((value: IParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "SETTLEMENT");
         if(!positionAccount){
             throw new AccountNotFoundError(`Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`);
         }
-        const hubAssetAccount = hub.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_ASSET");
-        if(!hubAssetAccount){
+        const hubReconAccount = hub.participantAccounts.find((value:IParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_RECONCILIATION");
+        if(!hubReconAccount){
             throw new AccountNotFoundError(`Cannot find a participant's settlement account for currency: ${fundsMov.currencyCode}`);
         }
 
@@ -765,7 +833,7 @@ export class ParticipantAggregate {
             id: fundsMov.id || randomUUID(),
             createdBy: secCtx.username,
             createdDate: now,
-            direction: fundsMov.direction,
+            direction: fundsMov.direction as ParticipantFundsMovementDirections,
             amount: fundsMov.amount,
             currencyCode: fundsMov.currencyCode,
             note: fundsMov.note,
@@ -795,10 +863,10 @@ export class ParticipantAggregate {
     async approveFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId:string){
         if (!participantId) throw new ParticipantNotFoundError("participantId cannot be empty");
 
-        const participant: Participant | null = await this._repo.fetchWhereId(participantId);
+        const participant: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!participant) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
-        const fundsMov = participant.fundsMovements.find((value:ParticipantFundsMovement ) => value.id === fundsMovId);
+        const fundsMov = participant.fundsMovements.find((value: IParticipantFundsMovement ) => value.id === fundsMovId);
         if(!fundsMov){
             throw new AccountNotFoundError(`Cannot find a participant's funds movement with id: ${fundsMovId}`);
         }
@@ -821,11 +889,11 @@ export class ParticipantAggregate {
 
         // find accounts
         const hub = await this._getHub();
-        const hubAssetAccount = hub.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_ASSET");
-        if(!hubAssetAccount){
+        const hubReconAccount = hub.participantAccounts.find((value: IParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "HUB_RECONCILIATION");
+        if(!hubReconAccount){
             throw new AccountNotFoundError(`Cannot find a hub's assets account for currency: ${fundsMov.currencyCode}`);
         }
-        const positionAccount = participant.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "POSITION");
+        const positionAccount = participant.participantAccounts.find((value: IParticipantAccount) => value.currencyCode === fundsMov.currencyCode && value.type === "SETTLEMENT");
         if(!positionAccount){
             throw new AccountNotFoundError(`Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`);
         }
@@ -833,17 +901,19 @@ export class ParticipantAggregate {
         const now = Date.now();
 
         // let's create the actual entry
-        const entry:JournalEntry = {
+        const entry:AccountsAndBalancesJournalEntry = {
             id: randomUUID(),
             amount: fundsMov.amount,
-            accountDebit: fundsMov.direction === "FUNDS_DEPOSIT" ?  hubAssetAccount.id : positionAccount.id,
-            accountCredit: fundsMov.direction === "FUNDS_DEPOSIT" ? positionAccount.id : hubAssetAccount.id,
+            pending: false,
+            debitedAccountId: fundsMov.direction === "FUNDS_DEPOSIT" ?  hubReconAccount.id : positionAccount.id,
+            creditedAccountId: fundsMov.direction === "FUNDS_DEPOSIT" ? positionAccount.id : hubReconAccount.id,
             currencyCode: fundsMov.currencyCode,
-            externalId: undefined,
-            externalCategory: undefined,
-        }
+            ownerId: null,
+            timestamp: null
+            //externalCategory: undefined,
+        };
 
-
+        this._accBal.setToken(secCtx.accessToken);
         fundsMov.transferId = await this._accBal.createJournalEntry(entry).catch((error:Error) => {
             this._logger.error(error);
             throw error;
@@ -854,7 +924,7 @@ export class ParticipantAggregate {
         fundsMov.approvedDate = now;
 
         participant.changeLog.push({
-            changeType: fundsMov.direction === "FUNDS_DEPOSIT" ? "FUNDS_DEPOSIT" : "FUNDS_WITHDRAWAL",
+            changeType: fundsMov.direction === "FUNDS_DEPOSIT" ? ParticipantChangeTypes.FUNDS_DEPOSIT : ParticipantChangeTypes.FUNDS_WITHDRAWAL,
             user: secCtx.username,
             timestamp: now,
             notes: null
@@ -878,29 +948,32 @@ export class ParticipantAggregate {
 
     async simulateTransfer(secCtx: CallSecurityContext, payerId:string, payeeId:string, amount:number, currencyCode:string):Promise<string>{
         // find participants
-        const payer: Participant | null = await this._repo.fetchWhereId(payerId);
+        const payer: IParticipant | null = await this._repo.fetchWhereId(payerId);
         if (!payer) throw new ParticipantNotFoundError(`Payer participant with ID: '${payerId}' not found.`);
-        const payee: Participant | null = await this._repo.fetchWhereId(payeeId);
+        const payee: IParticipant | null = await this._repo.fetchWhereId(payeeId);
         if (!payee) throw new ParticipantNotFoundError(`Payee participant with ID: '${payeeId}' not found.`);
 
         // find accounts
-        const payerPosAccount = payer.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === currencyCode && value.type === "POSITION");
+        const payerPosAccount = payer.participantAccounts.find((value:IParticipantAccount) => value.currencyCode === currencyCode && value.type === "POSITION");
         if(!payerPosAccount) throw new AccountNotFoundError(`Cannot find a payer's position account for currency: ${currencyCode}`);
-        const payeePosAccount = payee.participantAccounts.find((value:ParticipantAccount) => value.currencyCode === currencyCode && value.type === "POSITION");
+        const payeePosAccount = payee.participantAccounts.find((value:IParticipantAccount) => value.currencyCode === currencyCode && value.type === "POSITION");
         if(!payeePosAccount) throw new AccountNotFoundError(`Cannot find a payer's position account for currency: ${currencyCode}`);
 
         // transfer
         // const now = Date.now();
-        const entry:JournalEntry = {
+        const entry:AccountsAndBalancesJournalEntry = {
             id: randomUUID(),
             amount: amount.toString(),
-            accountDebit: payerPosAccount.id,
-            accountCredit: payeePosAccount.id,
+            pending: false,
+            debitedAccountId: payerPosAccount.id,
+            creditedAccountId: payeePosAccount.id,
             currencyCode: currencyCode,
-            externalId: undefined,
-            externalCategory: undefined,
-        }
+            ownerId: null,
+            timestamp: null
+            // externalCategory: undefined,
+        };
 
+        this._accBal.setToken(secCtx.accessToken);
         const transferId = await this._accBal.createJournalEntry(entry).catch((error:Error) => {
             this._logger.error(error);
             throw error;

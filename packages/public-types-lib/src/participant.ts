@@ -30,19 +30,16 @@
 
  --------------
 ******/
-
 "use strict";
 
-// import {verify} from "crypto";
-// import {NetworkInterfaceInfo} from "os";
+// NOTE types/enums here are kept as simple string type unions
+// If changes are made in the master participant entities and enums, these should be updated
 
-export declare type ParticipantType = "HUB" | "DFSP";
 
-/** Participants **/
-export declare type Participant = {
+export declare interface IParticipant {
   id: string;
   name: string;
-  type: ParticipantType;
+  type: "HUB" | "DFSP";
   isActive: boolean;
   description: string;
 
@@ -55,17 +52,15 @@ export declare type Participant = {
 
   lastUpdated: number;
 
-  participantAllowedSourceIps: ParticipantAllowedSourceIps[];
-  participantEndpoints: ParticipantEndpoint[];
-  participantAccounts: ParticipantAccount[];
+  participantAllowedSourceIps: IParticipantAllowedSourceIps[];
+  participantEndpoints: IParticipantEndpoint[];
+  participantAccounts: IParticipantAccount[];
 
-  fundsMovements: ParticipantFundsMovement[];
-  changeLog:ParticipantActivityLogEntry[];
+  fundsMovements: IParticipantFundsMovement[];
+  changeLog: IParticipantActivityLogEntry[];
 }
 
-export declare type ParticipantFundsMovementDirection = "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL";
-
-export declare type ParticipantFundsMovement = {
+export declare interface IParticipantFundsMovement {
   id: string;
   createdBy: string;
   createdDate: number;
@@ -73,7 +68,7 @@ export declare type ParticipantFundsMovement = {
   approvedBy: string | null;
   approvedDate: number | null;
 
-  direction: ParticipantFundsMovementDirection;
+  direction: "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL";
   currencyCode: string;
   amount: string;
 
@@ -82,8 +77,8 @@ export declare type ParticipantFundsMovement = {
   note: string | null;
 }
 
-export declare type ParticipantAllowedSourceIps = {
-  id: string;                                             // uuid of the source IP
+export declare interface IParticipantAllowedSourceIps {
+  id: string;
   cidr:string;                                            // proper cidr format
   // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
   portMode: "ANY" | "SPECIFIC" | "RANGE";
@@ -91,52 +86,30 @@ export declare type ParticipantAllowedSourceIps = {
   portRange?:{ rangeFirst: number, rangeLast: number;};   // port range
 }
 
-export declare type PartipantEndpointType = "FSPIOP" | "ISO20022";
-export declare type PartipantEndpointProtocol = "HTTPs/REST";
-
-export declare type ParticipantEndpoint = {
+export declare interface IParticipantEndpoint {
   id: string;                                             // uuid of the endpoint
-  type: PartipantEndpointType;                            // "FSPIOP" | "ISO20022"
-  protocol: PartipantEndpointProtocol;                                 // for now only "HTTPs/REST";
+  type: "FSPIOP" | "ISO20022";                            // "FSPIOP" | "ISO20022"
+  protocol: "HTTPs/REST";                                 // for now only "HTTPs/REST";
   value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
 }
 
-export declare type ParticipantAccountType = "HUB_ASSET" | "POSITION" | "SETTLEMENT";
-
-export declare type ParticipantAccount = {
+export declare interface IParticipantAccount {
   id: string;                                             // uuid of the account (from the external accounts and balances system)
-  type: ParticipantAccountType;
+  type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
   //isActive: boolean                                     //TODO do we need this?
   currencyCode: string;                                   //TODO move
-  debitBalance?: string;                                  // output only, we don't store this here
-  creditBalance?: string;                                 // output only, we don't store this here
+  debitBalance: string | null;                            // output only, we don't store this here
+  creditBalance: string | null;                           // output only, we don't store this here
 }
 
-export declare type ParticipantChangeType =
-        "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
-        | "ADD_ACCOUNT" | "REMOVE_ACCOUNT"
-        | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
-        | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
-        | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL";
-
-export declare type ParticipantActivityLogEntry = {
-  changeType: ParticipantChangeType;
+export declare interface IParticipantActivityLogEntry {
+  changeType: "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
+      | "ADD_ACCOUNT" | "REMOVE_ACCOUNT"
+      | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
+      | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
+      | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL";
   user: string;
   timestamp: number;
   notes: string | null;
 }
-
-
-
-//
-// export declare type ParticipantApproval = {
-//   participantId: string;
-//   lastUpdated: number;
-//   maker: string;
-//   makerLastUpdated: number;
-//   checker: string;
-//   checkerLastUpdated: number;
-//   checkerApproved: boolean;
-//   feedback: string;
-// }
 

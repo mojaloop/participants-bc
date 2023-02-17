@@ -34,26 +34,25 @@
 import express from "express";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
-    Participant,
-    ParticipantAccount,
-    ParticipantEndpoint, ParticipantFundsMovement
+    IParticipant,
+    IParticipantAccount,
+    IParticipantEndpoint, IParticipantFundsMovement
 } from "@mojaloop/participant-bc-public-types-lib";
 import {ParticipantAggregate} from "../domain/participant_agg";
 
 import {
     InvalidParticipantError,
-    MakerCheckerViolationError,
     NoAccountsError,
     NoEndpointsError,
     ParticipantCreateValidationError,
     ParticipantNotActive,
-    ParticipantNotFoundError,
-    UnauthorizedError
+    ParticipantNotFoundError
 } from "../domain/errors";
 import {CallSecurityContext, TokenHelper} from "@mojaloop/security-bc-client-lib";
 import {
     TransferWouldExceedCreditsError, TransferWouldExceedDebitsError
 } from "../domain/iparticipant_account_balances_adapter";
+import {MakerCheckerViolationError, UnauthorizedError } from "@mojaloop/security-bc-public-types-lib";
 
 // Extend express request to include our security fields
 declare module "express-serve-static-core" {
@@ -112,11 +111,11 @@ export class ExpressRoutes {
         const authorizationHeader = req.headers["authorization"];
 
         if (!authorizationHeader)
-            return res.sendStatus(403);
+            return res.sendStatus(401);
 
         const bearer = authorizationHeader.trim().split(" ");
         if (bearer.length!=2) {
-            return res.sendStatus(403);
+            return res.sendStatus(401);
         }
 
         const bearerToken = bearer[1];
@@ -125,15 +124,15 @@ export class ExpressRoutes {
             verified = await this._tokenHelper.verifyToken(bearerToken);
         }catch(err){
             this._logger.error(err,"unable to verify token");
-            return res.sendStatus(403);
+            return res.sendStatus(401);
         }
         if (!verified) {
-            return res.sendStatus(403);
+            return res.sendStatus(401);
         }
 
         const decoded = this._tokenHelper.decodeToken(bearerToken);
         if (!decoded.sub || decoded.sub.indexOf("::")== -1) {
-            return res.sendStatus(403);
+            return res.sendStatus(401);
         }
 
         const subSplit = decoded.sub.split("::");
@@ -160,14 +159,21 @@ export class ExpressRoutes {
 
     private _handleUnauthorizedError(err:Error, res: express.Response):boolean{
         let handled = false;
-        if (err instanceof UnauthorizedError || err instanceof MakerCheckerViolationError) {
+        if (err instanceof UnauthorizedError) {
+            this._logger.warn(err.message);
+            res.status(401).json({
+                status: "error",
+                msg: err.message
+            });
+            handled = true;
+        } else if (err instanceof MakerCheckerViolationError) {
             this._logger.warn(err.message);
             res.status(403).json({
                 status: "error",
                 msg: err.message
             });
             handled = true;
-        }else if (err instanceof ParticipantNotFoundError) {
+        } else if (err instanceof ParticipantNotFoundError) {
             res.status(404).json({
                 status: "error",
                 msg: "Participant not found."
@@ -233,7 +239,7 @@ export class ExpressRoutes {
     }
 
     private async participantCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
-        const data: Participant = req.body;
+        const data: IParticipant = req.body;
         this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
 
         try {
@@ -355,7 +361,7 @@ export class ExpressRoutes {
 
     private async participantAccountCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
         const id = req.params["id"] ?? null;
-        const data: ParticipantAccount = req.body;
+        const data: IParticipantAccount = req.body;
         this._logger.debug(`Received request to create participant account for participant with ID: ${id}.`);
 
         try {
@@ -432,7 +438,7 @@ export class ExpressRoutes {
 
     private async participantEndpointCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
         const id = req.params["id"] ?? null;
-        const data: ParticipantEndpoint = req.body;
+        const data: IParticipantEndpoint = req.body;
         this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${id}].`);
 
         try {
@@ -454,7 +460,7 @@ export class ExpressRoutes {
     private async participantEndpointChange(req: express.Request, res: express.Response, next: express.NextFunction) {
         const participantId = req.params["id"] ?? null;
         const endpointId = req.params["endpointId"] ?? null;
-        const data: ParticipantEndpoint = req.body;
+        const data: IParticipantEndpoint = req.body;
 
         if(endpointId !== data.id ){
             res.status(400).json({
@@ -515,7 +521,7 @@ export class ExpressRoutes {
 
     private async participantFundsMovCreate(req: express.Request, res: express.Response, next: express.NextFunction){
         const id = req.params["id"] ?? null;
-        const fundsMov:ParticipantFundsMovement = req.body;
+        const fundsMov:IParticipantFundsMovement = req.body;
 
         this._logger.debug(`Received request to create a funds movement for participant with ID: ${id}`);
 
