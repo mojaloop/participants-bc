@@ -52,7 +52,7 @@ import {CallSecurityContext, TokenHelper} from "@mojaloop/security-bc-client-lib
 import {
     TransferWouldExceedCreditsError, TransferWouldExceedDebitsError
 } from "../domain/iparticipant_account_balances_adapter";
-import {MakerCheckerViolationError, UnauthorizedError } from "@mojaloop/security-bc-public-types-lib";
+import {ForbiddenError, MakerCheckerViolationError, UnauthorizedError} from "@mojaloop/security-bc-public-types-lib";
 
 // Extend express request to include our security fields
 declare module "express-serve-static-core" {
@@ -162,6 +162,13 @@ export class ExpressRoutes {
         if (err instanceof UnauthorizedError) {
             this._logger.warn(err.message);
             res.status(401).json({
+                status: "error",
+                msg: err.message
+            });
+            handled = true;
+        } else if (err instanceof ForbiddenError) {
+            this._logger.warn(err.message);
+            res.status(403).json({
                 status: "error",
                 msg: err.message
             });

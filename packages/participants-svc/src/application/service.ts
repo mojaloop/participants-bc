@@ -67,8 +67,9 @@ const SVC_DEFAULT_HTTP_PORT = 3010;
 
 const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3201";
 const AUTH_N_SVC_TOKEN_URL = AUTH_N_SVC_BASEURL+"/token"; // TODO this should not be known here, libs that use the base should add the suffix
-const AUTH_N_TOKEN_ISSUER_NAME = process.env["AUTH_N_TOKEN_ISSUER_NAME"] || "http://localhost:3201/";
-const AUTH_N_TOKEN_AUDIENCE = process.env["AUTH_N_TOKEN_AUDIENCE"] || "mojaloop.vnext.default_audience";
+const AUTH_N_TOKEN_ISSUER_NAME = process.env["AUTH_N_TOKEN_ISSUER_NAME"] || "mojaloop.vnext.dev.default_issuer";
+const AUTH_N_TOKEN_AUDIENCE = process.env["AUTH_N_TOKEN_AUDIENCE"] || "mojaloop.vnext.dev.default_audience";
+
 const AUTH_N_SVC_JWKS_URL = process.env["AUTH_N_SVC_JWKS_URL"] || `${AUTH_N_SVC_BASEURL}/.well-known/jwks.json`;
 
 const AUTH_Z_SVC_BASEURL = process.env["AUTH_Z_SVC_BASEURL"] || "http://localhost:3202";
@@ -144,8 +145,10 @@ export class Service {
                 // create e tmp file
                 LocalAuditClientCryptoProvider.createRsaPrivateKeyFileSync(AUDIT_KEY_FILE_PATH, 2048);
             }
+            const auditLogger = logger.createChild("AuditLogger");
+            auditLogger.setLogLevel(LogLevel.INFO);
             const cryptoProvider = new LocalAuditClientCryptoProvider(AUDIT_KEY_FILE_PATH);
-            const auditDispatcher = new KafkaAuditClientDispatcher(kafkaProducerOptions, KAFKA_AUDITS_TOPIC, logger);
+            const auditDispatcher = new KafkaAuditClientDispatcher(kafkaProducerOptions, KAFKA_AUDITS_TOPIC, auditLogger);
             // NOTE: to pass the same kafka logger to the audit client, make sure the logger is started/initialised already
             auditClient = new AuditClient(BC_NAME, APP_NAME, APP_VERSION, cryptoProvider, auditDispatcher);
             await auditClient.init();
@@ -232,7 +235,7 @@ export class Service {
 
         this.expressServer = this.app.listen(portNum, () => {
             this.logger.info(`🚀 Server ready at port: ${portNum}`);
-            this.logger.info("Participants service started");
+            this.logger.info(`Participants service v: ${APP_VERSION} started`);
         });
     }
 
