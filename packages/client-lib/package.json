@@ -12,7 +12,8 @@
     "vnext"
   ],
   "contributors": [
-    "Jason Bruwer <jason.bruwer@coil.com>"
+    "Jason Bruwer <jason.bruwer@coil.com>",
+    "Pedro Sousa Barreto <pedrob@crosslaketech.com>"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -48,7 +49,7 @@
     "nock": "^13.3.0"
   },
   "dependencies": {
-    "@mojaloop/security-bc-client-lib": "~0.1.11"
+    "@mojaloop/security-bc-client-lib": "~0.1.12"
   },
   "bundledDependencies": [
     "@mojaloop/participant-bc-public-types-lib",

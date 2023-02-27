@@ -30,18 +30,21 @@
 
 "use strict";
 
+import {GrpcCreateJournalEntryArray} from "@mojaloop/accounts-and-balances-bc-grpc-client-lib";
+import {AccountsAndBalancesAccountType} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {LoginHelper} from "@mojaloop/security-bc-client-lib";
 import {IAccountsBalancesAdapter} from "../domain/iparticipant_account_balances_adapter";
 
 import {
-    AccountsAndBalancesJournalEntry,
-    AccountsAndBalancesAccount,
+        AccountsAndBalancesAccount,
 } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 
-import {AccountsAndBalancesGrpcClient} from "@mojaloop/accounts-and-balances-bc-grpc-client-lib";
+import {
+    AccountsAndBalancesGrpcClient,
+    GrpcCreateAccountArray
+} from "@mojaloop/accounts-and-balances-bc-grpc-client-lib";
 import { UnauthorizedError } from "@mojaloop/security-bc-public-types-lib";
-//import {GrpcClient} from "../../../../../accounts-and-balances-bc/packages/grpc-client-lib/dist/";
 
 export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter {
     private readonly _grpcUrl: string;
@@ -77,8 +80,17 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
         this._loginHelper.setAppCredentials(client_id, client_secret);
     }
 
-    async createAccount(account: AccountsAndBalancesAccount): Promise<string> {
-        const createdIds = await this._client.createAccounts([account]).catch((reason: any) => {
+    async createAccount(requestedId: string, ownerId: string, type: AccountsAndBalancesAccountType, currencyCode: string): Promise<string> {
+        const req: GrpcCreateAccountArray = {
+            accountsToCreate: [{
+                requestedId: requestedId,
+                type: type as string,
+                ownerId: ownerId,
+                currencyCode: currencyCode
+            }]
+        };
+
+        const createdIds = await this._client.createAccounts(req).catch((reason: any) => {
             this._logger.error(reason);
             if(reason instanceof Error && reason.constructor.name === "UnauthorizedError"){
                 throw new UnauthorizedError(reason.message);
@@ -86,15 +98,31 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
 
             throw new Error("Could not create account in remote system: "+reason);
         });
-        return createdIds[0];
+
+        return createdIds.grpcIdArray![0].grpcId!;
     }
 
-    async createJournalEntry(entry: AccountsAndBalancesJournalEntry): Promise<string> {
-        const createdId = await this._client.createJournalEntries([entry]).catch((reason: any) => {
+    async createJournalEntry(
+        requestedId: string, ownerId: string , currencyCode: string,
+        amount: string, pending: boolean, debitedAccountId: string, creditedAccountId: string
+    ): Promise<string> {
+        const req: GrpcCreateJournalEntryArray = {
+            entriesToCreate: [{
+                requestedId: requestedId,
+                amount: amount,
+                pending: pending,
+                ownerId: ownerId,
+                currencyCode: currencyCode,
+                debitedAccountId: debitedAccountId,
+                creditedAccountId: creditedAccountId
+            }]
+        };
+
+        const createdId = await this._client.createJournalEntries(req).catch((reason: any) => {
             this._logger.error(reason);
             throw new Error("Could not create journalEntry in remote system: "+reason);
         });
-        return createdId[0];
+        return createdId.grpcIdArray![0].grpcId!;
     }
 
     async getAccount(accId: string): Promise<AccountsAndBalancesAccount | null> {

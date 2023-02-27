@@ -4,7 +4,8 @@ FROM node:18.13-alpine as builder
 # Create the project directory inside the container.
 WORKDIR /app
 
-RUN apk add --no-cache -t build-dependencies git make gcc g++ python3 libtool autoconf pkgconfig automake bash # wget tar xz
+RUN apk add --no-cache -t build-dependencies git make gcc g++ python3 \
+    libtool autoconf pkgconfig automake librdkafka-dev bash # wget tar xz \
 
 RUN cd $(npm root -g)/npm
 RUN npm config set unsafe-perm true
@@ -20,7 +21,11 @@ COPY packages/participants-svc/package.json ./packages/participants-svc/
 
 # If you are building your code for production
 #RUN npm ci --only=production
-RUN npm install
+RUN BUILD_LIBRDKAFKA=0 npm install
+
+# Note on BUILD_LIBRDKAFKA:
+#   Use BUILD_LIBRDKAFKA=0 only if we have installed librdkafka-dev in
+#   the builder image and librdkafka in the final image
 
 ########################################
 # Copy code and build
@@ -34,18 +39,14 @@ COPY packages/public-types-lib ./packages/public-types-lib
 # copy service code
 COPY packages/participants-svc ./packages/participants-svc
 
-
-#RUN ls -la
-#RUN ls -la ./packages/public-types-lib
-#RUN ls -la ./packages/configuration-svc
-#RUN ls -la ./node_modules/@mojaloop/
-
 # build
 RUN npm run build
 
 ########################################
 FROM node:18.13-alpine
 WORKDIR /app
+
+RUN apk add librdkafka
 
 COPY --from=builder /app .
 

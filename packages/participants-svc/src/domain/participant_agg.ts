@@ -163,24 +163,16 @@ export class ParticipantAggregate {
                 debitBalance: null,
                 creditBalance: null
             };
-            const accBalHMLNSAccount: AccountsAndBalancesAccount = {
-                id: participantHMLNSAccount.id,
-                type: participantHMLNSAccount.type as AccountsAndBalancesAccountType, // "position",
-                state: "ACTIVE",
-                postedDebitBalance: null,
-                pendingDebitBalance: null,
-                postedCreditBalance: null,
-                pendingCreditBalance: null,
-                balance: null,
-                currencyCode: participantHMLNSAccount.currencyCode,
-                ownerId: hubParticipant.id,
-                timestampLastJournalEntry: null
-            };
-
 
             try {
                 // this uses the initial security context/loginhelper, which is the service creds
-                participantHMLNSAccount.id = await this._accBal.createAccount(accBalHMLNSAccount);
+                participantHMLNSAccount.id = await this._accBal.createAccount(
+                    participantHMLNSAccount.id,
+                    hubParticipant.id,
+                    participantHMLNSAccount.type as AccountsAndBalancesAccountType,
+                    participantHMLNSAccount.currencyCode
+                );
+
                 hubParticipant.participantAccounts.push(participantHMLNSAccount);
                 hubParticipant.changeLog.push({
                     changeType: ParticipantChangeTypes.ADD_ACCOUNT,
@@ -193,8 +185,6 @@ export class ParticipantAggregate {
                 throw new UnableToCreateAccountUpstream(`'${hubParticipant.name}' account '${participantHMLNSAccount.type}' failed upstream.`);
             }
 
-
-
             // Hub Reconciliation account
             // participant account record (minimal
             const participantReconAccount: ParticipantAccount = {
@@ -205,23 +195,14 @@ export class ParticipantAggregate {
                 creditBalance: null
             };
 
-            // A&B account to be created
-            const accBalReconAccount: AccountsAndBalancesAccount = {
-                id: participantReconAccount.id,
-                type: participantReconAccount.type as AccountsAndBalancesAccountType, // "position",
-                state: "ACTIVE",
-                postedDebitBalance: null,
-                pendingDebitBalance: null,
-                postedCreditBalance: null,
-                pendingCreditBalance: null,
-                balance: null,
-                currencyCode: participantReconAccount.currencyCode,
-                ownerId: hubParticipant.id,
-                timestampLastJournalEntry: null
-            };
             try {
                 // this uses the initial security context/loginhelper, which is the service creds
-                participantReconAccount.id = await this._accBal.createAccount(accBalReconAccount);
+                participantReconAccount.id = await this._accBal.createAccount(
+                    participantReconAccount.id,
+                    hubParticipant.id,
+                    participantReconAccount.type as AccountsAndBalancesAccountType,
+                    participantReconAccount.currencyCode
+                );
                 hubParticipant.participantAccounts.push(participantReconAccount);
                 hubParticipant.changeLog.push({
                     changeType: ParticipantChangeTypes.ADD_ACCOUNT,
@@ -697,23 +678,10 @@ export class ParticipantAggregate {
             throw new InvalidAccountError("Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION");
         }
 
-        const accBalAccount: AccountsAndBalancesAccount = {
-            id: account.id,
-            type: account.type as AccountsAndBalancesAccountType, // "position",
-            state: "ACTIVE",
-            currencyCode: account.currencyCode,
-            ownerId: participantId,
-            balance: null,
-            postedDebitBalance: null,
-            pendingDebitBalance: null,
-            postedCreditBalance: null,
-            pendingCreditBalance: null,
-            timestampLastJournalEntry: null
-        };
-
+        let createdId:string;
         try {
             this._accBal.setToken(secCtx.accessToken);
-            accBalAccount.id = await this._accBal.createAccount(accBalAccount);
+            createdId = await this._accBal.createAccount(account.id, participantId, account.type, account.currencyCode);
         } catch (err) {
             this._logger.error(err);
             if(err instanceof UnauthorizedError) throw err;
@@ -722,9 +690,9 @@ export class ParticipantAggregate {
         }
 
         existing.participantAccounts.push({
-            id: accBalAccount.id,
-            type: accBalAccount.type as ParticipantAccountTypes,
-            currencyCode: accBalAccount.currencyCode,
+            id: createdId,
+            type: account.type as ParticipantAccountTypes,
+            currencyCode: account.currencyCode,
             creditBalance: null,
             debitBalance: null
         });
@@ -742,7 +710,7 @@ export class ParticipantAggregate {
             throw err;
         }
 
-        this._logger.info(`Successfully added account with id: ${accBalAccount.id} to Participant with ID: '${participantId}'`);
+        this._logger.info(`Successfully added account with id: ${createdId} to Participant with ID: '${participantId}'`);
 
         await this._auditClient.audit(
                 AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED, true,
@@ -750,7 +718,7 @@ export class ParticipantAggregate {
                 [{key: "participantId", value: participantId}]
         );
 
-        return accBalAccount.id;
+        return createdId;
     }
 
     /*async removeParticipantAccount(secCtx: CallSecurityContext, participantId: string, account: ParticipantAccount): Promise<void> {
@@ -900,21 +868,17 @@ export class ParticipantAggregate {
 
         const now = Date.now();
 
-        // let's create the actual entry
-        const entry:AccountsAndBalancesJournalEntry = {
-            id: randomUUID(),
-            amount: fundsMov.amount,
-            pending: false,
-            debitedAccountId: fundsMov.direction === "FUNDS_DEPOSIT" ?  hubReconAccount.id : positionAccount.id,
-            creditedAccountId: fundsMov.direction === "FUNDS_DEPOSIT" ? positionAccount.id : hubReconAccount.id,
-            currencyCode: fundsMov.currencyCode,
-            ownerId: null,
-            timestamp: null
-            //externalCategory: undefined,
-        };
 
         this._accBal.setToken(secCtx.accessToken);
-        fundsMov.transferId = await this._accBal.createJournalEntry(entry).catch((error:Error) => {
+        fundsMov.transferId = await this._accBal.createJournalEntry(
+            randomUUID(),
+            fundsMov.id,
+            fundsMov.currencyCode,
+            fundsMov.amount,
+            false,
+            fundsMov.direction==="FUNDS_DEPOSIT" ? hubReconAccount.id:positionAccount.id,
+            fundsMov.direction==="FUNDS_DEPOSIT" ? positionAccount.id:hubReconAccount.id
+        ).catch((error:Error) => {
             this._logger.error(error);
             throw error;
         });
@@ -959,22 +923,17 @@ export class ParticipantAggregate {
         const payeePosAccount = payee.participantAccounts.find((value:IParticipantAccount) => value.currencyCode === currencyCode && value.type === "POSITION");
         if(!payeePosAccount) throw new AccountNotFoundError(`Cannot find a payer's position account for currency: ${currencyCode}`);
 
-        // transfer
-        // const now = Date.now();
-        const entry:AccountsAndBalancesJournalEntry = {
-            id: randomUUID(),
-            amount: amount.toString(),
-            pending: false,
-            debitedAccountId: payerPosAccount.id,
-            creditedAccountId: payeePosAccount.id,
-            currencyCode: currencyCode,
-            ownerId: null,
-            timestamp: null
-            // externalCategory: undefined,
-        };
 
         this._accBal.setToken(secCtx.accessToken);
-        const transferId = await this._accBal.createJournalEntry(entry).catch((error:Error) => {
+        const transferId = await this._accBal.createJournalEntry(
+            randomUUID(),
+            "testTransferId",
+            currencyCode,
+            amount.toString(),
+            false,
+            payerPosAccount.id,
+            payeePosAccount.id
+        ).catch((error:Error) => {
             this._logger.error(error);
             throw error;
         });

@@ -31,8 +31,7 @@
 "use strict";
 
 import {
-    AccountsAndBalancesAccount,
-    AccountsAndBalancesJournalEntry
+    AccountsAndBalancesAccount, AccountsAndBalancesAccountType
 } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 
 export class TransferWouldExceedCreditsError extends Error{}
@@ -41,13 +40,16 @@ export class TransferWouldExceedDebitsError extends Error{}
 export interface IAccountsBalancesAdapter {
     init(): Promise<void>;
 
-    createAccount(account: AccountsAndBalancesAccount): Promise<string>;
+    createAccount(requestedId:string, ownerId:string, type: AccountsAndBalancesAccountType, currencyCode: string): Promise<string>;
     getAccount(accountId: string): Promise<AccountsAndBalancesAccount | null>;
     getAccounts(accountIds: string[]): Promise<AccountsAndBalancesAccount[]>;
 
     getParticipantAccounts(participantId: string): Promise<AccountsAndBalancesAccount[]>;
 
-    createJournalEntry(entry: AccountsAndBalancesJournalEntry): Promise<string>;
+    createJournalEntry(
+        requestedId: string, ownerId: string, currencyCode: string,
+        amount: string, pending: boolean, debitedAccountId: string, creditedAccountId: string
+    ): Promise<string>;
 
     setToken(accessToken: string): void;
     setUserCredentials(client_id: string, username: string, password: string): void;

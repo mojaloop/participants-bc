@@ -8,7 +8,8 @@
     "url": "https://github.com/mojaloop/participants-bc/issues#readme"
   },
   "contributors": [
-    "Jason Bruwer <jason.bruwer@coil.com>"
+    "Jason Bruwer <jason.bruwer@coil.com>",
+    "Pedro Sousa Barreto <pedrob@crosslaketech.com>"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
