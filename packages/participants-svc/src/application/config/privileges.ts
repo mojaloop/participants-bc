@@ -80,5 +80,5 @@ export const AppPrivilegesDefinition = [
         description: "Approves an existing withdrawal funds movement record in the participant"
     },
 
-]
+];
 

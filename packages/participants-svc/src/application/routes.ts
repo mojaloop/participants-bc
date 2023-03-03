@@ -77,7 +77,7 @@ export class ExpressRoutes {
         this._mainRouter.use(this._authenticationMiddleware.bind(this));
 
         // example
-        this._mainRouter.get("/", this.getExample.bind(this));
+//        this._mainRouter.get("/", this.getExample.bind(this));
 
         // participant
         this._mainRouter.get("/participants", this.getAllParticipants.bind(this));
@@ -153,9 +153,6 @@ export class ExpressRoutes {
         return this._mainRouter;
     }
 
-    private async getExample(req: express.Request, res: express.Response, next: express.NextFunction) {
-        return res.send({resp: "example worked"});
-    }
 
     private _handleUnauthorizedError(err:Error, res: express.Response):boolean{
         let handled = false;
@@ -191,7 +188,7 @@ export class ExpressRoutes {
         return handled;
     }
 
-    private async getAllParticipants(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async getAllParticipants(req: express.Request, res: express.Response) {
         this._logger.debug("Fetching all participants");
 
         try {
@@ -208,9 +205,9 @@ export class ExpressRoutes {
         }
     }
 
-    private async getParticipantsByIds(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async getParticipantsByIds(req: express.Request, res: express.Response) {
         const ids = req.params["ids"] ?? null;
-        const idSplit : string[] = (ids == null) ? [] : ids.split(',')
+        const idSplit : string[] = (ids == null) ? [] : ids.split(',');
         this._logger.debug(`Fetching Participant [${ids}].`);
 
         try {
@@ -227,7 +224,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async participantById(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async participantById(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
         this._logger.debug(`Fetching Participant [${id}].`);
 
@@ -245,7 +242,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async participantCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async participantCreate(req: express.Request, res: express.Response) {
         const data: IParticipant = req.body;
         this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
 
@@ -278,7 +275,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async participantApprove(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async participantApprove(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
         const actionNote:string | null = req.body?.note || null;
         this._logger.debug(`Received request to approve Participant with ID: ${id}.`);
@@ -297,7 +294,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async deactivateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async deactivateParticipant(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
         const actionNote:string | null = req.body?.note || null;
         this._logger.debug(`Received request to deActivateParticipant Participant with ID: ${id}.`);
@@ -316,7 +313,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async activateParticipant(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async activateParticipant(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
         const actionNote:string | null = req.body?.note || null;
         this._logger.debug(`Received request to activateParticipant Participant with ID: ${id}.`);
@@ -340,7 +337,7 @@ export class ExpressRoutes {
     * Accounts
     * */
 
-    private async accountsByParticipantId(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async accountsByParticipantId(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
         this._logger.debug(`Fetching Accounts for Participant [${id}].`);
 
@@ -366,7 +363,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async participantAccountCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async participantAccountCreate(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
         const data: IParticipantAccount = req.body;
         this._logger.debug(`Received request to create participant account for participant with ID: ${id}.`);
@@ -417,7 +414,7 @@ export class ExpressRoutes {
     * Endpoints
     * */
 
-    private async endpointsByParticipantId(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async endpointsByParticipantId(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
 
         this._logger.debug(`Fetching Endpoints for Participant [${id}].`);
@@ -443,7 +440,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async participantEndpointCreate(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async participantEndpointCreate(req: express.Request, res: express.Response) {
         const id = req.params["id"] ?? null;
         const data: IParticipantEndpoint = req.body;
         this._logger.debug(`Creating Participant Endpoint [${JSON.stringify(data)}] for [${id}].`);
@@ -464,7 +461,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async participantEndpointChange(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async participantEndpointChange(req: express.Request, res: express.Response) {
         const participantId = req.params["id"] ?? null;
         const endpointId = req.params["endpointId"] ?? null;
         const data: IParticipantEndpoint = req.body;
@@ -500,7 +497,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async participantEndpointDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
+    private async participantEndpointDelete(req: express.Request, res: express.Response) {
         const participantId = req.params["id"] ?? null;
         const endpointId = req.params["endpointId"] ?? null;
 
@@ -526,7 +523,7 @@ export class ExpressRoutes {
     * Funds management
     * */
 
-    private async participantFundsMovCreate(req: express.Request, res: express.Response, next: express.NextFunction){
+    private async participantFundsMovCreate(req: express.Request, res: express.Response){
         const id = req.params["id"] ?? null;
         const fundsMov:IParticipantFundsMovement = req.body;
 
@@ -556,7 +553,7 @@ export class ExpressRoutes {
 
     }
 
-    private async participantFundsMovApprove(req: express.Request, res: express.Response, next: express.NextFunction){
+    private async participantFundsMovApprove(req: express.Request, res: express.Response){
         const id = req.params["id"] ?? null;
         const fundsMovId = req.params["fundsMovId"] ?? null;
 
@@ -595,7 +592,7 @@ export class ExpressRoutes {
     }
 
 
-    private async simulateTransfer(req: express.Request, res: express.Response, next: express.NextFunction){
+    private async simulateTransfer(req: express.Request, res: express.Response){
         this._logger.debug("Received request to simulateTransfer");
 
         try {

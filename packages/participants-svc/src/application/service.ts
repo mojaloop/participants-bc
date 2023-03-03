@@ -230,7 +230,7 @@ export class Service {
 
         let portNum = SVC_DEFAULT_HTTP_PORT;
         if (process.env["SVC_HTTP_PORT"] && !isNaN(parseInt(process.env["SVC_HTTP_PORT"]))) {
-            portNum = parseInt(process.env["SVC_HTTP_PORT"])
+            portNum = parseInt(process.env["SVC_HTTP_PORT"]);
         }
 
         this.expressServer = this.app.listen(portNum, () => {

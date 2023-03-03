@@ -108,7 +108,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 
         for (const id of ids) {
             const existing = await this.fetchWhereId(id);
-            if (existing !== null) returnVal.push(existing)
+            if (existing !== null) returnVal.push(existing);
         }
 
         return returnVal;
@@ -148,11 +148,11 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
                 }
             }
         );
-        return (result.modifiedCount === 1)
+        return (result.modifiedCount === 1);
     }
 
     async destroy (): Promise<void> {
-        if (this._initialized) await this._mongoClient.close()
+        if (this._initialized) await this._mongoClient.close();
     }
 
 

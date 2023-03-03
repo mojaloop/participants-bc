@@ -28,7 +28,7 @@
  --------------
  ******/
 
-"use strict"
+"use strict";
 
 import { IParticipant } from "@mojaloop/participant-bc-public-types-lib";
 
