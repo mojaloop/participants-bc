@@ -37,7 +37,7 @@
     "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
     "audit:check": "npm audit",
     "dep:check": "ncu -e 2",
-    "dep:update": "ncu -u"
+    "dep:update": "ncu -e2 -u"
   },
   "dependencies": {
     "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.1.3",

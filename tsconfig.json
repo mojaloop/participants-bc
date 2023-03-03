@@ -14,7 +14,8 @@
     "target": "es2020",
     "module": "commonjs",
     "types": [
-      "node"
+      "node",
+      "jest"
     ],
     "lib": [
       "es2020"
