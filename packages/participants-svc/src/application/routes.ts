@@ -48,11 +48,11 @@ import {
     ParticipantNotActive,
     ParticipantNotFoundError
 } from "../domain/errors";
-import {CallSecurityContext, TokenHelper} from "@mojaloop/security-bc-client-lib";
+import {TokenHelper} from "@mojaloop/security-bc-client-lib";
 import {
     TransferWouldExceedCreditsError, TransferWouldExceedDebitsError
 } from "../domain/iparticipant_account_balances_adapter";
-import {ForbiddenError, MakerCheckerViolationError, UnauthorizedError} from "@mojaloop/security-bc-public-types-lib";
+import {ForbiddenError, MakerCheckerViolationError, UnauthorizedError, CallSecurityContext} from "@mojaloop/security-bc-public-types-lib";
 
 // Extend express request to include our security fields
 declare module "express-serve-static-core" {

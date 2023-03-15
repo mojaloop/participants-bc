@@ -39,8 +39,7 @@ import {
     IParticipantFundsMovement
 } from "@mojaloop/participant-bc-public-types-lib";
 import {IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
-import {CallSecurityContext} from "@mojaloop/security-bc-client-lib";
-import {ForbiddenError, IAuthorizationClient, MakerCheckerViolationError, UnauthorizedError} from "@mojaloop/security-bc-public-types-lib";
+import {ForbiddenError, IAuthorizationClient, MakerCheckerViolationError, UnauthorizedError, CallSecurityContext} from "@mojaloop/security-bc-public-types-lib";
 import {randomUUID} from "crypto";
 import {
     ParticipantAccountTypes,
@@ -357,7 +356,7 @@ export class ParticipantAggregate {
             type: inputParticipant.type as ParticipantTypes,
             isActive: false,
             description: inputParticipant.description,
-            createdBy: secCtx.username,
+            createdBy: secCtx.username!,
             createdDate: now,
             approved: false,
             approvedBy: null,
@@ -369,7 +368,7 @@ export class ParticipantAggregate {
             fundsMovements:[],
             changeLog: [{
                 changeType: ParticipantChangeTypes.CREATE,
-                user: secCtx.username,
+                user: secCtx.username!,
                 timestamp: now,
                 notes: null
             }]
@@ -417,7 +416,7 @@ export class ParticipantAggregate {
 
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.APPROVE,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: now,
             notes: note
         });
@@ -452,7 +451,7 @@ export class ParticipantAggregate {
 
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.ACTIVATE,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: Date.now(),
             notes: note
         });
@@ -489,7 +488,7 @@ export class ParticipantAggregate {
         existing.isActive = false;
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.DEACTIVATE,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: Date.now(),
             notes: note
         });
@@ -538,7 +537,7 @@ export class ParticipantAggregate {
         existing.participantEndpoints.push(endpoint as ParticipantEndpoint);
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.ADD_ENDPOINT,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: Date.now(),
             notes: null
         });
@@ -585,7 +584,7 @@ export class ParticipantAggregate {
 
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.CHANGE_ENDPOINT,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: Date.now(),
             notes: null
         });
@@ -623,7 +622,7 @@ export class ParticipantAggregate {
         existing.participantEndpoints = existing.participantEndpoints.filter((value: IParticipantEndpoint) => value.id!==endpointId);
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.REMOVE_ENDPOINT,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: Date.now(),
             notes: null
         });
@@ -698,7 +697,7 @@ export class ParticipantAggregate {
         });
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.ADD_ACCOUNT,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: Date.now(),
             notes: null
         });
@@ -799,7 +798,7 @@ export class ParticipantAggregate {
         if(!participant.fundsMovements) participant.fundsMovements = [];
         participant.fundsMovements.push({
             id: fundsMov.id || randomUUID(),
-            createdBy: secCtx.username,
+            createdBy: secCtx.username!,
             createdDate: now,
             direction: fundsMov.direction as ParticipantFundsMovementDirections,
             amount: fundsMov.amount,
@@ -889,7 +888,7 @@ export class ParticipantAggregate {
 
         participant.changeLog.push({
             changeType: fundsMov.direction === "FUNDS_DEPOSIT" ? ParticipantChangeTypes.FUNDS_DEPOSIT : ParticipantChangeTypes.FUNDS_WITHDRAWAL,
-            user: secCtx.username,
+            user: secCtx.username!,
             timestamp: now,
             notes: null
         });
