@@ -1,7 +1,7 @@
 {
   "name": "@mojaloop/participants-bc-svc",
   "version": "0.1.4",
-  "description": "mojaloop participants service",
+  "description": "mojaloop participants  service",
   "license": "Apache-2.0",
   "homepage": "https://github.com/mojaloop/participants-bc/",
   "private": true,
