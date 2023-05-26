@@ -33,17 +33,22 @@
 import { IParticipant } from "@mojaloop/participant-bc-public-types-lib";
 
 export interface IParticipantsRepository {
-    init(): Promise<void>;
+  init(): Promise<void>;
 
-    //Participant
-    create(participant: IParticipant): Promise<boolean>;
-    store(participant: IParticipant): Promise<boolean>;
+  //Participant
+  create(participant: IParticipant): Promise<boolean>;
+  store(participant: IParticipant): Promise<boolean>;
 
-    fetchAll():Promise<IParticipant[]>;
-    fetchWhereId(id: string): Promise<IParticipant | null>;
-    fetchWhereName(participantName: string): Promise<IParticipant | null>;
-    fetchWhereIds(id: string[]): Promise<IParticipant[]>;
+  fetchAll(): Promise<IParticipant[]>;
+  fetchWhereId(id: string): Promise<IParticipant | null>;
+  fetchWhereName(participantName: string): Promise<IParticipant | null>;
+  fetchWhereIds(id: string[]): Promise<IParticipant[]>;
 
-    destroy (): Promise<void>
+  searchParticipants(
+    id: string,
+    name: string,
+    state: string
+  ): Promise<IParticipant[]>;
+
+  destroy(): Promise<void>;
 }
-

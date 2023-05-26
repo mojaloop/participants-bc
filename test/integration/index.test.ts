@@ -30,12 +30,11 @@
 import {ILogger, LogLevel} from "@mojaloop/logging-bc-public-types-lib";
 import {ParticipantsHttpClient, UnableToCreateParticipantAccountError} from "@mojaloop/participants-bc-client-lib";
 import {
-    Participant,
-    ParticipantAccount,
-    ParticipantEndpoint
+    IParticipant as Participant,
 } from "@mojaloop/participant-bc-public-types-lib";
 import {KafkaLogger} from "@mojaloop/logging-bc-client-lib";
 import {MLKafkaRawProducerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
+import {AuthenticatedHttpRequester} from '@mojaloop/security-bc-client-lib'
 import * as Crypto from "crypto";
 import {ConsoleLogger} from "@mojaloop/logging-bc-public-types-lib/dist/console_logger";
 
@@ -69,6 +68,7 @@ const TIMEOUT_MS_PARTICIPANTS_HTTP_CLIENT: number = 10_000;
 
 let logger: ILogger;
 let participantsHttpClient: ParticipantsHttpClient;
+let authenticatedHttpRequester: AuthenticatedHttpRequester;
 
 // Make sure these are valid tokens for different users and both all the full set of Participants privileges
 const USER1_TOKEN = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InFmWFRRWHhXTHBuZTFaX0VQUkpwbXMtUWc3OXpEVUQzYXNwSmJ1VzM1eE0ifQ.eyJ0eXAiOiJCZWFyZXIiLCJhenAiOiJzZWN1cml0eS1iYy11aSIsInJvbGVzIjpbIjdhYzA5YTI2LTEwZDMtNDBiMC1iZmVlLTJjMTNkMzI0OTk1NCJdLCJpYXQiOjE2NjQ4MzkwMjIsImV4cCI6MTY2NDg0MjYyMiwiYXVkIjoibW9qYWxvb3Audm5leHQuZGVmYXVsdF9hdWRpZW5jZSIsImlzcyI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzIwMS8iLCJzdWIiOiJ1c2VyOjp1c2VyIiwianRpIjoiOThlYTg3ZGEtNTE5NC00M2Q0LTljMjQtZjQzODdmOTNjOTQyIn0.P5U9ESj2KtCWq394Ny-5HHUApOSB2NFJw3bfUm8XXSZ0jujvaIVz9HIUdCGjsNprFphLHgo6k8-dlwSeaHHn94XO9MmjppxrkBIcWZLPojipZrbvcN7vyh1VE2qAeRAdLbXlO35BzNYwQLQIvJwChWb38fHIPi2hQVrFP5ZrTAlFc_RxxRifFEc6HJ3bE_IRxskGltaj0uS5CSj7iAzblqduhDhmm1tZ2XUjv5b-xsti8q9kKNMJ93zghl_NmG0p9DOH5DWxM_A4EegTITbng5MuBiRJ6ll4r7VCLyjmBJRuvhLeeuefbd1VF5JMITKqW9b2OgDg3AdduH6W7V1dMw";
@@ -78,10 +78,11 @@ describe("participant - integration tests", () => {
     console.log(`Integration tests for endpoint: ${BASE_URL_PARTICIPANTS_HTTP_SERVICE}`)
     beforeAll(async () => {
         logger = new ConsoleLogger()
+        authenticatedHttpRequester = new AuthenticatedHttpRequester(logger, USER1_TOKEN)
         participantsHttpClient = new ParticipantsHttpClient(
                 logger,
                 BASE_URL_PARTICIPANTS_HTTP_SERVICE,
-                USER1_TOKEN,
+                authenticatedHttpRequester,
                 TIMEOUT_MS_PARTICIPANTS_HTTP_CLIENT
         );
     });
@@ -92,7 +93,7 @@ describe("participant - integration tests", () => {
 
     // Create participant:
     test("create non-existent participant", async () => {
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
+        // participantsHttpClient.setAccessToken(USER1_TOKEN);
 
         const participantId: string = Crypto.randomUUID();
         const participant: Participant = {
@@ -109,15 +110,17 @@ describe("participant - integration tests", () => {
             participantAllowedSourceIps: [],
             participantEndpoints: [],
             participantAccounts: [],
-            changeLog: []
+            changeLog: [],
+            type: "DFSP",
+            fundsMovements: []
         };
-        const participantReceived: Participant|null = await participantsHttpClient.createParticipant(participant);
+        const participantReceived: Participant = await participantsHttpClient.createParticipant(participant);
         expect(participantReceived?.id).toEqual(participantId);
     });
 
     // Get participant by id (non-existing):
     test("get non-existent participant by id", async () => {
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
+        // participantsHttpClient.setAccessToken(USER1_TOKEN);
 
         const id: string = Crypto.randomUUID();
         const participant: Participant | null = await participantsHttpClient.getParticipantById(id);
@@ -126,7 +129,7 @@ describe("participant - integration tests", () => {
 
     // Get participant by id:
     test("get existing participant by id", async () => {
-        participantsHttpClient.setAccessToken(USER1_TOKEN);
+        // participantsHttpClient.setAccessToken(USER1_TOKEN);
 
         const participantId: string = Crypto.randomUUID();
         const participant: Participant = {
@@ -143,9 +146,11 @@ describe("participant - integration tests", () => {
             participantAllowedSourceIps: [],
             participantEndpoints: [],
             participantAccounts: [],
-            changeLog: []
+            changeLog: [],
+            type: "DFSP",
+            fundsMovements: []
         };
-        const participantCreated: Participant|null = await participantsHttpClient.createParticipant(participant);
+        const participantCreated: Participant = await participantsHttpClient.createParticipant(participant);
         expect(participantCreated).toBeDefined();
         expect(participantCreated?.id).toEqual(participantId);
 
