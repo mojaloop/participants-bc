@@ -5,6 +5,9 @@
   "license": "Apache-2.0",
   "homepage": "https://github.com/mojaloop/participants-bc/",
   "private": true,
+  "mojaloop": {
+    "publish_to_dockerhub": true
+  },
   "bugs": {
     "url": "https://github.com/mojaloop/participants-bc/issues#readme"
   },
@@ -23,10 +26,9 @@
     "service": "node dist/application/index.js",
     "build": "tsc",
     "watch": "tsc -w",
-    "clean": "rm -Rf dist",
+    "clean": "npm run clean:npm; npm run clean:dist",
     "clean:dist": "rm -rf dist",
     "clean:npm": "rm -rf node_modules",
-    "clean:all": "rm -rf dist node_modules",
     "pretest": "npm run build",
     "standard": "npm run lint",
     "lint": "eslint ./src",
