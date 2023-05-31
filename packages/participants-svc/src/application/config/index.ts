@@ -34,7 +34,7 @@ import {
     ConfigurationClient,
     DefaultConfigProvider
 } from "@mojaloop/platform-configuration-bc-client-lib";
-import { ConfigParameterTypes } from "@mojaloop/platform-configuration-bc-public-types-lib";
+import {ConfigParameterTypes} from "@mojaloop/platform-configuration-bc-public-types-lib";
 
 // configs - constants / code dependent
 const BC_NAME = "participants-bc";
@@ -54,10 +54,10 @@ const configClient = new ConfigurationClient(ENV_NAME, BC_NAME, APP_NAME, APP_VE
 * Add application parameters here
 * */
 configClient.appConfigs.addNewParam(
-        "MAKER_CHECKER_ENABLED",
-        ConfigParameterTypes.BOOL,
-        true,
-        "Enable maker-checker enforcement in participants"
+    "MAKER_CHECKER_ENABLED",
+    ConfigParameterTypes.BOOL,
+    true,
+    "Enable maker-checker enforcement in participants"
 );
 
 // configClient.appConfigs.addNewParam(

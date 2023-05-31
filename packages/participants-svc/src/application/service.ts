@@ -43,7 +43,7 @@ import {
 } from "@mojaloop/auditing-bc-client-lib";
 import {KafkaLogger} from "@mojaloop/logging-bc-client-lib";
 import {existsSync} from "fs";
-import { IParticipantsRepository} from "../domain/repo_interfaces";
+import {IParticipantsRepository} from "../domain/repo_interfaces";
 import {IAccountsBalancesAdapter} from "../domain/iparticipant_account_balances_adapter";
 import {MongoDBParticipantsRepo} from "../implementations/mongodb_participants_repo";
 
@@ -55,7 +55,6 @@ import {GrpcAccountsAndBalancesAdapter} from "../implementations/grpc_acc_bal_ad
 import configClient from "./config";
 import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib";
 import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
-//import {TigerBeetleAdapter} from "../infrastructure/tb_acc_bal_adapter";
 
 const BC_NAME = configClient.boundedContextName;
 const APP_NAME = configClient.applicationName;
@@ -66,7 +65,7 @@ const LOG_LEVEL: LogLevel = process.env["LOG_LEVEL"] as LogLevel || LogLevel.DEB
 const SVC_DEFAULT_HTTP_PORT = 3010;
 
 const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3201";
-const AUTH_N_SVC_TOKEN_URL = AUTH_N_SVC_BASEURL+"/token"; // TODO this should not be known here, libs that use the base should add the suffix
+const AUTH_N_SVC_TOKEN_URL = AUTH_N_SVC_BASEURL + "/token"; // TODO this should not be known here, libs that use the base should add the suffix
 const AUTH_N_TOKEN_ISSUER_NAME = process.env["AUTH_N_TOKEN_ISSUER_NAME"] || "mojaloop.vnext.dev.default_issuer";
 const AUTH_N_TOKEN_AUDIENCE = process.env["AUTH_N_TOKEN_AUDIENCE"] || "mojaloop.vnext.dev.default_audience";
 
@@ -81,12 +80,6 @@ const ACCOUNTS_BALANCES_COA_SVC_URL = process.env["ACCOUNTS_BALANCES_COA_SVC_URL
 const KAFKA_AUDITS_TOPIC = process.env["KAFKA_AUDITS_TOPIC"] || "audits";
 const KAFKA_LOGS_TOPIC = process.env["KAFKA_LOGS_TOPIC"] || "logs";
 const AUDIT_KEY_FILE_PATH = process.env["AUDIT_KEY_FILE_PATH"] || "/app/data/audit_private_key.pem";
-
-const TIGERBEETLE_CLUSTER_ID = process.env["TIGERBEETLE_CLUSTER_ID"] ? parseInt(process.env["TIGERBEETLE_CLUSTER_ID"]) : 0;
-// host:port format, split by commas - ex: "127.0.0.1:3000" or "192.168.1.1:3000,192.168.1.2:3000"
-const TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES = process.env["TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES"] ? process.env["TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES"].split(",") :  ["127.0.0.1:3000"];
-
-const DONT_USE_TIGERBEETLE = process.env["DONT_USE_TIGERBEETLE"] ? true : false; // default is to use it
 
 const SVC_CLIENT_ID = process.env["SVC_CLIENT_ID"] || "participants-bc-participants-svc";
 const SVC_CLIENT_SECRET = process.env["SVC_CLIENT_ID"] || "superServiceSecret";
@@ -107,16 +100,16 @@ export class Service {
     static auditClient: IAuditClient;
     static authorizationClient: IAuthorizationClient;
     static tokenHelper: TokenHelper;
-    static participantAgg:ParticipantAggregate;
+    static participantAgg: ParticipantAggregate;
     static repoPart: IParticipantsRepository;
     static accountsBalancesAdapter: IAccountsBalancesAdapter;
 
     static async start(
-            logger?: ILogger,
-            auditClient?: IAuditClient,
-            authorizationClient?: IAuthorizationClient,
-            repoPart?: IParticipantsRepository,
-            accAndBalAdapter?: IAccountsBalancesAdapter
+        logger?: ILogger,
+        auditClient?: IAuditClient,
+        authorizationClient?: IAuthorizationClient,
+        repoPart?: IParticipantsRepository,
+        accAndBalAdapter?: IAccountsBalancesAdapter
     ): Promise<void> {
         console.log(`Service starting with PID: ${process.pid}`);
 
@@ -127,12 +120,12 @@ export class Service {
 
         if (!logger) {
             logger = new KafkaLogger(
-                    BC_NAME,
-                    APP_NAME,
-                    APP_VERSION,
-                    kafkaProducerOptions,
-                    KAFKA_LOGS_TOPIC,
-                    LOG_LEVEL
+                BC_NAME,
+                APP_NAME,
+                APP_VERSION,
+                kafkaProducerOptions,
+                KAFKA_LOGS_TOPIC,
+                LOG_LEVEL
             );
             await (logger as KafkaLogger).init();
         }
@@ -169,27 +162,19 @@ export class Service {
 
 
         // repos and aggregate
-        if(!repoPart){
+        if (!repoPart) {
             repoPart = new MongoDBParticipantsRepo(MONGO_URL, logger);
 
         }
         this.repoPart = repoPart;
 
 
-
-
         // Accounts and Balances Client
-        if(!accAndBalAdapter){
-            // if(DONT_USE_TIGERBEETLE) {
+        if (!accAndBalAdapter) {
+            const loginHelper = new LoginHelper(AUTH_N_SVC_TOKEN_URL, logger);
+            loginHelper.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
 
-                // TODO put these credentials in env var
-                const loginHelper = new LoginHelper(AUTH_N_SVC_TOKEN_URL, logger);
-                loginHelper.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
-
-                accAndBalAdapter = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_COA_SVC_URL, loginHelper, logger);
-            // } else {
-            //     accAndBalAdapter = new TigerBeetleAdapter(TIGERBEETLE_CLUSTER_ID, TIGERBEETLE_CLUSTER_REPLICA_ADDRESSES, this.logger);
-            // }
+            accAndBalAdapter = new GrpcAccountsAndBalancesAdapter(ACCOUNTS_BALANCES_COA_SVC_URL, loginHelper, logger);
         }
         this.accountsBalancesAdapter = accAndBalAdapter;
 
@@ -214,7 +199,7 @@ export class Service {
         this.setupExpress();
     }
 
-    static setupExpress():void {
+    static setupExpress(): void {
         this.app = express();
         this.app.use(express.json()); // for parsing application/json
         this.app.use(express.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
@@ -240,13 +225,13 @@ export class Service {
     }
 
     static async stop() {
-        if(this.auditClient) await this.auditClient.destroy();
-        if(this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
-        if(this.repoPart) await this.repoPart.destroy();
-        if(this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
+        if (this.auditClient) await this.auditClient.destroy();
+        if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
+        if (this.repoPart) await this.repoPart.destroy();
+        if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
 
-        if(this.expressServer) this.expressServer.close();
-        if(this.logger && this.logger instanceof KafkaLogger) await this.logger.destroy();
+        if (this.expressServer) this.expressServer.close();
+        if (this.logger && this.logger instanceof KafkaLogger) await this.logger.destroy();
     }
 }
 
@@ -258,7 +243,9 @@ export class Service {
 async function _handle_int_and_term_signals(signal: NodeJS.Signals): Promise<void> {
     console.info(`Service - ${signal} received - cleaning up...`);
     let clean_exit = false;
-    setTimeout(() => { clean_exit || process.exit(99);}, 5000);
+    setTimeout(() => {
+        clean_exit || process.exit(99);
+    }, 5000);
 
     // call graceful stop routine
     await Service.stop();

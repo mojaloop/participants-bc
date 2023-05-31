@@ -31,12 +31,12 @@
 "use strict";
 
 import {
-	IParticipant,
-	IParticipantAccount,
-	IParticipantActivityLogEntry,
-	IParticipantAllowedSourceIps,
-	IParticipantEndpoint,
-	IParticipantFundsMovement
+    IParticipant,
+    IParticipantAccount,
+    IParticipantActivityLogEntry,
+    IParticipantAllowedSourceIps,
+    IParticipantEndpoint,
+    IParticipantFundsMovement, IParticipantNetDebitCap
 } from "@mojaloop/participant-bc-public-types-lib";
 
 import {
@@ -73,6 +73,8 @@ export class Participant implements IParticipant {
 	fundsMovements: ParticipantFundsMovement[];
 	changeLog: ParticipantActivityLogEntry[];
 
+    netDebitCaps: IParticipantNetDebitCap[];
+
 	static CreateHub(id:string, desc:string, user:string, changeLogNote:string){
 		const now = Date.now();
 		const hub :Participant = {
@@ -96,13 +98,19 @@ export class Participant implements IParticipant {
 				user: user,
 				timestamp: now,
 				notes: changeLogNote
-			}]
+			}],
+            netDebitCaps: []
 		};
 		return hub;
 	}
 }
 
-
+export declare class ParticipantNetDebitCap implements IParticipantNetDebitCap{
+    currencyCode: string;
+    type: "ABSOLUTE" | "PERCENTAGE";
+    percentage: number;
+    currentValue: number;
+}
 
 export declare class ParticipantFundsMovement implements IParticipantFundsMovement{
 	id: string;

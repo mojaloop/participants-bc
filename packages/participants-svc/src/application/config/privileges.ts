@@ -62,19 +62,19 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.MANAGE_ACCOUNTS,
         labelName: "Manage Participant Accounts",
         description: "Allows adding and changing participant's accounts records"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT,
         labelName: "Create deposit funds movement",
         description: "Creates a deposit funds movement record in the participant"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL,
         labelName: "Create withdrawal funds movement",
         description: "Creates a withdrawal funds movement record in the participant"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_FUNDS_DEPOSIT,
         labelName: "Approves an existing deposit funds movement",
         description: "Approves an existing deposit funds movement record in the participant"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_FUNDS_WITHDRAWAL,
         labelName: "Approves an existing withdrawal funds movement",
         description: "Approves an existing withdrawal funds movement record in the participant"

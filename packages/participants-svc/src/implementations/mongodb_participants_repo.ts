@@ -30,176 +30,171 @@
 
 "use strict";
 
-import { IParticipantsRepository } from "../domain/repo_interfaces";
-import { IParticipant } from "@mojaloop/participant-bc-public-types-lib";
-import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
-import { Collection, MongoClient, WithId } from "mongodb";
+import {IParticipantsRepository} from "../domain/repo_interfaces";
+import {IParticipant} from "@mojaloop/participant-bc-public-types-lib";
+import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import {Collection, MongoClient} from "mongodb";
 
 export class MongoDBParticipantsRepo implements IParticipantsRepository {
-  private _mongoUri: string;
-  private _logger: ILogger;
-  private _mongoClient: MongoClient;
-  protected _collectionParticipant: Collection;
-  protected _collectionApproval: Collection;
+    private _mongoUri: string;
+    private _logger: ILogger;
+    private _mongoClient: MongoClient;
+    protected _collectionParticipant: Collection;
+    protected _collectionApproval: Collection;
 
-  private _initialized: boolean = false;
-  private readonly _databaseName: string = "participants";
-  private readonly _collectionNameParticipant: string = "participant";
-  private readonly _collectionNameApproval: string = "participantApproval";
+    private _initialized: boolean = false;
+    private readonly _databaseName: string = "participants";
+    private readonly _collectionNameParticipant: string = "participant";
+    private readonly _collectionNameApproval: string = "participantApproval";
 
-  constructor(_mongoUri: string, logger: ILogger) {
-    this._logger = logger.createChild(this.constructor.name);
-    this._mongoUri = _mongoUri;
-  }
+    constructor(_mongoUri: string, logger: ILogger) {
+        this._logger = logger.createChild(this.constructor.name);
+        this._mongoUri = _mongoUri;
+    }
 
-  async init(): Promise<void> {
-    try {
-      // this._mongoClient = await MongoClient.connect(this._mongoUri, { useNewUrlParser: true });
-      this._mongoClient = await MongoClient.connect(this._mongoUri);
-    } catch (err: any) {
-      this._logger.error(err);
-      this._logger.isWarnEnabled() &&
-        this._logger.warn(
-          `MongoDbParticipantRepo - init failed with error: ${err?.message?.toString()}`
+    async init(): Promise<void> {
+        try {
+            // this._mongoClient = await MongoClient.connect(this._mongoUri, { useNewUrlParser: true });
+            this._mongoClient = await MongoClient.connect(this._mongoUri);
+        } catch (err: any) {
+            this._logger.error(err);
+            this._logger.isWarnEnabled() &&
+            this._logger.warn(
+                `MongoDbParticipantRepo - init failed with error: ${err?.message?.toString()}`
+            );
+            throw err;
+        }
+        if (this._mongoClient === null)
+            throw new Error("Couldn't instantiate mongo client");
+
+        const db = this._mongoClient.db(this._databaseName);
+
+        const collections = await db.listCollections().toArray();
+
+        // Check if the Participants collection already exists or create.
+        if (
+            collections.find((col) => col.name === this._collectionNameParticipant)
+        ) {
+            this._collectionParticipant = db.collection(
+                this._collectionNameParticipant
+            );
+        } else {
+            this._collectionParticipant = await db.createCollection(
+                this._collectionNameParticipant
+            );
+            await this._collectionParticipant.createIndex(
+                {id: 1},
+                {unique: true}
+            );
+        }
+
+        // Check if the ParticipantApproval collection already exists or create.
+        if (collections.find((col) => col.name === this._collectionNameApproval)) {
+            this._collectionApproval = db.collection(this._collectionNameApproval);
+        } else {
+            this._collectionApproval = await db.createCollection(
+                this._collectionNameApproval
+            );
+            await this._collectionApproval.createIndex({id: 1}, {unique: true});
+        }
+
+        this._initialized = true;
+        this._logger.info("MongoDBParticipantsRepo - initialized");
+    }
+
+    async fetchAll(): Promise<IParticipant[]> {
+        const found = await this._collectionParticipant
+            .find({})
+            .project({_id: 0})
+            .toArray();
+        return found as IParticipant[];
+    }
+
+    async fetchWhereId(participantId: string): Promise<IParticipant | null> {
+        const found = await this._collectionParticipant.findOne(
+            {id: participantId},
+            {projection: {_id: 0}}
         );
-      throw err;
-    }
-    if (this._mongoClient === null)
-      throw new Error("Couldn't instantiate mongo client");
-
-    const db = this._mongoClient.db(this._databaseName);
-
-    const collections = await db.listCollections().toArray();
-
-    // Check if the Participants collection already exists or create.
-    if (
-      collections.find((col) => col.name === this._collectionNameParticipant)
-    ) {
-      this._collectionParticipant = db.collection(
-        this._collectionNameParticipant
-      );
-    } else {
-      this._collectionParticipant = await db.createCollection(
-        this._collectionNameParticipant
-      );
-      await this._collectionParticipant.createIndex(
-        { id: 1 },
-        { unique: true }
-      );
+        return found as IParticipant | null;
     }
 
-    // Check if the ParticipantApproval collection already exists or create.
-    if (collections.find((col) => col.name === this._collectionNameApproval)) {
-      this._collectionApproval = db.collection(this._collectionNameApproval);
-    } else {
-      this._collectionApproval = await db.createCollection(
-        this._collectionNameApproval
-      );
-      await this._collectionApproval.createIndex({ id: 1 }, { unique: true });
+    async fetchWhereName(participantName: string): Promise<IParticipant | null> {
+        const found = await this._collectionParticipant.findOne(
+            {name: participantName},
+            {projection: {_id: 0}}
+        );
+        return found as IParticipant | null;
     }
 
-    this._initialized = true;
-    this._logger.info("MongoDBParticipantsRepo - initialized");
-  }
+    async fetchWhereIds(ids: string[]): Promise<IParticipant[]> {
+        const returnVal: IParticipant[] = [];
 
-  async fetchAll(): Promise<IParticipant[]> {
-    const found = await this._collectionParticipant
-      .find({})
-      .project({ _id: 0 })
-      .toArray();
-    return found as IParticipant[];
-  }
+        for (const id of ids) {
+            const existing = await this.fetchWhereId(id);
+            if (existing !== null) returnVal.push(existing);
+        }
 
-  async fetchWhereId(participantId: string): Promise<IParticipant | null> {
-    const found = await this._collectionParticipant.findOne(
-      { id: participantId },
-      { projection: { _id: 0 } }
-    );
-    return found as IParticipant | null;
-  }
-
-  async fetchWhereName(participantName: string): Promise<IParticipant | null> {
-    const found = await this._collectionParticipant.findOne(
-      { name: participantName },
-      { projection: { _id: 0 } }
-    );
-    return found as IParticipant | null;
-  }
-
-  async fetchWhereIds(ids: string[]): Promise<IParticipant[]> {
-    const returnVal: IParticipant[] = [];
-
-    for (const id of ids) {
-      const existing = await this.fetchWhereId(id);
-      if (existing !== null) returnVal.push(existing);
+        return returnVal;
     }
 
-    return returnVal;
-  }
+    async searchParticipants(id: string, name: string, state: string): Promise<IParticipant[]> {
+        const filter: any = {$and: []};
+        if (id) {
+            filter.$and.push({id: {$regex: id, $options: "i"}});
+        }
+        if (name) {
+            filter.$and.push({name: {$regex: name, $options: "i"}});
+        }
+        if (state) {
+            filter.$and.push({approved: (state === "APPROVED")});
+        }
 
-  async searchParticipants(
-    id: string,
-    name: string,
-    state: string
-  ): Promise<IParticipant[]> {
-    const filter: any = { $and: [] };
-    if (id) {
-      filter.$and.push({ id: { $regex: id, $options: "i" } });
+        const found = await this._collectionParticipant
+            .find(filter, {
+                projection: {_id: 0},
+            })
+            .toArray();
+
+        return found as unknown as IParticipant[];
     }
-    if (name) {
-      filter.$and.push({ name: { $regex: name, $options: "i" } });
+
+    async create(participant: IParticipant): Promise<boolean> {
+        this._logger.info(`Name:  ${participant.name} - created in:`);
+        const result = await this._collectionParticipant.insertOne(participant);
+
+        return result.acknowledged;
     }
-    if (state) {
-      filter.$and.push({ approved: state === "APPROVED" ? true : false });
+
+    async store(participant: IParticipant): Promise<boolean> {
+        const result = await this._collectionParticipant.updateOne(
+            {id: participant.id},
+            {
+                $set: {
+                    id: participant.id,
+                    name: participant.name,
+                    isActive: participant.isActive,
+                    description: participant.description,
+                    createdBy: participant.createdBy,
+                    createdDate: participant.createdDate,
+
+                    approved: participant.approved,
+                    approvedBy: participant.approvedBy,
+                    approvedDate: participant.approvedDate,
+
+                    lastUpdated: participant.approvedDate,
+                    participantAllowedSourceIps: participant.participantAllowedSourceIps,
+                    participantEndpoints: participant.participantEndpoints,
+                    participantAccounts: participant.participantAccounts,
+
+                    fundsMovements: participant.fundsMovements,
+                    changeLog: participant.changeLog,
+                },
+            }
+        );
+        return result.modifiedCount === 1;
     }
 
-    const found = await this._collectionParticipant
-      .find(filter, {
-        projection: { _id: 0 },
-      })
-      .toArray();
-
-    return found as unknown as IParticipant[];
-  }
-
-  async create(participant: IParticipant): Promise<boolean> {
-    this._logger.info(`Name:  ${participant.name} - created in:`);
-    const result = await this._collectionParticipant.insertOne(participant);
-
-    return result.acknowledged;
-  }
-
-  async store(participant: IParticipant): Promise<boolean> {
-    const updated = Date.now();
-    const result = await this._collectionParticipant.updateOne(
-      { id: participant.id },
-      {
-        $set: {
-          id: participant.id,
-          name: participant.name,
-          isActive: participant.isActive,
-          description: participant.description,
-          createdBy: participant.createdBy,
-          createdDate: participant.createdDate,
-
-          approved: participant.approved,
-          approvedBy: participant.approvedBy,
-          approvedDate: participant.approvedDate,
-
-          lastUpdated: participant.approvedDate,
-          participantAllowedSourceIps: participant.participantAllowedSourceIps,
-          participantEndpoints: participant.participantEndpoints,
-          participantAccounts: participant.participantAccounts,
-
-          fundsMovements: participant.fundsMovements,
-          changeLog: participant.changeLog,
-        },
-      }
-    );
-    return result.modifiedCount === 1;
-  }
-
-  async destroy(): Promise<void> {
-    if (this._initialized) await this._mongoClient.close();
-  }
+    async destroy(): Promise<void> {
+        if (this._initialized) await this._mongoClient.close();
+    }
 }

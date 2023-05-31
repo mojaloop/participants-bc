@@ -58,6 +58,15 @@ export declare interface IParticipant {
 
   fundsMovements: IParticipantFundsMovement[];
   changeLog: IParticipantActivityLogEntry[];
+
+  netDebitCaps: IParticipantNetDebitCap[];
+}
+
+export declare interface IParticipantNetDebitCap{
+    currencyCode: string;
+    type: "ABSOLUTE" | "PERCENTAGE";
+    percentage: number | null; // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
+    currentValue: number;
 }
 
 export declare interface IParticipantFundsMovement {

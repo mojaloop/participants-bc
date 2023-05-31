@@ -42,19 +42,19 @@
     "dep:update": "ncu -e2 -u"
   },
   "dependencies": {
-    "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.1.3",
-    "@mojaloop/accounts-and-balances-bc-public-types-lib": "~0.1.2",
-    "@mojaloop/auditing-bc-client-lib": "~0.0.11",
-    "@mojaloop/auditing-bc-public-types-lib": "~0.0.12",
-    "@mojaloop/logging-bc-client-lib": "~0.1.17",
-    "@mojaloop/logging-bc-public-types-lib": "~0.1.14",
-    "@mojaloop/platform-configuration-bc-client-lib": "~0.1.19",
-    "@mojaloop/platform-configuration-bc-public-types-lib": "~0.2.2",
-    "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib": "~0.3.29",
-    "@mojaloop/security-bc-client-lib": "~0.1.12",
-    "@mojaloop/security-bc-public-types-lib": "~0.1.12",
+    "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.1.8",
+    "@mojaloop/accounts-and-balances-bc-public-types-lib": "~0.1.5",
+    "@mojaloop/auditing-bc-client-lib": "~0.0.14",
+    "@mojaloop/auditing-bc-public-types-lib": "~0.0.15",
+    "@mojaloop/logging-bc-client-lib": "~0.1.24",
+    "@mojaloop/logging-bc-public-types-lib": "~0.1.19",
+    "@mojaloop/platform-configuration-bc-client-lib": "~0.1.21",
+    "@mojaloop/platform-configuration-bc-public-types-lib": "~0.2.4",
+    "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib": "~0.3.59",
+    "@mojaloop/security-bc-client-lib": "~0.1.31",
+    "@mojaloop/security-bc-public-types-lib": "~0.1.19",
     "express": "~4.18.2",
-    "mongodb": "~5.0.1"
+    "mongodb": "~5.5.0"
   },
   "devDependencies": {
     "@mojaloop/participant-bc-public-types-lib": "*"
