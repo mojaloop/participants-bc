@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "@mojaloop/logging-bc-client-lib": "~0.1.24",
-    "@mojaloop/participant-bc-public-types-lib": "~0.0.9",
+    "@mojaloop/participant-bc-public-types-lib": "~0.0.10",
     "nock": "^13.3.1"
   },
   "dependencies": {
