@@ -105,6 +105,8 @@ enum AuditedActionNames {
     PARTICIPANT_FUNDS_DEPOSIT_APPROVED = "PARTICIPANT_FUNDS_DEPOSIT_APPROVED",
     PARTICIPANT_FUNDS_WITHDRAWAL_CREATED = "PARTICIPANT_FUNDS_WITHDRAWAL_CREATED",
     PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED = "PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED",
+    PARTICIPANT_NDC_CHANGE_REQUEST_CREATED = "PARTICIPANT_NDC_CHANGE_REQUEST_CREATED",
+    PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED = "PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED",
 }
 
 export const HUB_PARTICIPANT_ID = "hub";
@@ -437,7 +439,8 @@ export class ParticipantAggregate {
                     notes: null,
                 },
             ],
-            netDebitCaps: inputParticipant.netDebitCaps || []
+            netDebitCaps: inputParticipant.netDebitCaps || [],
+            netDebitCapChangeRequests: []
         };
 
         if (!(await this._repo.create(createdParticipant)))
@@ -1206,59 +1209,4 @@ export class ParticipantAggregate {
         return;
     }
 
-    async simulateTransfer(
-        secCtx: CallSecurityContext,
-        payerId: string,
-        payeeId: string,
-        amount: number,
-        currencyCode: string
-    ): Promise<string> {
-        // find participants
-        const payer: IParticipant | null = await this._repo.fetchWhereId(payerId);
-        if (!payer)
-            throw new ParticipantNotFoundError(
-                `Payer participant with ID: '${payerId}' not found.`
-            );
-        const payee: IParticipant | null = await this._repo.fetchWhereId(payeeId);
-        if (!payee)
-            throw new ParticipantNotFoundError(
-                `Payee participant with ID: '${payeeId}' not found.`
-            );
-
-        // find accounts
-        const payerPosAccount = payer.participantAccounts.find(
-            (value: IParticipantAccount) =>
-                value.currencyCode === currencyCode && value.type === "POSITION"
-        );
-        if (!payerPosAccount)
-            throw new AccountNotFoundError(
-                `Cannot find a payer's position account for currency: ${currencyCode}`
-            );
-        const payeePosAccount = payee.participantAccounts.find(
-            (value: IParticipantAccount) =>
-                value.currencyCode === currencyCode && value.type === "POSITION"
-        );
-        if (!payeePosAccount)
-            throw new AccountNotFoundError(
-                `Cannot find a payer's position account for currency: ${currencyCode}`
-            );
-
-        this._accBal.setToken(secCtx.accessToken);
-        const transferId = await this._accBal
-            .createJournalEntry(
-                randomUUID(),
-                "testTransferId",
-                currencyCode,
-                amount.toString(),
-                false,
-                payerPosAccount.id,
-                payeePosAccount.id
-            )
-            .catch((error: Error) => {
-                this._logger.error(error);
-                throw error;
-            });
-
-        return transferId;
-    }
 }

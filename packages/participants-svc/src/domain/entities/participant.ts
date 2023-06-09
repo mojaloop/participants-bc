@@ -36,7 +36,7 @@ import {
     IParticipantActivityLogEntry,
     IParticipantAllowedSourceIps,
     IParticipantEndpoint,
-    IParticipantFundsMovement, IParticipantNetDebitCap
+    IParticipantFundsMovement, IParticipantNetDebitCap, IParticipantNetDebitCapChangeRequest
 } from "@mojaloop/participant-bc-public-types-lib";
 
 import {
@@ -74,6 +74,7 @@ export class Participant implements IParticipant {
 	changeLog: ParticipantActivityLogEntry[];
 
     netDebitCaps: IParticipantNetDebitCap[];
+    netDebitCapChangeRequests: IParticipantNetDebitCapChangeRequest[];
 
 	static CreateHub(id:string, desc:string, user:string, changeLogNote:string){
 		const now = Date.now();
@@ -99,8 +100,10 @@ export class Participant implements IParticipant {
 				timestamp: now,
 				notes: changeLogNote
 			}],
-            netDebitCaps: []
+            netDebitCaps: [],
+            netDebitCapChangeRequests: []
 		};
+
 		return hub;
 	}
 }
@@ -111,6 +114,27 @@ export declare class ParticipantNetDebitCap implements IParticipantNetDebitCap{
     percentage: number;
     currentValue: number;
 }
+
+export declare class ParticipantNetDebitCapChangeRequest implements IParticipantNetDebitCapChangeRequest {
+    id: string;
+    createdBy: string;
+    createdDate: number;
+    approved: boolean;
+    approvedBy: string | null;
+    approvedDate: number | null;
+
+    currencyCode: string;
+    type: "ABSOLUTE" | "PERCENTAGE";
+    // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
+    percentage: number | null;
+    // this will have the value in currency in case of type == "ABSOLUTE" - will directly to the currentValue when approved
+    // will be null when type === "PERCENTAGE"
+    fixedValue: number | null;
+
+    extReference: string | null;
+    note: string | null;
+}
+
 
 export declare class ParticipantFundsMovement implements IParticipantFundsMovement{
 	id: string;

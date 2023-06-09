@@ -59,7 +59,9 @@ export declare interface IParticipant {
   fundsMovements: IParticipantFundsMovement[];
   changeLog: IParticipantActivityLogEntry[];
 
+  // only per currency
   netDebitCaps: IParticipantNetDebitCap[];
+  netDebitCapChangeRequests: IParticipantNetDebitCapChangeRequest[];
 }
 
 export declare interface IParticipantNetDebitCap{
@@ -67,6 +69,26 @@ export declare interface IParticipantNetDebitCap{
     type: "ABSOLUTE" | "PERCENTAGE";
     percentage: number | null; // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
     currentValue: number;
+}
+
+export declare interface IParticipantNetDebitCapChangeRequest {
+    id: string;
+    createdBy: string;
+    createdDate: number;
+    approved: boolean;
+    approvedBy: string | null;
+    approvedDate: number | null;
+
+    currencyCode: string;
+    type: "ABSOLUTE" | "PERCENTAGE";
+    // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
+    percentage: number | null;
+    // this will have the value in currency in case of type == "ABSOLUTE" - will directly to the currentValue when approved
+    // will be null when type === "PERCENTAGE"
+    fixedValue: number | null;
+
+    extReference: string | null;
+    note: string | null;
 }
 
 export declare interface IParticipantFundsMovement {

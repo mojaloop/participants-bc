@@ -118,8 +118,13 @@ export class ExpressRoutes {
             this._participantFundsMovApprove.bind(this)
         );
 
-        // simulate transfers
-        this._mainRouter.post("/simulatetransfer", this._simulateTransfer.bind(this));
+        // net debit cap management
+        // this._mainRouter.post("/participants/:id/ndcchangerequests", this.???.bind(this));
+        // this._mainRouter.post(
+        //     "/participants/:id/ndcchangerequests/:ndcReqId/approve",
+        //     this.???.bind(this)
+        // );
+
     }
 
     private async _authenticationMiddleware(
@@ -688,45 +693,4 @@ export class ExpressRoutes {
         }
     }
 
-    private async _simulateTransfer(req: express.Request, res: express.Response) :Promise<void>{
-        this._logger.debug("Received request to simulateTransfer");
-
-        try {
-            const transferId = await this._participantsAgg.simulateTransfer(
-                req.securityContext!,
-                req.body.payerId,
-                req.body.payeeId,
-                req.body.amount,
-                req.body.currencyCode
-            );
-            res.send({
-                transferId: transferId,
-            });
-        } catch (err: any) {
-            if (this._handleUnauthorizedError(err, res)) return;
-
-            if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
-                    status: "error",
-                    msg: err.message,
-                });
-            } else if (err instanceof TransferWouldExceedCreditsError) {
-                res.status(400).json({
-                    status: "error",
-                    msg: err.message,
-                });
-            } else if (err instanceof TransferWouldExceedDebitsError) {
-                res.status(400).json({
-                    status: "error",
-                    msg: err.message,
-                });
-            } else {
-                this._logger.error(err);
-                res.status(500).json({
-                    status: "error",
-                    msg: err.message,
-                });
-            }
-        }
-    }
 }
