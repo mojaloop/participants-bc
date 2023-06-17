@@ -12,7 +12,6 @@ It allows for the following readonly operations:
 - **getAllParticipants**: get all registered participants.
 - **getParticipantsByIds**: get multiple participants whose ids match the provided array of Ids.
 - **getParticipantById**: get a single participant by its Id.
-- **getParticipantEndpointsById**: get the endpoint list of a participant by its Id.
 - **getParticipantAccountsById**: get the account list of a participant by its Id _(This is the only call that includes balances - fetched from the Accounts and Balances Services by the Participants Service)_.
 
 

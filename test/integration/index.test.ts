@@ -30,14 +30,10 @@
 import { ILogger, LogLevel } from "@mojaloop/logging-bc-public-types-lib";
 import {
   ParticipantsHttpClient,
-  UnableToCreateParticipantAccountError,
-} from "@mojaloop/participants-bc-client-lib";
-import { IParticipant as Participant } from "@mojaloop/participant-bc-public-types-lib";
-import { KafkaLogger } from "@mojaloop/logging-bc-client-lib";
-import { MLKafkaRawProducerOptions } from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
+} from "../../packages/client-lib/src";
+import { IParticipant as Participant } from "../../packages/public-types-lib/src";
 import { AuthenticatedHttpRequester } from "@mojaloop/security-bc-client-lib";
-import * as Crypto from "crypto";
-import { ConsoleLogger } from "@mojaloop/logging-bc-public-types-lib/dist/console_logger";
+import { ConsoleLogger } from "@mojaloop/logging-bc-public-types-lib";
 
 /* ********** Constants Begin ********** */
 
@@ -65,7 +61,7 @@ const WEB_SERVER_PORT_NO: number =
 
 // Participants HTTP client:
 const BASE_URL_PARTICIPANTS_HTTP_SERVICE: string = `http://${WEB_SERVER_HOST}:${WEB_SERVER_PORT_NO}`;
-const TIMEOUT_MS_PARTICIPANTS_HTTP_CLIENT: number = 10_000;
+const CACHE_TIMEOUT_MS: number = 10_000;
 
 /* ********** Constants End ********** */
 
@@ -77,11 +73,16 @@ const AUTH_N_SVC_BASEURL =
   process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3201";
 const AUTH_N_SVC_TOKEN_URL = AUTH_N_SVC_BASEURL + "/token";
 
+const CLIENT_ID = "security-bc-ui";
+const USERNAME = "user";
+const PASSWORD = "superPass";
+
+let participants: Participant[];
+
 describe("participant - integration tests", () => {
-  console.log(
-    `Integration tests for endpoint: ${BASE_URL_PARTICIPANTS_HTTP_SERVICE}`
-  );
+
   beforeAll(async () => {
+    console.log(`Integration tests for endpoint: ${BASE_URL_PARTICIPANTS_HTTP_SERVICE}`);
     logger = new ConsoleLogger();
 
     authenticatedHttpRequester = new AuthenticatedHttpRequester(
@@ -89,16 +90,16 @@ describe("participant - integration tests", () => {
       AUTH_N_SVC_TOKEN_URL
     );
     authenticatedHttpRequester.setUserCredentials(
-      "security-bc-ui",
-      "user",
-      "superPass"
+        CLIENT_ID,
+        USERNAME,
+        PASSWORD
     );
 
     participantsHttpClient = new ParticipantsHttpClient(
       logger,
       BASE_URL_PARTICIPANTS_HTTP_SERVICE,
       authenticatedHttpRequester,
-      TIMEOUT_MS_PARTICIPANTS_HTTP_CLIENT
+      CACHE_TIMEOUT_MS
     );
   });
 
@@ -106,7 +107,7 @@ describe("participant - integration tests", () => {
     // await logger.destroy();
   });
 
-  // Create participant:
+/*  // Create participant:
   test("create non-existent participant", async () => {
     // participantsHttpClient.setAccessToken(USER1_TOKEN);
 
@@ -128,74 +129,65 @@ describe("participant - integration tests", () => {
       type: "DFSP",
       fundsMovements: [],
       changeLog: [],
+      netDebitCaps: [],
+      netDebitCapChangeRequests: []
     };
     const participantReceived = await participantsHttpClient.createParticipant(
       participant
     );
     expect(participantReceived?.id).toEqual(participantId);
-  });
+  });*/
 
   // Get participant by id (non-existing):
   test("get non-existent participant by id", async () => {
-    // participantsHttpClient.setAccessToken(USER1_TOKEN);
-
-    const id: string = Crypto.randomUUID().replace(/-/g, ""); // to match with the server side
     const participant: Participant | null =
-      await participantsHttpClient.getParticipantById(id);
+      await participantsHttpClient.getParticipantById("non-existing__participantID");
     expect(participant).toBeNull();
   });
+
+    // Get participant by id (non-existing):
+    test("get all participants", async () => {
+        participants =await participantsHttpClient.getAllParticipants();
+        expect(participants).toBeDefined();
+        expect(participants.length).toBeGreaterThanOrEqual(1);
+    });
 
   // Get participant by id:
   test("get existing participant by id", async () => {
     // participantsHttpClient.setAccessToken(USER1_TOKEN);
-
-    const participantId: string = Crypto.randomUUID().replace(/-/g, ""); // to match with the server side
-    const participant: Participant = {
-      id: participantId,
-      name: `Alice in Wonderland - ${participantId}`,
-      isActive: true,
-      description: "",
-      createdDate: 0,
-      createdBy: "",
-      lastUpdated: 0,
-      approved: false,
-      approvedBy: null,
-      approvedDate: null,
-      participantAllowedSourceIps: [],
-      participantEndpoints: [],
-      participantAccounts: [],
-      changeLog: [],
-      type: "DFSP",
-      fundsMovements: [],
-    };
-    const participantCreated = await participantsHttpClient.createParticipant(
-      participant
-    );
-    expect(participantCreated?.id).toBeDefined();
-    expect(participantCreated?.id).toEqual(participantId);
+    const spy = jest.spyOn(authenticatedHttpRequester, "fetch");
 
     const partById = await participantsHttpClient.getParticipantById(
-      participantId
+        participants[0].id
     );
+
+    // this is supposed to be cached at this moment - should be after get all participants
+    expect(spy).not.toBeCalled();
+
     expect(partById).toBeDefined();
     if (partById) {
-      expect(partById.id).toEqual(participantId);
-      expect(partById.name).toEqual(participant.name);
-      expect(partById.isActive).toEqual(false);
-    }
-
-    const partsById = await participantsHttpClient.getParticipantsByIds([
-      participantId,
-    ]);
-    expect(partsById).toBeDefined();
-    if (partsById) {
-      expect(partsById.length).toEqual(1);
-      expect(partsById[0].id).toEqual(participantId);
-      expect(partsById[0].name).toEqual(participant.name);
-      expect(partsById[0].isActive).toEqual(false);
+      expect(partById.id).toEqual(participants[0].id);
+      expect(partById.name).toEqual(participants[0].name);
+      expect(partById.isActive).toEqual(participants[0].isActive);
     }
   });
 
+    // Get participant by id:
+  test("get existing participant by ids (array)", async () => {
+    const partsById = await participantsHttpClient.getParticipantsByIds([
+        participants[0].id, participants[1].id
+    ]);
+
+    expect(partsById).toBeDefined();
+    if (partsById) {
+      expect(partsById.length).toEqual(2);
+      expect(partsById[0].id).toEqual(participants[0].id);
+      expect(partsById[0].name).toEqual(participants[0].name);
+      expect(partsById[0].isActive).toEqual(participants[0].isActive);
+    }
+  });
+
+/*
   test("GET - should get a list of filtered participants", async () => {
     const participantId: string = Crypto.randomUUID().replace(/-/g, ""); // to match with the server side
     const participant: Participant = {
@@ -215,6 +207,8 @@ describe("participant - integration tests", () => {
       changeLog: [],
       type: "DFSP",
       fundsMovements: [],
+      netDebitCaps: [],
+      netDebitCapChangeRequests: []
     };
     const participantCreated = await participantsHttpClient.createParticipant(
       participant
@@ -234,10 +228,15 @@ describe("participant - integration tests", () => {
 
     // check it's empty or not
     expect(filteredParticipants).not.toHaveLength(0);
+    const found = filteredParticipants.find(item => item.id === participant.id);
+    if(!found) fail("Could not find created participant");
+
+    expect(found).toBeDefined();
 
     // check the filtered response
-    expect(filteredParticipants[0].id).toEqual(participant.id);
-    expect(filteredParticipants[0].name).toEqual(participant.name);
-    expect(filteredParticipants[0].approved).toEqual(participant.approved);
+    expect(found.id).toEqual(participant.id);
+    expect(found.name).toEqual(participant.name);
+    expect(found.approved).toEqual(participant.approved);
   });
+  */
 });

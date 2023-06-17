@@ -30,4 +30,5 @@
 export * from "./participants_http_client";
 export * from "./errors";
 
+// TODO This should be take out
 export * from "@mojaloop/participant-bc-public-types-lib";

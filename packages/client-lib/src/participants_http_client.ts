@@ -39,7 +39,8 @@ import {
 } from "./errors";
 import {IAuthenticatedHttpRequester} from "@mojaloop/security-bc-client-lib";
 
-const DEFAULT_TIMEOUT_MS = 5000;
+// default 1 minute cache
+const DEFAULT_CACHE_TIMEOUT_MS = 1*60*1000;
 
 export class ParticipantsHttpClient {
     // Properties received through the constructor.
@@ -50,55 +51,63 @@ export class ParticipantsHttpClient {
     private readonly UNKNOWN_ERROR_MESSAGE: string = "Unknown error";
     private accessToken: string;
 
+    private _participantsCache: Map<string, { participant: IParticipant, timestamp: number }> = new Map<string, {
+        participant: IParticipant;
+        timestamp: number
+    }>();
+    private readonly _cacheTimeoutMs: number;
+
     constructor(
         logger: ILogger,
         baseUrlHttpService: string,
         authRequester: IAuthenticatedHttpRequester,
-        timeoutMs: number = DEFAULT_TIMEOUT_MS
+        cacheTimeoutMs: number = DEFAULT_CACHE_TIMEOUT_MS
     ) {
         this._logger = logger;
         this._baseUrlHttpService = baseUrlHttpService;
         this._authRequester = authRequester;
+        this._cacheTimeoutMs = cacheTimeoutMs;
     }
 
-    async createParticipant(participant: IParticipant): Promise<{ id: string }> {
-        try {
-            const url = new URL("/participants", this._baseUrlHttpService).toString();
-            const request = new Request(url, {
-                method: "POST",
-                body: JSON.stringify(participant),
-            });
-
-            const resp = await this._authRequester.fetch(request);
-
-            if (resp.status != 200) {
-                throw new UnableToCreateParticipantError();
+    async _cacheSet(arg:IParticipant):Promise<void>{
+        const now = Date.now();
+        if(Array.isArray(arg)){
+            for(const item of arg){
+               this._participantsCache.set(item.id, {participant:item, timestamp:now});
             }
-
-            const data = await resp.json();
-            return data;
-        } catch (e: unknown) {
-            if (e instanceof Error) throw e;
-            // handle everything else
-            throw new UnableToCreateParticipantError();
+        }else{
+            this._participantsCache.set(arg.id, {participant:arg, timestamp:now});
         }
+    }
+    async _cacheGet(id:string):Promise<IParticipant|null>{
+        const found = this._participantsCache.get(id);
+        if(!found) return null;
+
+        if(Date.now() - found.timestamp <= this._cacheTimeoutMs){
+            return found.participant;
+        }
+
+        this._participantsCache.delete(id);
+        return null;
     }
 
     async getAllParticipants(): Promise<IParticipant[]> {
+        // not cacheable
         try {
             const url = new URL("/participants", this._baseUrlHttpService).toString();
             const resp = await this._authRequester.fetch(url);
 
-            if (resp.status != 200 && resp.status != 404) {
-                throw new UnableToGetParticipantsError();
+            if(resp.status === 200){
+                const data = await resp.json();
+                await this._cacheSet(data);
+                return data;
             }
 
             if (resp.status == 404) {
                 return [];
             }
 
-            const data = await resp.json();
-            return data;
+            throw new UnableToGetParticipantsError();
         } catch (e: unknown) {
             if (e instanceof Error) throw e;
             // handle everything else
@@ -107,23 +116,38 @@ export class ParticipantsHttpClient {
     }
 
     async getParticipantsByIds(ids: string[]): Promise<IParticipant[]> {
+        const notFoundIds:string[] = [];
+        const participants:IParticipant[] = [];
+
+        for(const id of ids){
+            const found = await this._cacheGet(id);
+            if(found) participants.push(found);
+            else notFoundIds.push(id);
+        }
+
+        if(notFoundIds.length == 0){
+            return participants;
+        }
+
         try {
             const url = new URL(
-                `/participants/${ids.join(",")}/multi`,
+                `/participants/${notFoundIds.join(",")}/multi`,
                 this._baseUrlHttpService
             ).toString();
             const resp = await this._authRequester.fetch(url);
 
-            if (resp.status != 200 && resp.status != 404) {
-                throw new UnableToGetParticipantsError();
+            if(resp.status === 200){
+                const data = await resp.json();
+                await this._cacheSet(data);
+                participants.push(...data);
+                return participants;
             }
 
             if (resp.status == 404) {
                 return [];
             }
 
-            const data = await resp.json();
-            return data;
+            throw new UnableToGetParticipantsError();
         } catch (e: unknown) {
             if (e instanceof Error) throw e;
             // handle everything else
@@ -132,6 +156,9 @@ export class ParticipantsHttpClient {
     }
 
     async getParticipantById(participantId: string): Promise<IParticipant | null> {
+        const found = await this._cacheGet(participantId);
+        if(found) return found;
+
         try {
             const url = new URL(
                 `/participants/${participantId}`,
@@ -139,16 +166,17 @@ export class ParticipantsHttpClient {
             ).toString();
             const resp = await this._authRequester.fetch(url);
 
-            if (resp.status != 200 && resp.status != 404) {
-                throw new UnableToGetParticipantsError();
+            if(resp.status === 200){
+                const data = await resp.json();
+                await this._cacheSet(data);
+                return data;
             }
 
             if (resp.status == 404) {
                 return null;
             }
 
-            const data = await resp.json();
-            return data;
+            throw new UnableToGetParticipantsError();
         } catch (e: unknown) {
             if (e instanceof Error) throw e;
             // handle everything else
@@ -156,32 +184,9 @@ export class ParticipantsHttpClient {
         }
     }
 
-    async getParticipantEndpointsById(participantId: string): Promise<IParticipantEndpoint[] | null> {
-        try {
-            const url = new URL(
-                `/participants/${participantId}/endpoints`,
-                this._baseUrlHttpService
-            ).toString();
-            const resp = await this._authRequester.fetch(url);
-
-            if (resp.status != 200 && resp.status != 404) {
-                throw new UnableToGetParticipantsError();
-            }
-
-            if (resp.status == 404) {
-                return [];
-            }
-
-            const data = await resp.json();
-            return data;
-        } catch (e: unknown) {
-            if (e instanceof Error) throw e;
-            // handle everything else
-            throw new UnableToGetParticipantsError();
-        }
-    }
-
+    // this is the only method that requests updated balances from the Accounts and Balances BC
     async getParticipantAccountsById(participantId: string): Promise<IParticipantAccount[] | null> {
+        // not cacheable
         try {
             const url = new URL(
                 `/participants/${participantId}/accounts`,
@@ -189,16 +194,16 @@ export class ParticipantsHttpClient {
             ).toString();
             const resp = await this._authRequester.fetch(url);
 
-            if (resp.status != 200 && resp.status != 404) {
-                throw new UnableToGetParticipantsError();
+            if(resp.status === 200){
+                const data = await resp.json();
+                return data;
             }
 
             if (resp.status == 404) {
                 return [];
             }
 
-            const data = await resp.json();
-            return data;
+            throw new UnableToGetParticipantsError();
         } catch (e: unknown) {
             if (e instanceof Error) throw e;
             // handle everything else
@@ -206,28 +211,4 @@ export class ParticipantsHttpClient {
         }
     }
 
-    async searchParticipants(id: string, name: string, state: string): Promise<IParticipant[]> {
-        try {
-            const url = new URL(
-                `/participants?id=${id}&name=${name}&state=${state}`,
-                this._baseUrlHttpService
-            ).toString();
-            const resp = await this._authRequester.fetch(url);
-
-            if (resp.status != 200 && resp.status != 404) {
-                throw new UnableToGetParticipantsError();
-            }
-
-            if (resp.status == 404) {
-                return [];
-            }
-
-            const data = await resp.json();
-            return data;
-        } catch (e: unknown) {
-            if (e instanceof Error) throw e;
-            // handle everything else
-            throw new UnableToGetParticipantsError();
-        }
-    }
 }
