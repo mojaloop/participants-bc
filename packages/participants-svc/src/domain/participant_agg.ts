@@ -177,6 +177,7 @@ export class ParticipantAggregate {
                 currencyCode: currency,
                 debitBalance: null,
                 creditBalance: null,
+                balance: null,
             };
 
             try {
@@ -210,6 +211,7 @@ export class ParticipantAggregate {
                 currencyCode: currency,
                 debitBalance: null,
                 creditBalance: null,
+                balance: null
             };
 
             try {
@@ -907,6 +909,7 @@ export class ParticipantAggregate {
             currencyCode: account.currencyCode,
             creditBalance: null,
             debitBalance: null,
+            balance: null
         });
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.ADD_ACCOUNT,
@@ -988,6 +991,7 @@ export class ParticipantAggregate {
 
                 pacc.debitBalance = jAcc.postedDebitBalance || null;
                 pacc.creditBalance = jAcc.postedCreditBalance || null;
+                pacc.balance = jAcc.balance || null;
             }
         }
 

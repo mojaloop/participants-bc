@@ -131,6 +131,7 @@ export declare interface IParticipantAccount {
   currencyCode: string;                                   //TODO move
   debitBalance: string | null;                            // output only, we don't store this here
   creditBalance: string | null;                           // output only, we don't store this here
+  balance: string | null;                                 // output only, we don't store this here
 }
 
 export declare interface IParticipantActivityLogEntry {
