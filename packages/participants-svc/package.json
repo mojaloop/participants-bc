@@ -1,5 +1,5 @@
 {
-  "name": "@mojaloop/participants-bc-svc",
+  "name": "@mojaloop/participants-bc-participants-svc",
   "version": "0.1.11",
   "description": "mojaloop participants  service",
   "license": "Apache-2.0",
