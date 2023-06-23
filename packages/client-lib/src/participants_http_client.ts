@@ -31,13 +31,11 @@ import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
     IParticipant,
     IParticipantAccount,
-    IParticipantEndpoint,
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
-    UnableToCreateParticipantError,
     UnableToGetParticipantsError,
 } from "./errors";
-import {IAuthenticatedHttpRequester} from "@mojaloop/security-bc-client-lib";
+import {IAuthenticatedHttpRequester} from "@mojaloop/security-bc-public-types-lib";
 
 // default 1 minute cache
 const DEFAULT_CACHE_TIMEOUT_MS = 1*60*1000;

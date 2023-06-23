@@ -51,8 +51,8 @@
     "@mojaloop/platform-configuration-bc-client-lib": "~0.1.21",
     "@mojaloop/platform-configuration-bc-public-types-lib": "~0.2.4",
     "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib": "~0.3.59",
-    "@mojaloop/security-bc-client-lib": "~0.1.31",
-    "@mojaloop/security-bc-public-types-lib": "~0.1.19",
+    "@mojaloop/security-bc-client-lib": "~0.2.1",
+    "@mojaloop/security-bc-public-types-lib": "~0.2.1",
     "express": "~4.18.2",
     "mongodb": "~5.5.0"
   },
