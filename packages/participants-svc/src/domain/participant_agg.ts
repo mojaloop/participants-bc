@@ -79,8 +79,8 @@ import {
     CannotAddDuplicateEndpointError,
     CouldNotStoreParticipant,
     EndpointNotFoundError,
-    InvalidAccountError,
-    InvalidParticipantError,
+    InvalidAccountError, InvalidNdcChangeRequest,
+    InvalidParticipantError, NdcChangeRequestAlreadyApproved, NdcChangeRequestNotFound,
     NoAccountsError,
     ParticipantAlreadyApproved,
     ParticipantCreateValidationError,
@@ -1223,8 +1223,14 @@ export class ParticipantAggregate {
         if (!participantId)
             throw new ParticipantNotFoundError("participantId cannot be empty");
         if (!netDebitCapChangeRequest.currencyCode) throw new Error("currencyCode cannot be empty");
-        if (netDebitCapChangeRequest.type === "PERCENTAGE" && (netDebitCapChangeRequest.percentage === null || netDebitCapChangeRequest.percentage > 100)) throw new Error("Invalid percentage value");
-        if (netDebitCapChangeRequest.type === "ABSOLUTE" && netDebitCapChangeRequest.fixedValue === null) throw new Error("Fixed amount cannot be empty");
+        if (netDebitCapChangeRequest.type === "PERCENTAGE" &&
+            !(typeof netDebitCapChangeRequest.percentage === "number" && netDebitCapChangeRequest.percentage >= 0 && netDebitCapChangeRequest.percentage <= 100)) {
+            throw new Error("Invalid percentage value");
+        }
+        if (netDebitCapChangeRequest.type === "ABSOLUTE"
+            && (netDebitCapChangeRequest.fixedValue === null || netDebitCapChangeRequest.fixedValue == undefined)) {
+            throw new Error("Invalid fixed value");
+        }
 
         const participant: IParticipant | null = await this._repo.fetchWhereId(
             participantId
@@ -1277,7 +1283,7 @@ export class ParticipantAggregate {
             this._getAuditSecCtx(secCtx),
             [{key: "participantId", value: participantId}]
         );
-        
+
         return;
     }
 
@@ -1297,12 +1303,12 @@ export class ParticipantAggregate {
             (value: IParticipantNetDebitCapChangeRequest) => value.id === ndcReqId
         );
         if (!netDebitCapChange) {
-            throw new AccountNotFoundError(
+            throw new NdcChangeRequestNotFound(
                 `Cannot find a participant's NDC change request with id: ${ndcReqId}`
             );
         }
         if (netDebitCapChange.approved) {
-            throw new AccountNotFoundError(
+            throw new NdcChangeRequestAlreadyApproved(
                 `Participant's NDC change request with id: ${ndcReqId} is already approved`
             );
         }
@@ -1337,51 +1343,35 @@ export class ParticipantAggregate {
             );
         }
 
-        // get participant's accounts
-        const participantAccounts = await this.getParticipantAccountsById(secCtx,participantId);
-
-        // get settlement account & balance
-        const participantBalance = participantAccounts.find(
-            (value: IParticipantAccount) =>
-            value.currencyCode === netDebitCapChange.currencyCode &&
-            value.type === "SETTLEMENT"
-        );
-
-        if(!participantBalance?.creditBalance)
-        {
+        const account = await this._accBal.getAccount(settlementAccount.id);
+        if(!account){
             throw new AccountNotFoundError(
-                `Invalid participant's balance for currency: ${netDebitCapChange.currencyCode}`
+                `Could not get participant's settlement account with id: ${settlementAccount.id} from accounts and balances`
             );
         }
 
         let finalNDCAmount;
 
-        if(netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE)
-        {
+        if(netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE){
             const percentage: number = Number(netDebitCapChange?.percentage ?? "0");
-            const currentBalance: number = Number(participantBalance?.creditBalance?? "0") - Number(participantBalance?.debitBalance?? "0");
-            finalNDCAmount = (percentage / 100)*currentBalance;
-        }
-        else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && netDebitCapChange.fixedValue !== null){
+            const currentBalance: number = Number(account.balance || 0);
+            finalNDCAmount = (percentage / 100)*currentBalance; //TODO maybe round this to 1 decimal
+        } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && netDebitCapChange.fixedValue !== null){
             finalNDCAmount = netDebitCapChange.fixedValue;
-        }
-        else{
-            throw new AccountNotFoundError(
-                `Invalid participant's NDC change request`
-            );
+        } else{
+            throw new InvalidNdcChangeRequest("Invalid participant's NDC change request");
         }
 
         const now = Date.now();
 
         if (!participant.netDebitCaps) participant.netDebitCaps = [];
-        
+
         const found = participant.netDebitCaps.find(
             (value) =>
             value.currencyCode === netDebitCapChange.currencyCode
         );
 
-        if(!found)
-        {
+        if(!found){
             participant.netDebitCaps.push({
                 currencyCode: netDebitCapChange.currencyCode,
                 type: netDebitCapChange.type as ParticipantNetDebitCapTypes,
