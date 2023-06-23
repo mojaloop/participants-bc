@@ -46,7 +46,8 @@ import {
 	ParticipantFundsMovementDirections,
 	ParticipantTypes,
 	ParticipantEndpointProtocols,
-	ParticipantEndpointTypes
+	ParticipantEndpointTypes,
+	ParticipantNetDebitCapTypes
 } from "./enums";
 
 /** Participant entity **/
@@ -124,7 +125,7 @@ export declare class ParticipantNetDebitCapChangeRequest implements IParticipant
     approvedDate: number | null;
 
     currencyCode: string;
-    type: "ABSOLUTE" | "PERCENTAGE";
+    type: ParticipantNetDebitCapTypes;
     // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
     percentage: number | null;
     // this will have the value in currency in case of type == "ABSOLUTE" - will directly to the currentValue when approved

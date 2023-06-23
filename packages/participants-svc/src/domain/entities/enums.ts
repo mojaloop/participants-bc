@@ -71,6 +71,12 @@ export enum ParticipantAccountTypes {
 	"HUB_RECONCILIATION" = "HUB_RECONCILIATION"
 }
 
+//NOTE: reflect any changes to this enum in public-types-lib IParticipantNetDebitCapTypes
+export enum ParticipantNetDebitCapTypes {
+	"ABSOLUTE" = "ABSOLUTE",
+	"PERCENTAGE" = "PERCENTAGE"
+}
+
 //NOTE: reflect any changes to this enum in public-types-lib IParticipantActivityLogEntry
 export enum ParticipantChangeTypes {
 	"CREATE"= "CREATE",
@@ -86,6 +92,7 @@ export enum ParticipantChangeTypes {
 	"REMOVE_SOURCEIP"= "REMOVE_SOURCEIP",
 	"CHANGE_SOURCEIP"= "CHANGE_SOURCEIP",
 	"FUNDS_DEPOSIT"= "FUNDS_DEPOSIT",
-	"FUNDS_WITHDRAWAL"= "FUNDS_WITHDRAWAL"
+	"FUNDS_WITHDRAWAL"= "FUNDS_WITHDRAWAL",
+	"NDC_CHANGE"="NDC_CHANGE"
 }
 

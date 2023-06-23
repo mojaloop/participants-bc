@@ -37,6 +37,7 @@ import {
     IParticipantAccount,
     IParticipantEndpoint,
     IParticipantFundsMovement,
+    IParticipantNetDebitCapChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
 import {ParticipantAggregate} from "../domain/participant_agg";
 
@@ -119,11 +120,11 @@ export class ExpressRoutes {
         );
 
         // net debit cap management
-        // this._mainRouter.post("/participants/:id/ndcchangerequests", this.???.bind(this));
-        // this._mainRouter.post(
-        //     "/participants/:id/ndcchangerequests/:ndcReqId/approve",
-        //     this.???.bind(this)
-        // );
+        this._mainRouter.post("/participants/:id/ndcchangerequests", this._participantNetDebitCapCreate.bind(this));
+        this._mainRouter.post(
+            "/participants/:id/ndcchangerequests/:ndcReqId/approve",
+            this._participantNetDebitCapApprove.bind(this)
+        );
 
     }
 
@@ -693,4 +694,71 @@ export class ExpressRoutes {
         }
     }
 
+    private async _participantNetDebitCapCreate(req: express.Request, res: express.Response):Promise<void> {
+        const id = req.params["id"] ?? null;
+        const netDebitCapChangeRequest: IParticipantNetDebitCapChangeRequest = req.body;
+
+        this._logger.debug(
+            `Received request to create an NDC for participant with ID: ${id}`
+        );
+
+        try {
+            const createdId = await this._participantsAgg.createParticipantNetDebitCap(
+                req.securityContext!,
+                id,
+                netDebitCapChangeRequest
+            );
+            res.send({
+                id: createdId,
+            });
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantNetDebitCapApprove(req: express.Request, res: express.Response):Promise<void> {
+        const id = req.params["id"] ?? null;
+        const ndcReqId = req.params["ndcReqId"] ?? null;
+
+        this._logger.debug(
+            `Received request to approve an NDC change request for participant with ID: ${id} and ndcReqId: ${ndcReqId}`
+        );
+
+        try {
+            await this._participantsAgg.approveParticipantNetDebitCap(
+                req.securityContext!,
+                id,
+                ndcReqId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
 }

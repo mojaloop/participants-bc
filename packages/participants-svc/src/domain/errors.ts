@@ -52,3 +52,7 @@ export class ParticipantNotActive extends Error {}
 export class CouldNotStoreParticipant extends Error {}
 
 export class ParticipantAlreadyApproved extends Error {}
+
+export class NdcChangeRequestNotFound extends Error {}
+export class NdcChangeRequestAlreadyApproved extends Error {}
+export class InvalidNdcChangeRequest extends Error {}
