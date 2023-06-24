@@ -31,7 +31,7 @@
 "use strict";
 
 
-import {ParticipantPrivilegeNames} from "../../domain/privilege_names";
+import {ParticipantPrivilegeNames} from "../domain/privilege_names";
 
 export const AppPrivilegesDefinition = [
     {

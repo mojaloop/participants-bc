@@ -14,7 +14,7 @@
   "scripts": {
     "prepare": "husky install",
     "pre_commit_check": "npm run build && npm run lint && npm run test:unit",
-    "start:participants-svc": "npm -w @mojaloop/participants-bc-svc run start",
+    "start:participants-svc": "npm -w @mojaloop/participants-bc-participants-svc run start",
     "clean": "npm run clean:dist; npm run clean:npm",
     "clean:npm": "rm -Rf node_modules; npm -ws run clean:npm",
     "clean:dist": "rm -Rf dist; npm -ws run clean:dist",
@@ -33,14 +33,14 @@
     "start": "node ./packages/participants-svc/dist/application/index.js"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.1",
-    "@types/node": "^20.2.5",
-    "@typescript-eslint/eslint-plugin": "^5.59.8",
-    "@typescript-eslint/parser": "^5.59.8",
+    "@types/jest": "^29.5.2",
+    "@types/node": "^20.2.6",
+    "@typescript-eslint/eslint-plugin": "^5.59.11",
+    "@typescript-eslint/parser": "^5.59.11",
     "eslint": "^8.41.0",
     "husky": "^8.0.3",
     "jest": "^29.5.0",
-    "npm-check-updates": "^16.10.12",
+    "npm-check-updates": "^16.10.13",
     "ts-jest": "^29.1.0",
     "typescript": "^5.0.4",
     "nyc": "^15.1.0"

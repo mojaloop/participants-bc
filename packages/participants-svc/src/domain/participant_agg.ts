@@ -31,9 +31,8 @@
 "use strict";
 import {
     AccountsAndBalancesAccountType,
-    AccountsAndBalancesAccount,
-    AccountsAndBalancesJournalEntry,
 } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
+import {IMetrics,IHistogram} from "@mojaloop/platform-shared-lib-observability-types-lib";
 import {
     AuditSecurityContext,
     IAuditClient,
@@ -48,7 +47,7 @@ import {
     IParticipantNetDebitCap,
     IParticipantNetDebitCapChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
-import {IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
+import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {
     ForbiddenError,
     IAuthorizationClient,
@@ -122,7 +121,9 @@ export class ParticipantAggregate {
     private _accBal: IAccountsBalancesAdapter;
     private _auditClient: IAuditClient;
     private _authorizationClient: IAuthorizationClient;
-    private _currencyList: string[];
+    private _currencyList: Currency[];
+    private _metrics: IMetrics;
+    private readonly _requestsHisto: IHistogram;
 
     constructor(
         configClient: IConfigurationClient,
@@ -130,7 +131,7 @@ export class ParticipantAggregate {
         accBal: IAccountsBalancesAdapter,
         auditClient: IAuditClient,
         authorizationClient: IAuthorizationClient,
-        currencyList: string[],
+        metrics: IMetrics,
         logger: ILogger
     ) {
         this._configClient = configClient;
@@ -139,7 +140,10 @@ export class ParticipantAggregate {
         this._accBal = accBal;
         this._auditClient = auditClient;
         this._authorizationClient = authorizationClient;
-        this._currencyList = currencyList;
+        this._metrics = metrics;
+        this._currencyList = this._configClient.globalConfigs.getCurrencies();
+
+        this._requestsHisto = metrics.getHistogram("ParticipantAggregate", "Participants Aggregate metrics", ["callName", "success"]);
     }
 
     async init(): Promise<void> {
@@ -154,6 +158,13 @@ export class ParticipantAggregate {
         }
 
         await this._bootstrapHubParticipant();
+
+        this._configClient.setChangeHandlerFunction(async (type: "BC" | "GLOBAL") => {
+            // configurations changed centrally, reload what needs reloading
+            if(type ==="GLOBAL"){
+                this._currencyList = this._configClient.globalConfigs.getCurrencies();
+            }
+        });
     }
 
     private async _bootstrapHubParticipant(): Promise<void> {
@@ -178,7 +189,7 @@ export class ParticipantAggregate {
             const participantHMLNSAccount: ParticipantAccount = {
                 id: randomUUID(),
                 type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
-                currencyCode: currency,
+                currencyCode: currency.code,
                 debitBalance: null,
                 creditBalance: null,
                 balance: null,
@@ -212,7 +223,7 @@ export class ParticipantAggregate {
             const participantReconAccount: ParticipantAccount = {
                 id: randomUUID(),
                 type: ParticipantAccountTypes.HUB_RECONCILIATION,
-                currencyCode: currency,
+                currencyCode: currency.code,
                 debitBalance: null,
                 creditBalance: null,
                 balance: null
@@ -319,25 +330,35 @@ export class ParticipantAggregate {
     async getAllParticipants(secCtx: CallSecurityContext): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
+        const timerEndFn = this._requestsHisto.startTimer({callName: "getAllParticipants"});
+
         const list: IParticipant[] | null = await this._repo.fetchAll();
         list.forEach(this._applyDefaultSorts);
+
+        timerEndFn({success: "true"});
         return list;
     }
 
     async searchParticipants(secCtx: CallSecurityContext, id: string, name: string, state: string): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const timerEndFn = this._requestsHisto.startTimer({callName: "searchParticipants"});
+
         const list: IParticipant[] = await this._repo.searchParticipants(
             id,
             name,
             state
         );
         list.forEach(this._applyDefaultSorts);
+        timerEndFn({success: "true"});
+
         return list;
     }
 
     async getParticipantById(secCtx: CallSecurityContext, id: string): Promise<IParticipant> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
+        const timerEndFn = this._requestsHisto.startTimer({callName: "getParticipantById"});
         const part: IParticipant | null = await this._repo.fetchWhereId(id);
         if (part == null)
             throw new ParticipantNotFoundError(
@@ -345,12 +366,15 @@ export class ParticipantAggregate {
             );
 
         this._applyDefaultSorts(part);
+        timerEndFn({success: "true"});
+
         return part;
     }
 
     async getParticipantsByIds(secCtx: CallSecurityContext, ids: string[]): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
+        const timerEndFn = this._requestsHisto.startTimer({callName: "getParticipantsByIds"});
         const parts: IParticipant[] = await this._repo.fetchWhereIds(ids);
         if (parts.length == 0)
             throw new ParticipantNotFoundError(
@@ -358,6 +382,8 @@ export class ParticipantAggregate {
             );
 
         parts.forEach(this._applyDefaultSorts);
+        timerEndFn({success: "true"});
+
         return parts;
     }
 
@@ -468,7 +494,7 @@ export class ParticipantAggregate {
         return createdParticipant.id;
     }
 
-    async approveParticipant(secCtx: CallSecurityContext, participantId: string,note: string | null ): Promise<void> {
+    async approveParticipant(secCtx: CallSecurityContext, participantId: string, note: string | null): Promise<void> {
         this._enforcePrivilege(
             secCtx,
             ParticipantPrivilegeNames.APPROVE_PARTICIPANT
@@ -965,12 +991,14 @@ export class ParticipantAggregate {
     async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantAccount[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
+        const timerEndFn = this._requestsHisto.startTimer({callName: "getParticipantAccountsById"});
         const existing: IParticipant | null = await this._repo.fetchWhereId(id);
-        if (!existing)
+        if (!existing) {
+            timerEndFn({success: "false"});
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${id}' not found.`
             );
-
+        }
         const participantAccounts = existing.participantAccounts || [];
 
         if (participantAccounts.length > 0) {
@@ -986,6 +1014,7 @@ export class ParticipantAggregate {
                     existing.id
                 );
                 this._logger.error(err);
+                timerEndFn({success: "false"});
                 throw err;
             }
 
@@ -998,6 +1027,7 @@ export class ParticipantAggregate {
                 pacc.balance = jAcc.balance || null;
             }
         }
+        timerEndFn({success: "true"});
 
         return participantAccounts;
     }
@@ -1090,7 +1120,7 @@ export class ParticipantAggregate {
         return;
     }
 
-    async approveFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string):Promise<void> {
+    async approveFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string): Promise<void> {
         if (!participantId)
             throw new ParticipantNotFoundError("participantId cannot be empty");
 
@@ -1164,24 +1194,22 @@ export class ParticipantAggregate {
         const now = Date.now();
 
         this._accBal.setToken(secCtx.accessToken);
-        fundsMov.transferId = await this._accBal
-            .createJournalEntry(
-                randomUUID(),
-                fundsMov.id,
-                fundsMov.currencyCode,
-                fundsMov.amount,
-                false,
-                fundsMov.direction === "FUNDS_DEPOSIT"
-                    ? hubReconAccount.id
-                    : positionAccount.id,
-                fundsMov.direction === "FUNDS_DEPOSIT"
-                    ? positionAccount.id
-                    : hubReconAccount.id
-            )
-            .catch((error: Error) => {
-                this._logger.error(error);
-                throw error;
-            });
+        fundsMov.transferId = await this._accBal.createJournalEntry(
+            randomUUID(),
+            fundsMov.id,
+            fundsMov.currencyCode,
+            fundsMov.amount,
+            false,
+            fundsMov.direction === "FUNDS_DEPOSIT"
+                ? hubReconAccount.id
+                : positionAccount.id,
+            fundsMov.direction === "FUNDS_DEPOSIT"
+                ? positionAccount.id
+                : hubReconAccount.id
+        ).catch((error: Error) => {
+            this._logger.error(error);
+            throw error;
+        });
 
         fundsMov.approved = true;
         fundsMov.approvedBy = secCtx.username;
@@ -1221,7 +1249,7 @@ export class ParticipantAggregate {
         secCtx: CallSecurityContext,
         participantId: string,
         netDebitCapChangeRequest: IParticipantNetDebitCapChangeRequest
-    ){
+    ) {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_NDC_CHANGE_REQUEST);
 
         if (!participantId)
@@ -1291,7 +1319,7 @@ export class ParticipantAggregate {
         return;
     }
 
-    async approveParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string):Promise<void> {
+    async approveParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
         if (!participantId)
             throw new ParticipantNotFoundError("participantId cannot be empty");
 
@@ -1319,8 +1347,8 @@ export class ParticipantAggregate {
 
         // now we can enforce the correct privilege
         this._enforcePrivilege(
-           secCtx,
-           ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST
+            secCtx,
+            ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST
         );
 
         if (secCtx && netDebitCapChange.createdBy === secCtx.username) {
@@ -1348,7 +1376,7 @@ export class ParticipantAggregate {
         }
 
         const account = await this._accBal.getAccount(settlementAccount.id);
-        if(!account){
+        if (!account) {
             throw new AccountNotFoundError(
                 `Could not get participant's settlement account with id: ${settlementAccount.id} from accounts and balances`
             );
@@ -1356,13 +1384,13 @@ export class ParticipantAggregate {
 
         let finalNDCAmount;
 
-        if(netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE){
+        if (netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE) {
             const percentage: number = Number(netDebitCapChange?.percentage ?? "0");
             const currentBalance: number = Number(account.balance || 0);
-            finalNDCAmount = (percentage / 100)*currentBalance; //TODO maybe round this to 1 decimal
-        } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && netDebitCapChange.fixedValue !== null){
+            finalNDCAmount = (percentage / 100) * currentBalance; //TODO maybe round this to 1 decimal
+        } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && netDebitCapChange.fixedValue !== null) {
             finalNDCAmount = netDebitCapChange.fixedValue;
-        } else{
+        } else {
             throw new InvalidNdcChangeRequest("Invalid participant's NDC change request");
         }
 
@@ -1372,17 +1400,17 @@ export class ParticipantAggregate {
 
         const found = participant.netDebitCaps.find(
             (value) =>
-            value.currencyCode === netDebitCapChange.currencyCode
+                value.currencyCode === netDebitCapChange.currencyCode
         );
 
-        if(!found){
+        if (!found) {
             participant.netDebitCaps.push({
                 currencyCode: netDebitCapChange.currencyCode,
                 type: netDebitCapChange.type as ParticipantNetDebitCapTypes,
                 percentage: netDebitCapChange.percentage,
                 currentValue: finalNDCAmount
             });
-        }else{
+        } else {
             found.currencyCode = netDebitCapChange.currencyCode;
             found.type = netDebitCapChange.type as ParticipantNetDebitCapTypes;
             found.percentage = netDebitCapChange.percentage;

@@ -30,35 +30,31 @@
 
 "use strict";
 
-import {
-    ConfigurationClient,
-    DefaultConfigProvider
-} from "@mojaloop/platform-configuration-bc-client-lib";
+import { ConfigurationClient,IConfigProvider } from "@mojaloop/platform-configuration-bc-client-lib";
 import {ConfigParameterTypes} from "@mojaloop/platform-configuration-bc-public-types-lib";
 
 // configs - constants / code dependent
-const BC_NAME = "participants-bc";
-const APP_NAME = "participants-svc";
-const APP_VERSION = process.env.npm_package_version || "0.0.0";
 const CONFIGSET_VERSION = "0.0.3";
 
-// configs - non-constants
-const ENV_NAME = process.env["ENV_NAME"] || "dev";
+export function GetParticipantsConfigs(
+    configProvider: IConfigProvider,
+    bcName:string,
+    appName:string,
+    appVersion:string
+): ConfigurationClient {
+    const configClient = new ConfigurationClient(
+        bcName, appName, appVersion, CONFIGSET_VERSION, configProvider
+    );
 
-// use default url from PLATFORM_CONFIG_CENTRAL_URL env var
-const defaultConfigProvider: DefaultConfigProvider = new DefaultConfigProvider();
-
-const configClient = new ConfigurationClient(ENV_NAME, BC_NAME, APP_NAME, APP_VERSION, CONFIGSET_VERSION, defaultConfigProvider);
-
-/*
-* Add application parameters here
-* */
-configClient.appConfigs.addNewParam(
-    "MAKER_CHECKER_ENABLED",
-    ConfigParameterTypes.BOOL,
-    true,
-    "Enable maker-checker enforcement in participants"
-);
+    /*
+    * Add application parameters here
+    * */
+    configClient.bcConfigs.addNewParam(
+        "MAKER_CHECKER_ENABLED",
+        ConfigParameterTypes.BOOL,
+        true,
+        "Enable maker-checker enforcement in participants"
+    );
 
 // configClient.appConfigs.addNewParam(
 //         "MAX_VALUE_PER_DEPOSIT",
@@ -67,5 +63,5 @@ configClient.appConfigs.addNewParam(
 //         "Enable maker-checker enforcement in participants"
 // );
 
-export = configClient;
-
+    return configClient;
+}

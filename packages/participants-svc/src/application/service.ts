@@ -35,7 +35,12 @@ import express, {Express} from "express";
 import process from "process";
 import {ExpressRoutes} from "./routes";
 import {ILogger, LogLevel} from "@mojaloop/logging-bc-public-types-lib";
-import {AuthorizationClient, LoginHelper, TokenHelper} from "@mojaloop/security-bc-client-lib";
+import {
+    AuthenticatedHttpRequester,
+    AuthorizationClient,
+    LoginHelper,
+    TokenHelper
+} from "@mojaloop/security-bc-client-lib";
 import {
     AuditClient,
     KafkaAuditClientDispatcher,
@@ -48,17 +53,24 @@ import {IAccountsBalancesAdapter} from "../domain/iparticipant_account_balances_
 import {MongoDBParticipantsRepo} from "../implementations/mongodb_participants_repo";
 
 import {ParticipantAggregate} from "../domain/participant_agg";
-import {AppPrivilegesDefinition} from "./config/privileges";
+import {AppPrivilegesDefinition} from "./privileges";
 import {Server} from "net";
 import {GrpcAccountsAndBalancesAdapter} from "../implementations/grpc_acc_bal_adapter";
-
-import configClient from "./config";
+import {PrometheusMetrics} from "@mojaloop/platform-shared-lib-observability-client-lib";
+import {IMetrics} from "@mojaloop/platform-shared-lib-observability-types-lib";
+import {GetParticipantsConfigs} from "./configset";
 import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib";
 import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
+import {IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
+import {
+    DefaultConfigProvider,
+    IConfigProvider
+} from "@mojaloop/platform-configuration-bc-client-lib";
+import {MLKafkaJsonConsumer, MLKafkaJsonConsumerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
 
-const BC_NAME = configClient.boundedContextName;
-const APP_NAME = configClient.applicationName;
-const APP_VERSION = configClient.applicationVersion;
+const APP_NAME = "participants-svc";
+const BC_NAME = "participants-bc";
+const APP_VERSION = process.env.npm_package_version || "0.0.0";
 const PRODUCTION_MODE = process.env["PRODUCTION_MODE"] || false;
 const LOG_LEVEL: LogLevel = process.env["LOG_LEVEL"] as LogLevel || LogLevel.DEBUG;
 
@@ -90,8 +102,6 @@ const kafkaProducerOptions = {
 
 let globalLogger: ILogger;
 
-// TODO currency list should come from the platform configuration service/client
-const CURRENCY_LIST = ["EUR", "USD"];
 
 export class Service {
     static logger: ILogger;
@@ -103,20 +113,19 @@ export class Service {
     static participantAgg: ParticipantAggregate;
     static repoPart: IParticipantsRepository;
     static accountsBalancesAdapter: IAccountsBalancesAdapter;
+    static configClient:IConfigurationClient;
+    static metrics:IMetrics;
 
     static async start(
         logger?: ILogger,
         auditClient?: IAuditClient,
         authorizationClient?: IAuthorizationClient,
         repoPart?: IParticipantsRepository,
-        accAndBalAdapter?: IAccountsBalancesAdapter
+        accAndBalAdapter?: IAccountsBalancesAdapter,
+        configProvider?: IConfigProvider,
+        metrics?:IMetrics
     ): Promise<void> {
         console.log(`Service starting with PID: ${process.pid}`);
-
-        /// start config client - this is not mockable (can use STANDALONE MODE if desired)
-        await configClient.init();
-        await configClient.bootstrap(true);
-        await configClient.fetch();
 
         if (!logger) {
             logger = new KafkaLogger(
@@ -130,6 +139,25 @@ export class Service {
             await (logger as KafkaLogger).init();
         }
         globalLogger = this.logger = logger;
+
+        /// start config client - this is not mockable (can use STANDALONE MODE if desired)
+        if(!configProvider) {
+            // create the instance of IAuthenticatedHttpRequester
+            const authRequester = new AuthenticatedHttpRequester(logger, AUTH_N_SVC_TOKEN_URL);
+            authRequester.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
+
+            const messageConsumer = new MLKafkaJsonConsumer({
+                kafkaBrokerList: KAFKA_URL,
+                kafkaGroupId: `${APP_NAME}_${Date.now()}` // unique consumer group - use instance id when possible
+            }, this.logger.createChild("configClient.consumer"));
+            configProvider = new DefaultConfigProvider(logger, authRequester, messageConsumer);
+        }
+
+        this.configClient = GetParticipantsConfigs(configProvider, BC_NAME, APP_NAME, APP_VERSION);
+        await this.configClient.init();
+        await this.configClient.bootstrap(true);
+        await this.configClient.fetch();
+
 
         // start auditClient
         if (!auditClient) {
@@ -179,14 +207,25 @@ export class Service {
         this.accountsBalancesAdapter = accAndBalAdapter;
 
 
+        // metrics client
+        if(!metrics){
+            const labels: Map<string, string> = new Map<string, string>();
+            labels.set("bc", BC_NAME);
+            labels.set("app", APP_NAME);
+            labels.set("version", APP_VERSION);
+            PrometheusMetrics.Setup({prefix:"", defaultLabels: labels}, this.logger);
+            metrics = PrometheusMetrics.getInstance();
+        }
+        this.metrics = metrics;
+
         // create the aggregate
         this.participantAgg = new ParticipantAggregate(
-            configClient,
+            this.configClient,
             this.repoPart,
             this.accountsBalancesAdapter,
             this.auditClient,
             this.authorizationClient,
-            CURRENCY_LIST,
+            this.metrics,
             this.logger
         );
 
@@ -196,31 +235,42 @@ export class Service {
         this.tokenHelper = new TokenHelper(AUTH_N_SVC_JWKS_URL, logger, AUTH_N_TOKEN_ISSUER_NAME, AUTH_N_TOKEN_AUDIENCE);
         await this.tokenHelper.init();
 
-        this.setupExpress();
+        await this.setupExpress();
     }
 
-    static setupExpress(): void {
-        this.app = express();
-        this.app.use(express.json()); // for parsing application/json
-        this.app.use(express.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
+    static setupExpress(): Promise<void> {
+        return new Promise<void>(resolve => {
+            this.app = express();
+            this.app.use(express.json()); // for parsing application/json
+            this.app.use(express.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
 
-        const routes = new ExpressRoutes(this.participantAgg, this.tokenHelper, this.logger);
+            const routes = new ExpressRoutes(this.participantAgg, this.tokenHelper, this.logger);
 
-        this.app.use("/", routes.MainRouter);
+            // Add health and metrics http routes - before others (to avoid authZ middleware)
+            this.app.get("/health", (req: express.Request, res: express.Response) => {return res.send({ status: "OK" }); });
+            this.app.get("/metrics", async (req: express.Request, res: express.Response) => {
+                const strMetrics = await (this.metrics as PrometheusMetrics).getMetricsForPrometheusScrapper();
+                return res.send(strMetrics);
+            });
 
-        this.app.use((req, res) => {
-            // catch all
-            res.send(404);
-        });
+            // app routes
+            this.app.use("/", routes.MainRouter);
 
-        let portNum = SVC_DEFAULT_HTTP_PORT;
-        if (process.env["SVC_HTTP_PORT"] && !isNaN(parseInt(process.env["SVC_HTTP_PORT"]))) {
-            portNum = parseInt(process.env["SVC_HTTP_PORT"]);
-        }
+            this.app.use((req, res) => {
+                // catch all
+                res.send(404);
+            });
 
-        this.expressServer = this.app.listen(portNum, () => {
-            this.logger.info(`🚀 Server ready at port: ${portNum}`);
-            this.logger.info(`Participants service v: ${APP_VERSION} started`);
+            let portNum = SVC_DEFAULT_HTTP_PORT;
+            if (process.env["SVC_HTTP_PORT"] && !isNaN(parseInt(process.env["SVC_HTTP_PORT"]))) {
+                portNum = parseInt(process.env["SVC_HTTP_PORT"]);
+            }
+
+            this.expressServer = this.app.listen(portNum, () => {
+                this.logger.info(`🚀 Server ready at port: ${portNum}`);
+                this.logger.info(`Participants service v: ${APP_VERSION} started`);
+                resolve();
+            });
         });
     }
 
