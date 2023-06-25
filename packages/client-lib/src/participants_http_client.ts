@@ -46,14 +46,12 @@ export class ParticipantsHttpClient {
     // Other properties.
     private readonly _baseUrlHttpService: string;
     private readonly _authRequester: IAuthenticatedHttpRequester;
-    private readonly UNKNOWN_ERROR_MESSAGE: string = "Unknown error";
-    private accessToken: string;
+    private readonly _cacheTimeoutMs: number;
 
     private _participantsCache: Map<string, { participant: IParticipant, timestamp: number }> = new Map<string, {
         participant: IParticipant;
         timestamp: number
     }>();
-    private readonly _cacheTimeoutMs: number;
 
     constructor(
         logger: ILogger,
@@ -61,7 +59,7 @@ export class ParticipantsHttpClient {
         authRequester: IAuthenticatedHttpRequester,
         cacheTimeoutMs: number = DEFAULT_CACHE_TIMEOUT_MS
     ) {
-        this._logger = logger;
+        this._logger = logger.createChild(this.constructor.name);
         this._baseUrlHttpService = baseUrlHttpService;
         this._authRequester = authRequester;
         this._cacheTimeoutMs = cacheTimeoutMs;
