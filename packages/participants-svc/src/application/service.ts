@@ -67,6 +67,7 @@ import {
     IConfigProvider
 } from "@mojaloop/platform-configuration-bc-client-lib";
 import {MLKafkaJsonConsumer, MLKafkaJsonConsumerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
+import * as util from "util";
 
 const APP_NAME = "participants-svc";
 const BC_NAME = "participants-bc";
@@ -96,6 +97,8 @@ const AUDIT_KEY_FILE_PATH = process.env["AUDIT_KEY_FILE_PATH"] || "/app/data/aud
 const SVC_CLIENT_ID = process.env["SVC_CLIENT_ID"] || "participants-bc-participants-svc";
 const SVC_CLIENT_SECRET = process.env["SVC_CLIENT_ID"] || "superServiceSecret";
 
+const SERVICE_START_TIMEOUT_MS = 30_000;
+
 const kafkaProducerOptions = {
     kafkaBrokerList: KAFKA_URL
 };
@@ -115,6 +118,7 @@ export class Service {
     static accountsBalancesAdapter: IAccountsBalancesAdapter;
     static configClient:IConfigurationClient;
     static metrics:IMetrics;
+    static startupTimer: NodeJS.Timeout;
 
     static async start(
         logger?: ILogger,
@@ -126,6 +130,10 @@ export class Service {
         metrics?:IMetrics
     ): Promise<void> {
         console.log(`Service starting with PID: ${process.pid}`);
+
+        this.startupTimer = setTimeout(()=>{
+            throw new Error("Service start timed-out");
+        }, SERVICE_START_TIMEOUT_MS);
 
         if (!logger) {
             logger = new KafkaLogger(
@@ -236,6 +244,9 @@ export class Service {
         await this.tokenHelper.init();
 
         await this.setupExpress();
+
+        // remove startup timeout
+        clearTimeout(this.startupTimer);
     }
 
     static setupExpress(): Promise<void> {
@@ -275,12 +286,16 @@ export class Service {
     }
 
     static async stop() {
+        if (this.expressServer){
+            const closeExpress = util.promisify(this.expressServer.close);
+            await closeExpress();
+        }
+
         if (this.auditClient) await this.auditClient.destroy();
         if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
         if (this.repoPart) await this.repoPart.destroy();
         if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
 
-        if (this.expressServer) this.expressServer.close();
         if (this.logger && this.logger instanceof KafkaLogger) await this.logger.destroy();
     }
 }
