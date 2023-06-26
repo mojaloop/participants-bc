@@ -30,6 +30,9 @@
 
 "use strict";
 
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const packageJSON = require("../../package.json");
+
 
 import express, {Express} from "express";
 import process from "process";
@@ -71,7 +74,7 @@ import * as util from "util";
 
 const APP_NAME = "participants-svc";
 const BC_NAME = "participants-bc";
-const APP_VERSION = process.env.npm_package_version || "0.0.0";
+const APP_VERSION = packageJSON.version;
 const PRODUCTION_MODE = process.env["PRODUCTION_MODE"] || false;
 const LOG_LEVEL: LogLevel = process.env["LOG_LEVEL"] as LogLevel || LogLevel.DEBUG;
 

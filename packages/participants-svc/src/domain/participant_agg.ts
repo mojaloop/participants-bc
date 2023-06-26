@@ -1383,16 +1383,19 @@ export class ParticipantAggregate {
         }
 
         let finalNDCAmount;
+        const currentBalance: number = Number(account.balance || 0);
 
         if (netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE) {
             const percentage: number = Number(netDebitCapChange?.percentage ?? "0");
-            const currentBalance: number = Number(account.balance || 0);
-            finalNDCAmount = (percentage / 100) * currentBalance; //TODO maybe round this to 1 decimal
+            // we cannot have negative NDC value, if the current value is <0, then NDC is 0
+            finalNDCAmount = Math.max(Math.floor((percentage / 100) * currentBalance), 0);
         } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && netDebitCapChange.fixedValue !== null) {
-            finalNDCAmount = netDebitCapChange.fixedValue;
+            finalNDCAmount = Math.max(netDebitCapChange.fixedValue, 0); // min is 0
         } else {
             throw new InvalidNdcChangeRequest("Invalid participant's NDC change request");
         }
+
+        finalNDCAmount = Math.min(finalNDCAmount, currentBalance);
 
         const now = Date.now();
 
