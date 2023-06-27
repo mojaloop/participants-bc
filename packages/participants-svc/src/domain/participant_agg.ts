@@ -44,9 +44,10 @@ import {
     IParticipantActivityLogEntry,
     IParticipantEndpoint,
     IParticipantFundsMovement,
-    IParticipantNetDebitCap,
+
     IParticipantNetDebitCapChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
+import {SettlementMatrixSettledEvt} from "@mojaloop/platform-shared-lib-public-messages-lib";
 import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {
     ForbiddenError,
@@ -99,7 +100,7 @@ enum AuditedActionNames {
     PARTICIPANT_ENDPOINT_CHANGED = "PARTICIPANT_ENDPOINT_CHANGED",
     PARTICIPANT_ENDPOINT_REMOVED = "PARTICIPANT_ENDPOINT_REMOVED",
     PARTICIPANT_ACCOUNT_ADDED = "PARTICIPANT_ACCOUNT_ADDED",
-    PARTICIPANT_ACCOUNT_CHANGED = "PARTICIPANT_ACCOUNT_CHANGED",
+    ARTICIPANT_ACCOUNT_CHANGED = "PARTICIPANT_ACCOUNT_CHANGED",
     PARTICIPANT_ACCOUNT_REMOVED = "PARTICIPANT_ACCOUNT_REMOVED",
     PARTICIPANT_SOURCEIP_ADDED = "PARTICIPANT_SOURCEIP_ADDED",
     PARTICIPANT_SOURCEIP_CHANGED = "PARTICIPANT_SOURCEIP_CHANGED",
@@ -110,6 +111,7 @@ enum AuditedActionNames {
     PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED = "PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED",
     PARTICIPANT_NDC_CHANGE_REQUEST_CREATED = "PARTICIPANT_NDC_CHANGE_REQUEST_CREATED",
     PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED = "PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED",
+    PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT = "PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT"
 }
 
 export const HUB_PARTICIPANT_ID = "hub";
@@ -1319,6 +1321,21 @@ export class ParticipantAggregate {
         return;
     }
 
+
+    private _calculateParticipantPercentageNetDebitCap(ndcFixed:number, ndcPercentage:number|null, liqAccBalance:number, type:"ABSOLUTE" | "PERCENTAGE"):number {
+        let finalNDCAmount: number;
+        if (type === ParticipantNetDebitCapTypes.ABSOLUTE && ndcFixed !== null) {
+            finalNDCAmount = Math.max(ndcFixed, 0); // min is 0
+        } else if (type === ParticipantNetDebitCapTypes.PERCENTAGE && ndcPercentage !== null) {
+            // we cannot have negative NDC value, if the current value is <0, then NDC is 0
+            finalNDCAmount = Math.max(Math.floor((ndcPercentage / 100) * liqAccBalance), 0);
+        } else {
+            throw new InvalidNdcChangeRequest("Invalid participant's NDC definition");
+        }
+
+        return Math.max(Math.min(finalNDCAmount, liqAccBalance), 0);
+    }
+
     async approveParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
         if (!participantId)
             throw new ParticipantNotFoundError("participantId cannot be empty");
@@ -1382,20 +1399,14 @@ export class ParticipantAggregate {
             );
         }
 
-        let finalNDCAmount;
         const currentBalance: number = Number(account.balance || 0);
 
-        if (netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE) {
-            const percentage: number = Number(netDebitCapChange?.percentage ?? "0");
-            // we cannot have negative NDC value, if the current value is <0, then NDC is 0
-            finalNDCAmount = Math.max(Math.floor((percentage / 100) * currentBalance), 0);
-        } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && netDebitCapChange.fixedValue !== null) {
-            finalNDCAmount = Math.max(netDebitCapChange.fixedValue, 0); // min is 0
-        } else {
-            throw new InvalidNdcChangeRequest("Invalid participant's NDC change request");
-        }
-
-        finalNDCAmount = Math.min(finalNDCAmount, currentBalance);
+        const finalNDCAmount = this._calculateParticipantPercentageNetDebitCap(
+            netDebitCapChange.fixedValue || 0,
+            netDebitCapChange.percentage || 0,
+            currentBalance,
+            netDebitCapChange.type
+        );
 
         const now = Date.now();
 
@@ -1448,5 +1459,161 @@ export class ParticipantAggregate {
         );
 
         return;
+    }
+
+    /**
+     * This will reflect the settlement in the participants accounts ledger,
+     * updating their settlement/liquidity and position accounts as instructed
+     * byt the payload of the SettlementMatrixSettledEvt (payload.participantList)
+     * @param secCtx
+     * @param msg SettlementMatrixSettledEvt
+     */
+    async handleSettlementMatrixSettledEvt(secCtx: CallSecurityContext, msg: SettlementMatrixSettledEvt):Promise<void>{
+        // this is an internall call, triggerd by the event handler, we use secCtx for audit
+        //this._enforcePrivilege( secCtx, ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST);
+
+        if(!msg.payload || !msg.payload.participantList || !msg.payload.participantList.length){
+            const error = new Error("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            throw error;
+        }
+
+        const retParticipantsNotFoundError = (): Error=>{
+            const error = new Error("Could not get all participants for handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            return error;
+        };
+
+        const retParticipantAccountNotFoundError = (): Error =>{
+            const error = new Error("Could not get all participants' accounts for handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            return error;
+        };
+
+        const participantIds = msg.payload.participantList.flatMap(msg => msg.participantId);
+        const participants = await this._repo.fetchWhereIds(participantIds);
+        if(!participants || participants.length !== msg.payload.participantList.length){
+            throw retParticipantsNotFoundError();
+        }
+
+        const ledgerEntriesToCreate:{
+            requestedId: string,
+            ownerId: string,
+            currencyCode: string,
+            amount: string,
+            pending: boolean,
+            debitedAccountId: string,
+            creditedAccountId: string
+        }[] = [];
+
+        for(const participantItem of msg.payload.participantList){
+            const participant = participants.find(participant => participant.id === participantItem.participantId);
+            if(!participant) throw retParticipantsNotFoundError();
+
+            const liqAcc = participant.participantAccounts?.find(
+                (acc)=>acc.type==="SETTLEMENT" && acc.currencyCode===participantItem.currencyCode
+            );
+
+            const posAcc = participant.participantAccounts?.find(
+                (acc)=>acc.type==="POSITION" && acc.currencyCode===participantItem.currencyCode
+            );
+
+            if(!liqAcc || ! posAcc) throw retParticipantAccountNotFoundError();
+
+            // if we got a credit -> credit liquidity and debit position
+            if(Number(participantItem.settledCreditBalance) > 0){
+                ledgerEntriesToCreate.push({
+                    requestedId: randomUUID(),
+                    ownerId: msg.payload.settlementMatrixId,
+                    currencyCode: participantItem.currencyCode,
+                    amount: participantItem.settledCreditBalance,
+                    pending: false,
+                    creditedAccountId: liqAcc.id,   // driver of the entry is liquidity account
+                    debitedAccountId: posAcc.id
+                });
+            }
+
+            // if we got a debit -> debit liquidity and credit position
+            if(Number(participantItem.settledDebitBalance) > 0){
+                ledgerEntriesToCreate.push({
+                    requestedId: randomUUID(),
+                    ownerId: msg.payload.settlementMatrixId,
+                    currencyCode: participantItem.currencyCode,
+                    amount: participantItem.settledDebitBalance,
+                    pending: false,
+                    creditedAccountId: posAcc.id,
+                    debitedAccountId: liqAcc.id    // driver of the entry is liquidity account
+                });
+            }
+        }
+
+        if(ledgerEntriesToCreate.length == 0){
+            const error = new Error("Empty list of ledger entries to create in handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            throw error;
+        }
+
+        const respIds = await this._accBal.createJournalEntries(ledgerEntriesToCreate);
+
+        if(respIds.length !==ledgerEntriesToCreate.length){
+            const error = new Error("List of created ledger entries ids, doesn't match request to create in handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            throw error;
+        }
+
+        this._logger.info(`SettlementMatrixSettledEvt processed successfully for settlement matrix id: ${msg.payload.settlementMatrixId}`);
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{key: "settlementMatrixId", value: msg.payload.settlementMatrixId}]
+        );
+
+        await this._updateNdcForParticipants(participants, "SettlementMatrixSettledEvt Processing");
+    }
+
+    private async _updateNdcForParticipants(participants:IParticipant[], reason:string ):Promise<void>{
+        const now = Date.now();
+
+        for(const participant of participants){
+            if(!participant.netDebitCaps || participant.netDebitCaps.length<=0) continue;
+
+            let changed = false;
+
+            for(const ndcDefinition of participant.netDebitCaps){
+                const partAccount = participant.participantAccounts.find(
+                    item => item.type === "SETTLEMENT" && item.currencyCode === ndcDefinition.currencyCode
+                );
+                if(!partAccount){
+                    throw new Error(`Cannot get settlement account for participant with id: ${participant.id} and currency: ${ndcDefinition.currencyCode} for _updateNdcForParticipants()`);
+                }
+                const abAccount = await this._accBal.getAccount(partAccount.id);
+                if(!abAccount){
+                    throw new Error(`Cannot get participant account with id: ${partAccount.id} from accounts and balaces for _updateNdcForParticipants()`);
+                }
+
+                ndcDefinition.currentValue = this._calculateParticipantPercentageNetDebitCap(
+                    ndcDefinition.currentValue,
+                    ndcDefinition.percentage,
+                    Math.min(Number(abAccount.balance || 0)),
+                    ndcDefinition.type
+                );
+                changed = true;
+            }
+
+            if(!changed) continue;
+
+            participant.changeLog.push({
+                changeType: ParticipantChangeTypes.NDC_RECALCULATED,
+                user: "(n/a)",
+                timestamp: now,
+                notes: "NDC recalculated - for: "+ reason,
+            });
+
+            await this._repo.store(participant);
+
+            this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
+        }
     }
 }

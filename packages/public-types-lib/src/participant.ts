@@ -139,7 +139,7 @@ export declare interface IParticipantActivityLogEntry {
       | "ADD_ACCOUNT" | "REMOVE_ACCOUNT"
       | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
       | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
-      | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE";
+      | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";
   user: string;
   timestamp: number;
   notes: string | null;

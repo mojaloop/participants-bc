@@ -29,9 +29,11 @@
  ******/
 
 "use strict";
+import {ParticipantsEventHandler} from "./event_handler";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const packageJSON = require("../../package.json");
+
 
 
 import express, {Express} from "express";
@@ -71,6 +73,7 @@ import {
 } from "@mojaloop/platform-configuration-bc-client-lib";
 import {MLKafkaJsonConsumer, MLKafkaJsonConsumerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
 import * as util from "util";
+import {IMessageConsumer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
 
 const APP_NAME = "participants-svc";
 const BC_NAME = "participants-bc";
@@ -100,10 +103,15 @@ const AUDIT_KEY_FILE_PATH = process.env["AUDIT_KEY_FILE_PATH"] || "/app/data/aud
 const SVC_CLIENT_ID = process.env["SVC_CLIENT_ID"] || "participants-bc-participants-svc";
 const SVC_CLIENT_SECRET = process.env["SVC_CLIENT_ID"] || "superServiceSecret";
 
-const SERVICE_START_TIMEOUT_MS = 30_000;
+const SERVICE_START_TIMEOUT_MS = 60_000;
 
 const kafkaProducerOptions = {
     kafkaBrokerList: KAFKA_URL
+};
+
+const kafkaConsumerOptions: MLKafkaJsonConsumerOptions = {
+    kafkaBrokerList: KAFKA_URL,
+    kafkaGroupId: `${BC_NAME}_${APP_NAME}`
 };
 
 let globalLogger: ILogger;
@@ -121,6 +129,8 @@ export class Service {
     static accountsBalancesAdapter: IAccountsBalancesAdapter;
     static configClient:IConfigurationClient;
     static metrics:IMetrics;
+    static messageConsumer: IMessageConsumer;
+    static eventHandler:ParticipantsEventHandler;
     static startupTimer: NodeJS.Timeout;
 
     static async start(
@@ -130,7 +140,8 @@ export class Service {
         repoPart?: IParticipantsRepository,
         accAndBalAdapter?: IAccountsBalancesAdapter,
         configProvider?: IConfigProvider,
-        metrics?:IMetrics
+        metrics?:IMetrics,
+        messageConsumer?: IMessageConsumer
     ): Promise<void> {
         console.log(`Service starting with PID: ${process.pid}`);
 
@@ -245,6 +256,20 @@ export class Service {
         // token helper
         this.tokenHelper = new TokenHelper(AUTH_N_SVC_JWKS_URL, logger, AUTH_N_TOKEN_ISSUER_NAME, AUTH_N_TOKEN_AUDIENCE);
         await this.tokenHelper.init();
+
+
+        // event handler
+        if(!messageConsumer){
+            const consumerHandlerLogger = logger.createChild("handlerConsumer");
+            consumerHandlerLogger.setLogLevel(LogLevel.INFO);
+            messageConsumer = new MLKafkaJsonConsumer(kafkaConsumerOptions, consumerHandlerLogger);
+        }
+        this.messageConsumer = messageConsumer;
+
+        const tokenHelper = new LoginHelper(AUTH_N_SVC_TOKEN_URL, this.logger);
+        tokenHelper.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
+        this.eventHandler = new ParticipantsEventHandler(this.messageConsumer, this.participantAgg, tokenHelper, this.logger);
+        await this.eventHandler.start();
 
         await this.setupExpress();
 

@@ -48,9 +48,9 @@ import {UnauthorizedError} from "@mojaloop/security-bc-public-types-lib";
 
 export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter {
     private readonly _grpcUrl: string;
-    private _logger: ILogger;
+    private readonly _logger: ILogger;
+    private readonly _loginHelper: LoginHelper;
     private _client: AccountsAndBalancesGrpcClient;
-    private _loginHelper: LoginHelper;
 
     constructor(grpcUrl: string, loginHelper: LoginHelper, logger: ILogger) {
         this._grpcUrl = grpcUrl;
@@ -100,6 +100,26 @@ export class GrpcAccountsAndBalancesAdapter implements IAccountsBalancesAdapter 
         });
 
         return createdIds.grpcIdArray![0].grpcId!;
+    }
+
+    async createJournalEntries(
+        entries: {requestedId: string, ownerId: string, currencyCode: string,
+        amount: string, pending: boolean, debitedAccountId: string, creditedAccountId: string}[]
+    ): Promise<string[]> {
+        const req: GrpcCreateJournalEntryArray = {
+            entriesToCreate:entries
+        };
+
+        const createdIds = await this._client.createJournalEntries(req).catch((reason: any) => {
+            this._logger.error(reason);
+            throw new Error("Could not create journalEntries in remote system: " + reason);
+        });
+
+        if (!createdIds.grpcIdArray) {
+            throw new Error("Bad response on createJournalEntries - invalid createdIds.grpcIdArray");
+        }
+
+        return createdIds.grpcIdArray.map(entries => entries.grpcId) as string [];
     }
 
     async createJournalEntry(
