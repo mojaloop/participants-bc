@@ -918,6 +918,7 @@ export class ParticipantAggregate {
         
         existing.participantAccountsChangeRequest.push({
             id: accountChangeRequest.id || randomUUID(),
+            accountId: accountChangeRequest.accountId,
             type: accountChangeRequest.type as ParticipantAccountTypes,
             currencyCode: accountChangeRequest.currencyCode,
             creditBalance: null,
@@ -1014,20 +1015,19 @@ export class ParticipantAggregate {
 
         if (!existing.participantAccounts) {
             existing.participantAccounts = [];
-        } else {
-            if (
-                existing.participantAccounts.find(
-                    (value: IParticipantAccounts) =>
-                        value.id === accountChangeRequest.id ||
-                        (value.type === accountChangeRequest.type &&
-                            value.currencyCode === accountChangeRequest.currencyCode)
-                )
-            ) {
-                throw new CannotAddDuplicateAccountError(
-                    "An account with that id, or the same type and currency exists already"
-                );
-            }
-        }
+        } 
+        // else {
+        //     if (
+        //         existing.participantAccounts.find(
+        //             (value: IParticipantAccounts) =>
+        //                 value.id === accountChangeRequest.accountId
+        //         )
+        //     ) {
+        //         throw new CannotAddDuplicateAccountError(
+        //             "An account with that id, or the same type and currency exists already"
+        //         );
+        //     }
+        // }
 
         if (
             (accountChangeRequest.type === "HUB_MULTILATERAL_SETTLEMENT" ||
@@ -1042,26 +1042,33 @@ export class ParticipantAggregate {
             );
         }
 
-        let createdId: string;
-        try {
-            this._accBal.setToken(secCtx.accessToken);
-            createdId = await this._accBal.createAccount(
-                accountChangeRequest.id,
-                participantId,
-                accountChangeRequest.type,
-                accountChangeRequest.currencyCode
-            );
-        } catch (err) {
-            this._logger.error(err);
-            if (err instanceof UnauthorizedError) throw err;
+        //no need update process in account&balance        
+        let accountId: string;
+        if(!accountChangeRequest.accountId)
+        {
+            accountChangeRequest.accountId = randomUUID();
+            try {
+                this._accBal.setToken(secCtx.accessToken);
+                accountId = await this._accBal.createAccount(
+                    accountChangeRequest.accountId,
+                    participantId,
+                    accountChangeRequest.type,
+                    accountChangeRequest.currencyCode
+                );
+            } catch (err) {
+                this._logger.error(err);
+                if (err instanceof UnauthorizedError) throw err;
 
-            throw new UnableToCreateAccountUpstream(
-                `'${existing.name}' account '${accountChangeRequest.type}' failed upstream.`
-            );
+                throw new UnableToCreateAccountUpstream(
+                    `'${existing.name}' account '${accountChangeRequest.type}' failed upstream.`
+                );
+            }
         }
+        else
+            accountId = accountChangeRequest.accountId;
 
         existing.participantAccounts.push({
-            id: createdId,
+            id: accountId,
             type: accountChangeRequest.type as ParticipantAccountTypes,
             currencyCode: accountChangeRequest.currencyCode,
             creditBalance: null,
@@ -1087,7 +1094,7 @@ export class ParticipantAggregate {
         }
 
         this._logger.info(
-            `Successfully added account with id: ${createdId} to Participant with ID: '${participantId}'`
+            `Successfully added account with id: ${accountId} to Participant with ID: '${participantId}'`
         );
 
         await this._auditClient.audit(
@@ -1097,7 +1104,7 @@ export class ParticipantAggregate {
             [{key: "participantId", value: participantId}]
         );
 
-        return createdId;
+        return accountId;
     }
 
     /*async removeParticipantAccount(secCtx: CallSecurityContext, participantId: string, account: ParticipantAccount): Promise<void> {

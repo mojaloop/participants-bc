@@ -190,6 +190,7 @@ export declare class ParticipantAccounts implements IParticipantAccounts{
 
 export declare class ParticipantAccountsChangeRequest implements IParticipantAccountsChangeRequest{
 	id: string;
+	accountId: string | null;
 	type: ParticipantAccountTypes;
 	currencyCode: string;
 	debitBalance: string | null;

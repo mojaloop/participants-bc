@@ -139,6 +139,7 @@ export declare interface IParticipantAccounts {
 
 export declare interface IParticipantAccountsChangeRequest{
 	id: string;
+	accountId: string | null;
 	type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
 	currencyCode: string;
 	debitBalance: string | null;
