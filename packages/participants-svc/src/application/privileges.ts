@@ -59,9 +59,13 @@ export const AppPrivilegesDefinition = [
         labelName: "Manage Participant Endpoints",
         description: "Allows adding and changing participant's endpoint records"
     }, {
-        privId: ParticipantPrivilegeNames.MANAGE_ACCOUNTS,
-        labelName: "Manage Participant Accounts",
+        privId: ParticipantPrivilegeNames.CREATE_ACCOUNTS_CHANGE_REQUEST,
+        labelName: "Create Participant Accounts Change Request",
         description: "Allows adding and changing participant's accounts records"
+    }, {
+        privId: ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST,
+        labelName: "Approve Participant Accounts Change Request",
+        description: "Approves an existing participant's accounts change request"
     }, {
         privId: ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT,
         labelName: "Create deposit funds movement",

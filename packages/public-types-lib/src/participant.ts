@@ -54,7 +54,8 @@ export declare interface IParticipant {
 
   participantAllowedSourceIps: IParticipantAllowedSourceIps[];
   participantEndpoints: IParticipantEndpoint[];
-  participantAccounts: IParticipantAccount[];
+  participantAccounts: IParticipantAccounts[];
+  participantAccountsChangeRequest: IParticipantAccountsChangeRequest[];
 
   fundsMovements: IParticipantFundsMovement[];
   changeLog: IParticipantActivityLogEntry[];
@@ -124,7 +125,7 @@ export declare interface IParticipantEndpoint {
   value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
 }
 
-export declare interface IParticipantAccount {
+export declare interface IParticipantAccounts {
   id: string;                                             // uuid of the account (from the external accounts and balances system)
   type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
   //isActive: boolean                                     //TODO do we need this?
@@ -132,11 +133,29 @@ export declare interface IParticipantAccount {
   debitBalance: string | null;                            // output only, we don't store this here
   creditBalance: string | null;                           // output only, we don't store this here
   balance: string | null;                                 // output only, we don't store this here
+  externalBankAccountId: string | null;
+  externalBankAccountName: string | null;
+}
+
+export declare interface IParticipantAccountsChangeRequest{
+	id: string;
+	type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
+	currencyCode: string;
+	debitBalance: string | null;
+	creditBalance: string | null;
+  balance: string | null;
+	externalBankAccountId: string | null;
+	externalBankAccountName: string | null;    
+	createdBy: string;
+	createdDate: number;
+	approved: boolean;
+	approvedBy: string | null;
+	approvedDate: number | null;
 }
 
 export declare interface IParticipantActivityLogEntry {
   changeType: "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
-      | "ADD_ACCOUNT" | "REMOVE_ACCOUNT"
+      | "CHANGE_ACCOUNT" | "REMOVE_ACCOUNT"
       | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
       | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
       | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";

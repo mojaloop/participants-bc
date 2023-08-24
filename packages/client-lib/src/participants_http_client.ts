@@ -30,7 +30,7 @@
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
     IParticipant,
-    IParticipantAccount,
+    IParticipantAccounts,
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
     UnableToGetParticipantsError,
@@ -181,7 +181,7 @@ export class ParticipantsHttpClient {
     }
 
     // this is the only method that requests updated balances from the Accounts and Balances BC
-    async getParticipantAccountsById(participantId: string): Promise<IParticipantAccount[] | null> {
+    async getParticipantAccountsById(participantId: string): Promise<IParticipantAccounts[] | null> {
         // not cacheable
         try {
             const url = new URL(

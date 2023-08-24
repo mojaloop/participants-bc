@@ -31,15 +31,16 @@
 "use strict";
 
 import express from "express";
-import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import {
     IParticipant,
-    IParticipantAccount,
+    IParticipantAccounts,
+    IParticipantAccountsChangeRequest,
     IParticipantEndpoint,
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
-import {ParticipantAggregate} from "../domain/participant_agg";
+import { ParticipantAggregate } from "../domain/participant_agg";
 
 import {
     InvalidParticipantError,
@@ -49,7 +50,7 @@ import {
     ParticipantNotActive,
     ParticipantNotFoundError,
 } from "../domain/errors";
-import {TokenHelper} from "@mojaloop/security-bc-client-lib";
+import { TokenHelper } from "@mojaloop/security-bc-client-lib";
 import {
     TransferWouldExceedCreditsError,
     TransferWouldExceedDebitsError,
@@ -110,6 +111,7 @@ export class ExpressRoutes {
         // account
         this._mainRouter.get("/participants/:id/accounts", this._accountsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/account", this._participantAccountCreate.bind(this));
+        this._mainRouter.post("/participants/:id/account/:accountChangeRequestId/approve", this._participantAccountApprove.bind(this));
         // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
 
         // funds management
@@ -211,7 +213,7 @@ export class ExpressRoutes {
         return handled;
     }
 
-    private async _getAllParticipants(req: express.Request, res: express.Response):Promise<void> {
+    private async _getAllParticipants(req: express.Request, res: express.Response): Promise<void> {
         const id = req.query.id as string;
         const name = req.query.name as string;
         const state = req.query.state as string;
@@ -245,7 +247,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _getParticipantsByIds(req: express.Request, res: express.Response):Promise<void> {
+    private async _getParticipantsByIds(req: express.Request, res: express.Response): Promise<void> {
         const ids = req.params["ids"] ?? null;
         const idSplit: string[] = ids == null ? [] : ids.split(",");
         this._logger.debug(`Fetching Participant [${ids}].`);
@@ -267,7 +269,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantById(req: express.Request, res: express.Response):Promise<void>{
+    private async _participantById(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         this._logger.debug(`Fetching Participant [${id}].`);
 
@@ -288,7 +290,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantCreate(req: express.Request, res: express.Response):Promise<void>{
+    private async _participantCreate(req: express.Request, res: express.Response): Promise<void> {
         const data: IParticipant = req.body;
         this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
 
@@ -324,7 +326,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantApprove(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantApprove(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const actionNote: string | null = req.body?.note || null;
         this._logger.debug(
@@ -349,7 +351,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _deactivateParticipant(req: express.Request, res: express.Response):Promise<void> {
+    private async _deactivateParticipant(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const actionNote: string | null = req.body?.note || null;
         this._logger.debug(
@@ -374,7 +376,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _activateParticipant(req: express.Request, res: express.Response):Promise<void> {
+    private async _activateParticipant(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const actionNote: string | null = req.body?.note || null;
         this._logger.debug(
@@ -403,7 +405,7 @@ export class ExpressRoutes {
      * Accounts
      * */
 
-    private async _accountsByParticipantId(req: express.Request, res: express.Response):Promise<void> {
+    private async _accountsByParticipantId(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         this._logger.debug(`Fetching Accounts for Participant [${id}].`);
 
@@ -431,15 +433,15 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantAccountCreate(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantAccountCreate(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
-        const data: IParticipantAccount = req.body;
+        const data: IParticipantAccountsChangeRequest = req.body;
         this._logger.debug(
             `Received request to create participant account for participant with ID: ${id}.`
         );
 
         try {
-            const createdId = await this._participantsAgg.addParticipantAccount(
+            const createdId = await this._participantsAgg.createParticipantAccount(
                 req.securityContext!,
                 id,
                 data
@@ -447,6 +449,39 @@ export class ExpressRoutes {
             res.send({
                 id: createdId,
             });
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantAccountApprove(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const accountChangeRequestId = req.params["accountChangeRequestId"] ?? null;
+
+        this._logger.debug(
+            `Received request to approve account change request for participant with ID: ${id} and accountChangeRequestId: ${accountChangeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.approveParticipantAccount(
+                req.securityContext!,
+                id,
+                accountChangeRequestId
+            );
+            res.send();
         } catch (err: any) {
             if (this._handleUnauthorizedError(err, res)) return;
 
@@ -488,7 +523,7 @@ export class ExpressRoutes {
      * Endpoints
      * */
 
-    private async _endpointsByParticipantId(req: express.Request, res: express.Response):Promise<void> {
+    private async _endpointsByParticipantId(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
 
         this._logger.debug(`Fetching Endpoints for Participant [${id}].`);
@@ -517,7 +552,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantEndpointCreate(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantEndpointCreate(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const data: IParticipantEndpoint = req.body;
         this._logger.debug(
@@ -544,7 +579,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantEndpointChange(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantEndpointChange(req: express.Request, res: express.Response): Promise<void> {
         const participantId = req.params["id"] ?? null;
         const endpointId = req.params["endpointId"] ?? null;
         const data: IParticipantEndpoint = req.body;
@@ -586,7 +621,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantEndpointDelete(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantEndpointDelete(req: express.Request, res: express.Response): Promise<void> {
         const participantId = req.params["id"] ?? null;
         const endpointId = req.params["endpointId"] ?? null;
 
@@ -616,7 +651,7 @@ export class ExpressRoutes {
      * Funds management
      * */
 
-    private async _participantFundsMovCreate(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantFundsMovCreate(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const fundsMov: IParticipantFundsMovement = req.body;
 
@@ -651,7 +686,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantFundsMovApprove(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantFundsMovApprove(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const fundsMovId = req.params["fundsMovId"] ?? null;
 
@@ -694,7 +729,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantNetDebitCapCreate(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantNetDebitCapCreate(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const netDebitCapChangeRequest: IParticipantNetDebitCapChangeRequest = req.body;
 
@@ -729,7 +764,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantNetDebitCapApprove(req: express.Request, res: express.Response):Promise<void> {
+    private async _participantNetDebitCapApprove(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const ndcReqId = req.params["ndcReqId"] ?? null;
 
