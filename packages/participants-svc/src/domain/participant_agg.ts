@@ -32,12 +32,12 @@
 import {
     AccountsAndBalancesAccountType,
 } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
-import {IMetrics,IHistogram} from "@mojaloop/platform-shared-lib-observability-types-lib";
+import { IMetrics, IHistogram } from "@mojaloop/platform-shared-lib-observability-types-lib";
 import {
     AuditSecurityContext,
     IAuditClient,
 } from "@mojaloop/auditing-bc-public-types-lib";
-import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import {
     IParticipant,
     IParticipantAccounts,
@@ -48,8 +48,8 @@ import {
 
     IParticipantNetDebitCapChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
-import {SettlementMatrixSettledEvt} from "@mojaloop/platform-shared-lib-public-messages-lib";
-import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
+import { SettlementMatrixSettledEvt } from "@mojaloop/platform-shared-lib-public-messages-lib";
+import { Currency, IConfigurationClient } from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {
     ForbiddenError,
     IAuthorizationClient,
@@ -57,7 +57,7 @@ import {
     UnauthorizedError,
     CallSecurityContext,
 } from "@mojaloop/security-bc-public-types-lib";
-import {randomUUID} from "crypto";
+import { randomUUID } from "crypto";
 import {
     ParticipantAccountTypes,
     ParticipantChangeTypes,
@@ -88,9 +88,9 @@ import {
     ParticipantNotFoundError,
     UnableToCreateAccountUpstream,
 } from "./errors";
-import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
-import {ParticipantPrivilegeNames} from "./privilege_names";
-import {IParticipantsRepository} from "./repo_interfaces";
+import { IAccountsBalancesAdapter } from "./iparticipant_account_balances_adapter";
+import { ParticipantPrivilegeNames } from "./privilege_names";
+import { IParticipantsRepository } from "./repo_interfaces";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -165,7 +165,7 @@ export class ParticipantAggregate {
 
         this._configClient.setChangeHandlerFunction(async (type: "BC" | "GLOBAL") => {
             // configurations changed centrally, reload what needs reloading
-            if(type ==="GLOBAL"){
+            if (type === "GLOBAL") {
                 this._currencyList = this._configClient.globalConfigs.getCurrencies();
             }
         });
@@ -275,7 +275,7 @@ export class ParticipantAggregate {
                 role: userAndRole,
                 appId: this._configClient.applicationName,
             },
-            [{key: "participantId", value: hubParticipant.id}]
+            [{ key: "participantId", value: hubParticipant.id }]
         );
 
         await this._auditClient.audit(
@@ -286,7 +286,7 @@ export class ParticipantAggregate {
                 role: "(system)",
                 appId: "participants-svc",
             },
-            [{key: "participantId", value: hubParticipant.id}]
+            [{ key: "participantId", value: hubParticipant.id }]
         );
 
         this._logger.info(
@@ -338,19 +338,19 @@ export class ParticipantAggregate {
     async getAllParticipants(secCtx: CallSecurityContext): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const timerEndFn = this._requestsHisto.startTimer({callName: "getAllParticipants"});
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllParticipants" });
 
         const list: IParticipant[] | null = await this._repo.fetchAll();
         list.forEach(this._applyDefaultSorts);
 
-        timerEndFn({success: "true"});
+        timerEndFn({ success: "true" });
         return list;
     }
 
     async searchParticipants(secCtx: CallSecurityContext, id: string, name: string, state: string): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const timerEndFn = this._requestsHisto.startTimer({callName: "searchParticipants"});
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "searchParticipants" });
 
         const list: IParticipant[] = await this._repo.searchParticipants(
             id,
@@ -358,7 +358,7 @@ export class ParticipantAggregate {
             state
         );
         list.forEach(this._applyDefaultSorts);
-        timerEndFn({success: "true"});
+        timerEndFn({ success: "true" });
 
         return list;
     }
@@ -366,7 +366,7 @@ export class ParticipantAggregate {
     async getParticipantById(secCtx: CallSecurityContext, id: string): Promise<IParticipant> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const timerEndFn = this._requestsHisto.startTimer({callName: "getParticipantById"});
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getParticipantById" });
         const part: IParticipant | null = await this._repo.fetchWhereId(id);
         if (part == null)
             throw new ParticipantNotFoundError(
@@ -374,7 +374,7 @@ export class ParticipantAggregate {
             );
 
         this._applyDefaultSorts(part);
-        timerEndFn({success: "true"});
+        timerEndFn({ success: "true" });
 
         return part;
     }
@@ -382,7 +382,7 @@ export class ParticipantAggregate {
     async getParticipantsByIds(secCtx: CallSecurityContext, ids: string[]): Promise<IParticipant[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const timerEndFn = this._requestsHisto.startTimer({callName: "getParticipantsByIds"});
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getParticipantsByIds" });
         const parts: IParticipant[] = await this._repo.fetchWhereIds(ids);
         if (parts.length == 0)
             throw new ParticipantNotFoundError(
@@ -390,7 +390,7 @@ export class ParticipantAggregate {
             );
 
         parts.forEach(this._applyDefaultSorts);
-        timerEndFn({success: "true"});
+        timerEndFn({ success: "true" });
 
         return parts;
     }
@@ -493,7 +493,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_CREATED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: createdParticipant.id}]
+            [{ key: "participantId", value: createdParticipant.id }]
         );
 
         this._logger.info(
@@ -530,7 +530,7 @@ export class ParticipantAggregate {
                 AuditedActionNames.PARTICIPANT_APPROVED,
                 false,
                 this._getAuditSecCtx(secCtx),
-                [{key: "participantId", value: participantId}]
+                [{ key: "participantId", value: participantId }]
             );
             throw new MakerCheckerViolationError(
                 "Maker check violation - Same user cannot create and approve a participant"
@@ -558,7 +558,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_APPROVED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         this._logger.info(
@@ -611,7 +611,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_ENABLED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         this._logger.info(
@@ -663,7 +663,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_DISABLED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         this._logger.info(
@@ -733,7 +733,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_ENDPOINT_ADDED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         return endpoint.id;
@@ -797,7 +797,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_ENDPOINT_CHANGED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
     }
 
@@ -855,7 +855,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_ENDPOINT_REMOVED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
     }
 
@@ -902,7 +902,7 @@ export class ParticipantAggregate {
         if (!existing.participantAccountsChangeRequest) {
             existing.participantAccountsChangeRequest = [];
         }
-        
+
         if (
             (accountChangeRequest.type === "HUB_MULTILATERAL_SETTLEMENT" ||
                 accountChangeRequest.type === "HUB_RECONCILIATION") &&
@@ -915,7 +915,7 @@ export class ParticipantAggregate {
                 "Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION"
             );
         }
-        
+
         existing.participantAccountsChangeRequest.push({
             id: accountChangeRequest.id || randomUUID(),
             accountId: accountChangeRequest.accountId,
@@ -956,7 +956,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_ACCOUNT_CHANGE_REQUEST_CREATED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         return accountChangeRequest.id;
@@ -1006,7 +1006,7 @@ export class ParticipantAggregate {
                 ParticipantChangeTypes.CHANGE_ACCOUNT,
                 false,
                 this._getAuditSecCtx(secCtx),
-                [{key: "participantId", value: participantId}]
+                [{ key: "participantId", value: participantId }]
             );
             throw new MakerCheckerViolationError(
                 "Maker check violation - Same user cannot create and approve participant account change request"
@@ -1015,7 +1015,7 @@ export class ParticipantAggregate {
 
         if (!existing.participantAccounts) {
             existing.participantAccounts = [];
-        } 
+        }
         // else {
         //     if (
         //         existing.participantAccounts.find(
@@ -1044,8 +1044,7 @@ export class ParticipantAggregate {
 
         //no need update process in account&balance        
         let accountId: string;
-        if(!accountChangeRequest.accountId)
-        {
+        if (!accountChangeRequest.accountId) {
             accountChangeRequest.accountId = randomUUID();
             try {
                 this._accBal.setToken(secCtx.accessToken);
@@ -1063,20 +1062,34 @@ export class ParticipantAggregate {
                     `'${existing.name}' account '${accountChangeRequest.type}' failed upstream.`
                 );
             }
+
+            existing.participantAccounts.push({
+                id: accountId,
+                type: accountChangeRequest.type as ParticipantAccountTypes,
+                currencyCode: accountChangeRequest.currencyCode,
+                creditBalance: null,
+                debitBalance: null,
+                balance: null,
+                externalBankAccountId: accountChangeRequest.externalBankAccountId,
+                externalBankAccountName: accountChangeRequest.externalBankAccountName
+            });
         }
-        else
+        else {
             accountId = accountChangeRequest.accountId;
 
-        existing.participantAccounts.push({
-            id: accountId,
-            type: accountChangeRequest.type as ParticipantAccountTypes,
-            currencyCode: accountChangeRequest.currencyCode,
-            creditBalance: null,
-            debitBalance: null,
-            balance: null,
-            externalBankAccountId: accountChangeRequest.externalBankAccountId,
-            externalBankAccountName: accountChangeRequest.externalBankAccountName
-        });
+            existing.participantAccounts.map((account) => {
+                if (account.id == accountId) {
+                    account.externalBankAccountId = accountChangeRequest.externalBankAccountId,
+                        account.externalBankAccountName = accountChangeRequest.externalBankAccountName
+                }
+            })
+            
+        }
+
+        accountChangeRequest.approved = true;
+        accountChangeRequest.approvedBy = secCtx.username;
+        accountChangeRequest.approvedDate = Date.now();
+        
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.CHANGE_ACCOUNT,
             user: secCtx.username!,
@@ -1101,7 +1114,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_ACCOUNT_CHANGE_REQUEST_APPROVED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         return accountId;
@@ -1127,10 +1140,10 @@ export class ParticipantAggregate {
     async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantAccounts[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        const timerEndFn = this._requestsHisto.startTimer({callName: "getParticipantAccountsById"});
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getParticipantAccountsById" });
         const existing: IParticipant | null = await this._repo.fetchWhereId(id);
         if (!existing) {
-            timerEndFn({success: "false"});
+            timerEndFn({ success: "false" });
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${id}' not found.`
             );
@@ -1150,7 +1163,7 @@ export class ParticipantAggregate {
                     existing.id
                 );
                 this._logger.error(err);
-                timerEndFn({success: "false"});
+                timerEndFn({ success: "false" });
                 throw err;
             }
 
@@ -1163,7 +1176,7 @@ export class ParticipantAggregate {
                 pacc.balance = jAcc.balance || null;
             }
         }
-        timerEndFn({success: "true"});
+        timerEndFn({ success: "true" });
 
         return participantAccounts;
     }
@@ -1250,7 +1263,7 @@ export class ParticipantAggregate {
                 : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_CREATED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         return;
@@ -1297,7 +1310,7 @@ export class ParticipantAggregate {
                     : "FUNDS_WITHDRAWAL",
                 false,
                 this._getAuditSecCtx(secCtx),
-                [{key: "participantId", value: participantId}]
+                [{ key: "participantId", value: participantId }]
             );
             throw new MakerCheckerViolationError(
                 "Maker check violation - Same user cannot create and approve participant a funds movement"
@@ -1375,7 +1388,7 @@ export class ParticipantAggregate {
                 : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         return;
@@ -1449,14 +1462,14 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_CREATED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         return;
     }
 
 
-    private _calculateParticipantPercentageNetDebitCap(ndcFixed:number, ndcPercentage:number|null, liqAccBalance:number, type:"ABSOLUTE" | "PERCENTAGE"):number {
+    private _calculateParticipantPercentageNetDebitCap(ndcFixed: number, ndcPercentage: number | null, liqAccBalance: number, type: "ABSOLUTE" | "PERCENTAGE"): number {
         let finalNDCAmount: number;
         if (type === ParticipantNetDebitCapTypes.ABSOLUTE && ndcFixed !== null) {
             finalNDCAmount = Math.max(ndcFixed, 0); // min is 0
@@ -1507,7 +1520,7 @@ export class ParticipantAggregate {
                 AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED,
                 false,
                 this._getAuditSecCtx(secCtx),
-                [{key: "participantId", value: participantId}]
+                [{ key: "participantId", value: participantId }]
             );
             throw new MakerCheckerViolationError(
                 "Maker check violation - Same user cannot create and approve participant a NDC change request"
@@ -1589,7 +1602,7 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "participantId", value: participantId}]
+            [{ key: "participantId", value: participantId }]
         );
 
         return;
@@ -1602,23 +1615,23 @@ export class ParticipantAggregate {
      * @param secCtx
      * @param msg SettlementMatrixSettledEvt
      */
-    async handleSettlementMatrixSettledEvt(secCtx: CallSecurityContext, msg: SettlementMatrixSettledEvt):Promise<void>{
+    async handleSettlementMatrixSettledEvt(secCtx: CallSecurityContext, msg: SettlementMatrixSettledEvt): Promise<void> {
         // this is an internall call, triggerd by the event handler, we use secCtx for audit
         //this._enforcePrivilege( secCtx, ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST);
 
-        if(!msg.payload || !msg.payload.participantList || !msg.payload.participantList.length){
+        if (!msg.payload || !msg.payload.participantList || !msg.payload.participantList.length) {
             const error = new Error("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             throw error;
         }
 
-        const retParticipantsNotFoundError = (): Error=>{
+        const retParticipantsNotFoundError = (): Error => {
             const error = new Error("Could not get all participants for handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             return error;
         };
 
-        const retParticipantAccountNotFoundError = (): Error =>{
+        const retParticipantAccountNotFoundError = (): Error => {
             const error = new Error("Could not get all participants' accounts for handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             return error;
@@ -1626,11 +1639,11 @@ export class ParticipantAggregate {
 
         const participantIds = msg.payload.participantList.flatMap(msg => msg.participantId);
         const participants = await this._repo.fetchWhereIds(participantIds);
-        if(!participants || participants.length !== msg.payload.participantList.length){
+        if (!participants || participants.length !== msg.payload.participantList.length) {
             throw retParticipantsNotFoundError();
         }
 
-        const ledgerEntriesToCreate:{
+        const ledgerEntriesToCreate: {
             requestedId: string,
             ownerId: string,
             currencyCode: string,
@@ -1640,22 +1653,22 @@ export class ParticipantAggregate {
             creditedAccountId: string
         }[] = [];
 
-        for(const participantItem of msg.payload.participantList){
+        for (const participantItem of msg.payload.participantList) {
             const participant = participants.find(participant => participant.id === participantItem.participantId);
-            if(!participant) throw retParticipantsNotFoundError();
+            if (!participant) throw retParticipantsNotFoundError();
 
             const liqAcc = participant.participantAccounts?.find(
-                (acc)=>acc.type==="SETTLEMENT" && acc.currencyCode===participantItem.currencyCode
+                (acc) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
             );
 
             const posAcc = participant.participantAccounts?.find(
-                (acc)=>acc.type==="POSITION" && acc.currencyCode===participantItem.currencyCode
+                (acc) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
             );
 
-            if(!liqAcc || ! posAcc) throw retParticipantAccountNotFoundError();
+            if (!liqAcc || !posAcc) throw retParticipantAccountNotFoundError();
 
             // if we got a credit -> credit liquidity and debit position
-            if(Number(participantItem.settledCreditBalance) > 0){
+            if (Number(participantItem.settledCreditBalance) > 0) {
                 ledgerEntriesToCreate.push({
                     requestedId: randomUUID(),
                     ownerId: msg.payload.settlementMatrixId,
@@ -1668,7 +1681,7 @@ export class ParticipantAggregate {
             }
 
             // if we got a debit -> debit liquidity and credit position
-            if(Number(participantItem.settledDebitBalance) > 0){
+            if (Number(participantItem.settledDebitBalance) > 0) {
                 ledgerEntriesToCreate.push({
                     requestedId: randomUUID(),
                     ownerId: msg.payload.settlementMatrixId,
@@ -1681,7 +1694,7 @@ export class ParticipantAggregate {
             }
         }
 
-        if(ledgerEntriesToCreate.length == 0){
+        if (ledgerEntriesToCreate.length == 0) {
             const error = new Error("Empty list of ledger entries to create in handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             throw error;
@@ -1689,7 +1702,7 @@ export class ParticipantAggregate {
 
         const respIds = await this._accBal.createJournalEntries(ledgerEntriesToCreate);
 
-        if(respIds.length !==ledgerEntriesToCreate.length){
+        if (respIds.length !== ledgerEntriesToCreate.length) {
             const error = new Error("List of created ledger entries ids, doesn't match request to create in handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             throw error;
@@ -1701,29 +1714,29 @@ export class ParticipantAggregate {
             AuditedActionNames.PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT,
             true,
             this._getAuditSecCtx(secCtx),
-            [{key: "settlementMatrixId", value: msg.payload.settlementMatrixId}]
+            [{ key: "settlementMatrixId", value: msg.payload.settlementMatrixId }]
         );
 
         await this._updateNdcForParticipants(participants, "SettlementMatrixSettledEvt Processing");
     }
 
-    private async _updateNdcForParticipants(participants:IParticipant[], reason:string ):Promise<void>{
+    private async _updateNdcForParticipants(participants: IParticipant[], reason: string): Promise<void> {
         const now = Date.now();
 
-        for(const participant of participants){
-            if(!participant.netDebitCaps || participant.netDebitCaps.length<=0) continue;
+        for (const participant of participants) {
+            if (!participant.netDebitCaps || participant.netDebitCaps.length <= 0) continue;
 
             let changed = false;
 
-            for(const ndcDefinition of participant.netDebitCaps){
+            for (const ndcDefinition of participant.netDebitCaps) {
                 const partAccount = participant.participantAccounts.find(
                     item => item.type === "SETTLEMENT" && item.currencyCode === ndcDefinition.currencyCode
                 );
-                if(!partAccount){
+                if (!partAccount) {
                     throw new Error(`Cannot get settlement account for participant with id: ${participant.id} and currency: ${ndcDefinition.currencyCode} for _updateNdcForParticipants()`);
                 }
                 const abAccount = await this._accBal.getAccount(partAccount.id);
-                if(!abAccount){
+                if (!abAccount) {
                     throw new Error(`Cannot get participant account with id: ${partAccount.id} from accounts and balaces for _updateNdcForParticipants()`);
                 }
 
@@ -1736,13 +1749,13 @@ export class ParticipantAggregate {
                 changed = true;
             }
 
-            if(!changed) continue;
+            if (!changed) continue;
 
             participant.changeLog.push({
                 changeType: ParticipantChangeTypes.NDC_RECALCULATED,
                 user: "(n/a)",
                 timestamp: now,
-                notes: "NDC recalculated - for: "+ reason,
+                notes: "NDC recalculated - for: " + reason,
             });
 
             await this._repo.store(participant);
