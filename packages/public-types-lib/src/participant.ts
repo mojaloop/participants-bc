@@ -54,8 +54,8 @@ export declare interface IParticipant {
 
   participantAllowedSourceIps: IParticipantAllowedSourceIps[];
   participantEndpoints: IParticipantEndpoint[];
-  participantAccounts: IParticipantAccounts[];
-  participantAccountsChangeRequest: IParticipantAccountsChangeRequest[];
+  participantAccounts: IParticipantAccount[];
+  participantAccountsChangeRequest: IParticipantAccountChangeRequest[];
 
   fundsMovements: IParticipantFundsMovement[];
   changeLog: IParticipantActivityLogEntry[];
@@ -125,7 +125,7 @@ export declare interface IParticipantEndpoint {
   value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
 }
 
-export declare interface IParticipantAccounts {
+export declare interface IParticipantAccount {
   id: string;                                             // uuid of the account (from the external accounts and balances system)
   type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
   //isActive: boolean                                     //TODO do we need this?
@@ -137,14 +137,11 @@ export declare interface IParticipantAccounts {
   externalBankAccountName: string | null;
 }
 
-export declare interface IParticipantAccountsChangeRequest{
+export declare interface IParticipantAccountChangeRequest{
 	id: string;
 	accountId: string | null;
 	type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
 	currencyCode: string;
-	debitBalance: string | null;
-	creditBalance: string | null;
-  balance: string | null;
 	externalBankAccountId: string | null;
 	externalBankAccountName: string | null;    
 	createdBy: string;
@@ -156,7 +153,7 @@ export declare interface IParticipantAccountsChangeRequest{
 
 export declare interface IParticipantActivityLogEntry {
   changeType: "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
-      | "CHANGE_ACCOUNT" | "REMOVE_ACCOUNT"
+      | "ADD_ACCOUNT" | "REMOVE_ACCOUNT" | "CHANGE_ACCOUNT"
       | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
       | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
       | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";

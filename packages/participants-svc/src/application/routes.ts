@@ -34,8 +34,8 @@ import express from "express";
 import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import {
     IParticipant,
-    IParticipantAccounts,
-    IParticipantAccountsChangeRequest,
+    IParticipantAccount,
+    IParticipantAccountChangeRequest,
     IParticipantEndpoint,
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
@@ -110,8 +110,8 @@ export class ExpressRoutes {
 
         // account
         this._mainRouter.get("/participants/:id/accounts", this._accountsByParticipantId.bind(this));
-        this._mainRouter.post("/participants/:id/account", this._participantAccountCreate.bind(this));
-        this._mainRouter.post("/participants/:id/account/:accountChangeRequestId/approve", this._participantAccountApprove.bind(this));
+        this._mainRouter.post("/participants/:id/accountChangeRequest", this._participantAccountCreate.bind(this));
+        this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/approve", this._participantAccountApprove.bind(this));
         // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
 
         // funds management
@@ -122,7 +122,7 @@ export class ExpressRoutes {
         );
 
         // net debit cap management
-        this._mainRouter.post("/participants/:id/ndcchangerequests", this._participantNetDebitCapCreate.bind(this));
+        this._mainRouter.post("/participants/:id/ndcChangeRequests", this._participantNetDebitCapCreate.bind(this));
         this._mainRouter.post(
             "/participants/:id/ndcchangerequests/:ndcReqId/approve",
             this._participantNetDebitCapApprove.bind(this)
@@ -435,7 +435,7 @@ export class ExpressRoutes {
 
     private async _participantAccountCreate(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
-        const data: IParticipantAccountsChangeRequest = req.body;
+        const data: IParticipantAccountChangeRequest = req.body;
         this._logger.debug(
             `Received request to create participant account for participant with ID: ${id}.`
         );

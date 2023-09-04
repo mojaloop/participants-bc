@@ -40,6 +40,8 @@ export class EndpointNotFoundError extends Error {}
 
 export class CannotAddDuplicateAccountError extends Error {}
 export class AccountNotFoundError extends Error {}
+export class AccountChangeRequestNotFound extends Error {}
+export class AccountChangeRequestAlreadyApproved extends Error {}
 export class InvalidAccountError extends Error {}
 
 // export class EndpointTypeExistsError extends Error {}

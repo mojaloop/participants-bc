@@ -32,8 +32,8 @@
 
 import {
     IParticipant,
-    IParticipantAccounts,
-    IParticipantAccountsChangeRequest,
+    IParticipantAccount,
+    IParticipantAccountChangeRequest,
     IParticipantActivityLogEntry,
     IParticipantAllowedSourceIps,
     IParticipantEndpoint,
@@ -70,8 +70,8 @@ export class Participant implements IParticipant {
 
 	participantAllowedSourceIps: ParticipantAllowedSourceIps[];
 	participantEndpoints: ParticipantEndpoint[];
-	participantAccounts: ParticipantAccounts[];
-	participantAccountsChangeRequest: ParticipantAccountsChangeRequest[];
+	participantAccounts: ParticipantAccount[];
+	participantAccountsChangeRequest: ParticipantAccountChangeRequest[];
 
 	fundsMovements: ParticipantFundsMovement[];
 	changeLog: ParticipantActivityLogEntry[];
@@ -176,26 +176,23 @@ export declare class ParticipantEndpoint implements IParticipantEndpoint{
 }
 
 
-export declare class ParticipantAccounts implements IParticipantAccounts{
+export declare class ParticipantAccount implements IParticipantAccount{
 	id: string;                                             // uuid of the account (from the external accounts and balances system)
 	type: ParticipantAccountTypes;
 	//isActive: boolean                                     //TODO do we need this?
 	currencyCode: string;                                   //TODO move
-	debitBalance: string | null;                                  // output only, we don't store this here
-	creditBalance: string | null;                                 // output only, we don't store this here
-    balance: string | null;
+	debitBalance: string | null;                            // output only, we don't store this here
+	creditBalance: string | null;                           // output only, we don't store this here
+    balance: string | null;									// output only, we don't store this here
 	externalBankAccountId: string | null;
-	externalBankAccountName: string | null;                                 // output only, we don't store this here
+	externalBankAccountName: string | null;                                 
 }
 
-export declare class ParticipantAccountsChangeRequest implements IParticipantAccountsChangeRequest{
+export declare class ParticipantAccountChangeRequest implements IParticipantAccountChangeRequest{
 	id: string;
 	accountId: string | null;
 	type: ParticipantAccountTypes;
 	currencyCode: string;
-	debitBalance: string | null;
-	creditBalance: string | null;
-    balance: string | null;
 	externalBankAccountId: string | null;
 	externalBankAccountName: string | null;    
 	createdBy: string;

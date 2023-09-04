@@ -40,8 +40,8 @@ import {
 import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import {
     IParticipant,
-    IParticipantAccounts,
-    IParticipantAccountsChangeRequest,
+    IParticipantAccount,
+    IParticipantAccountChangeRequest,
     IParticipantActivityLogEntry,
     IParticipantEndpoint,
     IParticipantFundsMovement,
@@ -69,12 +69,14 @@ import {
 } from "./entities/enums";
 import {
     Participant,
-    ParticipantAccounts,
+    ParticipantAccount,
     ParticipantEndpoint,
     ParticipantNetDebitCap,
 } from "./entities/participant";
 
 import {
+    AccountChangeRequestAlreadyApproved,
+    AccountChangeRequestNotFound,
     AccountNotFoundError,
     CannotAddDuplicateAccountError,
     CannotAddDuplicateEndpointError,
@@ -91,6 +93,7 @@ import {
 import { IAccountsBalancesAdapter } from "./iparticipant_account_balances_adapter";
 import { ParticipantPrivilegeNames } from "./privilege_names";
 import { IParticipantsRepository } from "./repo_interfaces";
+import { validateHeaderValue } from "http";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -190,7 +193,7 @@ export class ParticipantAggregate {
         for (const currency of this._currencyList) {
             // Hub Multilateral Net Settlement (HMLNS) account
             // participant account
-            const participantHMLNSAccount: ParticipantAccounts = {
+            const participantHMLNSAccount: ParticipantAccount = {
                 id: randomUUID(),
                 type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
                 currencyCode: currency.code,
@@ -226,7 +229,7 @@ export class ParticipantAggregate {
 
             // Hub Reconciliation account
             // participant account record (minimal
-            const participantReconAccount: ParticipantAccounts = {
+            const participantReconAccount: ParticipantAccount = {
                 id: randomUUID(),
                 type: ParticipantAccountTypes.HUB_RECONCILIATION,
                 currencyCode: currency.code,
@@ -247,7 +250,7 @@ export class ParticipantAggregate {
                 );
                 hubParticipant.participantAccounts.push(participantReconAccount);
                 hubParticipant.changeLog.push({
-                    changeType: ParticipantChangeTypes.CHANGE_ACCOUNT,
+                    changeType: ParticipantChangeTypes.ADD_ACCOUNT,
                     user: "(system)",
                     timestamp: hubParticipant.createdDate,
                     notes: `(participants-svc bootstrap routine added Reconciliation account for: ${currency})`,
@@ -878,9 +881,12 @@ export class ParticipantAggregate {
     async createParticipantAccount(
         secCtx: CallSecurityContext,
         participantId: string,
-        accountChangeRequest: IParticipantAccountsChangeRequest
+        accountChangeRequest: IParticipantAccountChangeRequest
     ): Promise<string> {
-        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_ACCOUNTS_CHANGE_REQUEST);
+        if(!accountChangeRequest.accountId)
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CHANGE_PARTICIPANT_ACCOUNT_BANK_DETAILS);
+        else 
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_ACCOUNT);
 
         if (!participantId)
             throw new InvalidParticipantError("[id] cannot be empty");
@@ -921,9 +927,6 @@ export class ParticipantAggregate {
             accountId: accountChangeRequest.accountId,
             type: accountChangeRequest.type as ParticipantAccountTypes,
             currencyCode: accountChangeRequest.currencyCode,
-            creditBalance: null,
-            debitBalance: null,
-            balance: null,
             externalBankAccountId: accountChangeRequest.externalBankAccountId,
             externalBankAccountName: accountChangeRequest.externalBankAccountName,
             createdBy: secCtx.username!,
@@ -933,7 +936,7 @@ export class ParticipantAggregate {
             approvedDate: null
         });
         existing.changeLog.push({
-            changeType: ParticipantChangeTypes.CHANGE_ACCOUNT,
+            changeType: ParticipantChangeTypes.ADD_ACCOUNT,
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -982,15 +985,15 @@ export class ParticipantAggregate {
         // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
 
         const accountChangeRequest = existing.participantAccountsChangeRequest.find(
-            (value: IParticipantAccountsChangeRequest) => value.id === accountChangeRequestId
+            (value: IParticipantAccountChangeRequest) => value.id === accountChangeRequestId
         );
         if (!accountChangeRequest) {
-            throw new AccountNotFoundError(
+            throw new AccountChangeRequestNotFound(
                 `Cannot find a participant's account change request with id: ${accountChangeRequestId}`
             );
         }
         if (accountChangeRequest.approved) {
-            throw new AccountNotFoundError(
+            throw new AccountChangeRequestAlreadyApproved(
                 `Participant's account change request with id: ${accountChangeRequestId} is already approved`
             );
         }
@@ -1003,7 +1006,7 @@ export class ParticipantAggregate {
 
         if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
             await this._auditClient.audit(
-                ParticipantChangeTypes.CHANGE_ACCOUNT,
+                ParticipantChangeTypes.ADD_ACCOUNT,
                 false,
                 this._getAuditSecCtx(secCtx),
                 [{ key: "participantId", value: participantId }]
@@ -1016,18 +1019,19 @@ export class ParticipantAggregate {
         if (!existing.participantAccounts) {
             existing.participantAccounts = [];
         }
-        // else {
-        //     if (
-        //         existing.participantAccounts.find(
-        //             (value: IParticipantAccounts) =>
-        //                 value.id === accountChangeRequest.accountId
-        //         )
-        //     ) {
-        //         throw new CannotAddDuplicateAccountError(
-        //             "An account with that id, or the same type and currency exists already"
-        //         );
-        //     }
-        // }
+        else {
+            if ( accountChangeRequest.accountId == null &&
+                existing.participantAccounts.find(
+                    (value: IParticipantAccount) =>
+                        value.type === accountChangeRequest.type &&
+                        value.currencyCode === accountChangeRequest.currencyCode
+                ) 
+            ) {
+                throw new CannotAddDuplicateAccountError(
+                    "An account with that id, or the same type and currency exists already"
+                );
+            }
+        }
 
         if (
             (accountChangeRequest.type === "HUB_MULTILATERAL_SETTLEMENT" ||
@@ -1091,7 +1095,7 @@ export class ParticipantAggregate {
         accountChangeRequest.approvedDate = Date.now();
         
         existing.changeLog.push({
-            changeType: ParticipantChangeTypes.CHANGE_ACCOUNT,
+            changeType: ParticipantChangeTypes.ADD_ACCOUNT,
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -1137,7 +1141,7 @@ export class ParticipantAggregate {
           );
       }*/
 
-    async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantAccounts[]> {
+    async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantAccount[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
         const timerEndFn = this._requestsHisto.startTimer({ callName: "getParticipantAccountsById" });
@@ -1154,7 +1158,7 @@ export class ParticipantAggregate {
             // Obtain the most recent account balances:
             this._accBal.setToken(secCtx.accessToken);
             const accBalAccounts = await this._accBal.getAccounts(
-                participantAccounts.map((value: IParticipantAccounts) => value.id)
+                participantAccounts.map((value: IParticipantAccount) => value.id)
             );
 
             if (!accBalAccounts) {
@@ -1212,7 +1216,7 @@ export class ParticipantAggregate {
             );
 
         const settlementAccount = participant.participantAccounts.find(
-            (value: IParticipantAccounts) =>
+            (value: IParticipantAccount) =>
                 value.currencyCode === fundsMov.currencyCode &&
                 value.type === "SETTLEMENT"
         );
@@ -1222,7 +1226,7 @@ export class ParticipantAggregate {
             );
         }
         const hubReconAccount = hub.participantAccounts.find(
-            (value: IParticipantAccounts) =>
+            (value: IParticipantAccount) =>
                 value.currencyCode === fundsMov.currencyCode &&
                 value.type === "HUB_RECONCILIATION"
         );
@@ -1320,7 +1324,7 @@ export class ParticipantAggregate {
         // find accounts
         const hub = await this._getHub();
         const hubReconAccount = hub.participantAccounts.find(
-            (value: IParticipantAccounts) =>
+            (value: IParticipantAccount) =>
                 value.currencyCode === fundsMov.currencyCode &&
                 value.type === "HUB_RECONCILIATION"
         );
@@ -1330,7 +1334,7 @@ export class ParticipantAggregate {
             );
         }
         const positionAccount = participant.participantAccounts.find(
-            (value: IParticipantAccounts) =>
+            (value: IParticipantAccount) =>
                 value.currencyCode === fundsMov.currencyCode &&
                 value.type === "SETTLEMENT"
         );
@@ -1422,7 +1426,7 @@ export class ParticipantAggregate {
             );
 
         const settlementAccount = participant.participantAccounts.find(
-            (value: IParticipantAccounts) =>
+            (value: IParticipantAccount) =>
                 value.currencyCode === netDebitCapChangeRequest.currencyCode &&
                 value.type === "SETTLEMENT"
         );
@@ -1529,7 +1533,7 @@ export class ParticipantAggregate {
 
         // find accounts
         const settlementAccount = participant.participantAccounts.find(
-            (value: IParticipantAccounts) =>
+            (value: IParticipantAccount) =>
                 value.currencyCode === netDebitCapChange.currencyCode &&
                 value.type === "SETTLEMENT"
         );
