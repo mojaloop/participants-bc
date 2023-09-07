@@ -469,7 +469,7 @@ export class ExpressRoutes {
 
     private async _participantAccountApprove(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
-        const accountChangeRequestId = req.params["accountChangeRequestId"] ?? null;
+        const accountChangeRequestId = req.params["changereqid"] ?? null;
 
         this._logger.debug(
             `Received request to approve account change request for participant with ID: ${id} and accountChangeRequestId: ${accountChangeRequestId}`
