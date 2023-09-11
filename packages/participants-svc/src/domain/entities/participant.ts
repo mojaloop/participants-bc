@@ -68,13 +68,13 @@ export class Participant implements IParticipant {
 
 	lastUpdated: number;
 
-	participantAllowedSourceIps: ParticipantAllowedSourceIps[];
-	participantEndpoints: ParticipantEndpoint[];
-	participantAccounts: ParticipantAccount[];
-	participantAccountsChangeRequest: ParticipantAccountChangeRequest[];
+	participantAllowedSourceIps: IParticipantAllowedSourceIps[];
+	participantEndpoints: IParticipantEndpoint[];
+	participantAccounts: IParticipantAccount[];
+	participantAccountsChangeRequest: IParticipantAccountChangeRequest[];
 
-	fundsMovements: ParticipantFundsMovement[];
-	changeLog: ParticipantActivityLogEntry[];
+	fundsMovements: IParticipantFundsMovement[];
+	changeLog: IParticipantActivityLogEntry[];
 
     netDebitCaps: IParticipantNetDebitCap[];
     netDebitCapChangeRequests: IParticipantNetDebitCapChangeRequest[];
@@ -111,6 +111,11 @@ export class Participant implements IParticipant {
 		return hub;
 	}
 }
+
+
+/*
+// these types below are all unnecessary since they are dumb objects that simply
+// implement the interfaces, might as well just use the interfaces
 
 export declare class ParticipantNetDebitCap implements IParticipantNetDebitCap{
     currencyCode: string;
@@ -185,7 +190,7 @@ export declare class ParticipantAccount implements IParticipantAccount{
 	creditBalance: string | null;                           // output only, we don't store this here
     balance: string | null;									// output only, we don't store this here
 	externalBankAccountId: string | null;
-	externalBankAccountName: string | null;                                 
+	externalBankAccountName: string | null;
 }
 
 export declare class ParticipantAccountChangeRequest implements IParticipantAccountChangeRequest{
@@ -194,7 +199,7 @@ export declare class ParticipantAccountChangeRequest implements IParticipantAcco
 	type: ParticipantAccountTypes;
 	currencyCode: string;
 	externalBankAccountId: string | null;
-	externalBankAccountName: string | null;    
+	externalBankAccountName: string | null;
 	createdBy: string;
 	createdDate: number;
 	approved: boolean;
@@ -208,3 +213,4 @@ export declare class ParticipantActivityLogEntry implements IParticipantActivity
 	timestamp: number;
 	notes: string | null;
 }
+*/

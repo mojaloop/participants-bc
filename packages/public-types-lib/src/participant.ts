@@ -35,6 +35,7 @@
 // NOTE types/enums here are kept as simple string type unions
 // If changes are made in the master participant entities and enums, these should be updated
 
+export const HUB_PARTICIPANT_ID = "hub";
 
 export declare interface IParticipant {
   id: string;
@@ -143,7 +144,7 @@ export declare interface IParticipantAccountChangeRequest{
 	type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
 	currencyCode: string;
 	externalBankAccountId: string | null;
-	externalBankAccountName: string | null;    
+	externalBankAccountName: string | null;
 	createdBy: string;
 	createdDate: number;
 	approved: boolean;
@@ -153,7 +154,7 @@ export declare interface IParticipantAccountChangeRequest{
 
 export declare interface IParticipantActivityLogEntry {
   changeType: "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
-      | "ADD_ACCOUNT" | "REMOVE_ACCOUNT" | "CHANGE_ACCOUNT"
+     | "ADD_ACCOUNT_REQUEST" | "ADD_ACCOUNT" | "REMOVE_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
       | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
       | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
       | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";

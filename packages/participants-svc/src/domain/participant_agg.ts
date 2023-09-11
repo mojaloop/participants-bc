@@ -39,6 +39,7 @@ import {
 } from "@mojaloop/auditing-bc-public-types-lib";
 import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import {
+    HUB_PARTICIPANT_ID,
     IParticipant,
     IParticipantAccount,
     IParticipantAccountChangeRequest,
@@ -69,9 +70,6 @@ import {
 } from "./entities/enums";
 import {
     Participant,
-    ParticipantAccount,
-    ParticipantEndpoint,
-    ParticipantNetDebitCap,
 } from "./entities/participant";
 
 import {
@@ -118,8 +116,6 @@ enum AuditedActionNames {
     PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED = "PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED",
     PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT = "PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT"
 }
-
-export const HUB_PARTICIPANT_ID = "hub";
 
 export class ParticipantAggregate {
     private _logger: ILogger;
@@ -193,7 +189,7 @@ export class ParticipantAggregate {
         for (const currency of this._currencyList) {
             // Hub Multilateral Net Settlement (HMLNS) account
             // participant account
-            const participantHMLNSAccount: ParticipantAccount = {
+            const participantHMLNSAccount: IParticipantAccount = {
                 id: randomUUID(),
                 type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
                 currencyCode: currency.code,
@@ -215,7 +211,7 @@ export class ParticipantAggregate {
 
                 hubParticipant.participantAccounts.push(participantHMLNSAccount);
                 hubParticipant.changeLog.push({
-                    changeType: ParticipantChangeTypes.CHANGE_ACCOUNT,
+                    changeType: ParticipantChangeTypes.ADD_ACCOUNT,
                     user: "(system)",
                     timestamp: hubParticipant.createdDate,
                     notes: `(participants-svc bootstrap routine added HMLNS account for: ${currency})`,
@@ -229,7 +225,7 @@ export class ParticipantAggregate {
 
             // Hub Reconciliation account
             // participant account record (minimal
-            const participantReconAccount: ParticipantAccount = {
+            const participantReconAccount: IParticipantAccount = {
                 id: randomUUID(),
                 type: ParticipantAccountTypes.HUB_RECONCILIATION,
                 currencyCode: currency.code,
@@ -712,7 +708,7 @@ export class ParticipantAggregate {
             endpoint.id = randomUUID();
         }
 
-        existing.participantEndpoints.push(endpoint as ParticipantEndpoint);
+        existing.participantEndpoints.push(endpoint as IParticipantEndpoint);
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.ADD_ENDPOINT,
             user: secCtx.username!,
@@ -885,7 +881,7 @@ export class ParticipantAggregate {
     ): Promise<string> {
         if(!accountChangeRequest.accountId)
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CHANGE_PARTICIPANT_ACCOUNT_BANK_DETAILS);
-        else 
+        else
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_ACCOUNT);
 
         if (!participantId)
@@ -936,7 +932,7 @@ export class ParticipantAggregate {
             approvedDate: null
         });
         existing.changeLog.push({
-            changeType: ParticipantChangeTypes.ADD_ACCOUNT,
+            changeType: ParticipantChangeTypes.ADD_ACCOUNT_REQUEST,
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -972,16 +968,14 @@ export class ParticipantAggregate {
     ): Promise<string> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST);
 
-        if (!participantId)
-            throw new InvalidParticipantError("[id] cannot be empty");
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
-        const existing: IParticipant | null = await this._repo.fetchWhereId(
-            participantId
-        );
-        if (!existing)
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
         // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
 
         const accountChangeRequest = existing.participantAccountsChangeRequest.find(
@@ -999,10 +993,7 @@ export class ParticipantAggregate {
         }
 
         // now we can enforce the correct privilege
-        this._enforcePrivilege(
-            secCtx,
-            ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST
-        );
+        this._enforcePrivilege( secCtx,ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST);
 
         if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
             await this._auditClient.audit(
@@ -1018,14 +1009,13 @@ export class ParticipantAggregate {
 
         if (!existing.participantAccounts) {
             existing.participantAccounts = [];
-        }
-        else {
+        } else {
             if ( accountChangeRequest.accountId == null &&
                 existing.participantAccounts.find(
                     (value: IParticipantAccount) =>
                         value.type === accountChangeRequest.type &&
                         value.currencyCode === accountChangeRequest.currencyCode
-                ) 
+                )
             ) {
                 throw new CannotAddDuplicateAccountError(
                     "An account with that id, or the same type and currency exists already"
@@ -1046,7 +1036,7 @@ export class ParticipantAggregate {
             );
         }
 
-        //no need update process in account&balance        
+        //no need update process in account&balance
         let accountId: string;
         if (!accountChangeRequest.accountId) {
             accountChangeRequest.accountId = randomUUID();
@@ -1077,8 +1067,7 @@ export class ParticipantAggregate {
                 externalBankAccountId: accountChangeRequest.externalBankAccountId,
                 externalBankAccountName: accountChangeRequest.externalBankAccountName
             });
-        }
-        else {
+        } else {
             accountId = accountChangeRequest.accountId;
 
             existing.participantAccounts.map((account) => {
@@ -1087,13 +1076,13 @@ export class ParticipantAggregate {
                         account.externalBankAccountName = accountChangeRequest.externalBankAccountName
                 }
             })
-            
+
         }
 
         accountChangeRequest.approved = true;
         accountChangeRequest.approvedBy = secCtx.username;
         accountChangeRequest.approvedDate = Date.now();
-        
+
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.ADD_ACCOUNT,
             user: secCtx.username!,
