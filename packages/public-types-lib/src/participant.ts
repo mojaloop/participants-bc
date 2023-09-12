@@ -150,6 +150,7 @@ export declare interface IParticipantAccountChangeRequest{
 	approved: boolean;
 	approvedBy: string | null;
 	approvedDate: number | null;
+  requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
 }
 
 export declare interface IParticipantActivityLogEntry {

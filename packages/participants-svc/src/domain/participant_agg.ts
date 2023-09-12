@@ -931,7 +931,8 @@ export class ParticipantAggregate {
             createdDate: Date.now(),
             approved: false,
             approvedBy: null,
-            approvedDate: null
+            approvedDate: null,
+            requestType: accountChangeRequest.requestType
         });
         existing.changeLog.push({
             changeType: ParticipantChangeTypes.ADD_ACCOUNT_REQUEST,
@@ -954,7 +955,7 @@ export class ParticipantAggregate {
         );
 
         await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_ACCOUNT_CHANGE_REQUEST_CREATED,
+            AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED,
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
@@ -967,7 +968,7 @@ export class ParticipantAggregate {
         secCtx: CallSecurityContext,
         participantId: string,
         accountChangeRequestId: string
-    ): Promise<string> {
+    ): Promise<string| null> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST);
 
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
@@ -1039,8 +1040,8 @@ export class ParticipantAggregate {
         }
 
         //no need update process in account&balance
-        let accountId: string;
-        if (!accountChangeRequest.accountId) {
+        let accountId: string | null;
+        if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
             accountChangeRequest.accountId = randomUUID();
             try {
                 this._accBal.setToken(secCtx.accessToken);
@@ -1106,7 +1107,7 @@ export class ParticipantAggregate {
         );
 
         await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_ACCOUNT_CHANGE_REQUEST_APPROVED,
+            AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED,
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
