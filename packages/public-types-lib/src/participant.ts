@@ -150,13 +150,13 @@ export declare interface IParticipantAccountChangeRequest{
 	approved: boolean;
 	approvedBy: string | null;
 	approvedDate: number | null;
-  requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
+    requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
 }
 
 export declare interface IParticipantActivityLogEntry {
   changeType: "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
      | "ADD_ACCOUNT_REQUEST" | "ADD_ACCOUNT" | "REMOVE_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS_REQUEST" | "CHANGE_ACCOUNT_BANK_DETAILS"
-      | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
+     | "ACCOUNT_CHANGE_REQUEST_APPROVED" | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
       | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
       | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";
   user: string;

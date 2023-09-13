@@ -33,6 +33,9 @@
 
 import {ParticipantPrivilegeNames} from "../domain/privilege_names";
 
+//TODO: move this definition to the domain, in ParticipantPrivilegeNames
+// there should be only one place where this is defined, not need to separate.
+// Same for other BCs.
 export const AppPrivilegesDefinition = [
     {
         privId: ParticipantPrivilegeNames.VIEW_PARTICIPANT,
@@ -67,9 +70,13 @@ export const AppPrivilegesDefinition = [
         labelName: "Change Participant Accounts Bank Info",
         description: "Allows adding and changing participant's accounts bank info records"
     },{
-        privId: ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST,
-        labelName: "Approve Participant Accounts Change Request",
-        description: "Approves an existing participant's accounts change request"
+        privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_CREATION_REQUEST,
+        labelName: "Approve Participant Accounts Creation Request",
+        description: "Approves an existing participant's accounts creation request"
+    },{
+        privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST,
+        labelName: "Approve Participant Accounts Bank Details Change Request",
+        description: "Approves an existing participant's accounts bank details change request"
     }, {
         privId: ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT,
         labelName: "Create deposit funds movement",

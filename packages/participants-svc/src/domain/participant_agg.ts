@@ -29,15 +29,10 @@
  ******/
 
 "use strict";
-import {
-    AccountsAndBalancesAccountType,
-} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
-import { IMetrics, IHistogram } from "@mojaloop/platform-shared-lib-observability-types-lib";
-import {
-    AuditSecurityContext,
-    IAuditClient,
-} from "@mojaloop/auditing-bc-public-types-lib";
-import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
+import {AccountsAndBalancesAccountType,} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
+import {IHistogram, IMetrics} from "@mojaloop/platform-shared-lib-observability-types-lib";
+import {AuditSecurityContext, IAuditClient,} from "@mojaloop/auditing-bc-public-types-lib";
+import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
     HUB_PARTICIPANT_ID,
     IParticipant,
@@ -46,19 +41,18 @@ import {
     IParticipantActivityLogEntry,
     IParticipantEndpoint,
     IParticipantFundsMovement,
-
     IParticipantNetDebitCapChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
-import { SettlementMatrixSettledEvt } from "@mojaloop/platform-shared-lib-public-messages-lib";
-import { Currency, IConfigurationClient } from "@mojaloop/platform-configuration-bc-public-types-lib";
+import {SettlementMatrixSettledEvt} from "@mojaloop/platform-shared-lib-public-messages-lib";
+import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {
+    CallSecurityContext,
     ForbiddenError,
     IAuthorizationClient,
     MakerCheckerViolationError,
     UnauthorizedError,
-    CallSecurityContext,
 } from "@mojaloop/security-bc-public-types-lib";
-import { randomUUID } from "crypto";
+import {randomUUID} from "crypto";
 import {
     ParticipantAccountTypes,
     ParticipantChangeTypes,
@@ -68,9 +62,7 @@ import {
     ParticipantNetDebitCapTypes,
     ParticipantTypes,
 } from "./entities/enums";
-import {
-    Participant,
-} from "./entities/participant";
+import {Participant,} from "./entities/participant";
 
 import {
     AccountChangeRequestAlreadyApproved,
@@ -80,18 +72,20 @@ import {
     CannotAddDuplicateEndpointError,
     CouldNotStoreParticipant,
     EndpointNotFoundError,
-    InvalidAccountError, InvalidNdcChangeRequest,
-    InvalidParticipantError, NdcChangeRequestAlreadyApproved, NdcChangeRequestNotFound,
+    InvalidAccountError,
+    InvalidNdcChangeRequest,
+    InvalidParticipantError,
+    NdcChangeRequestAlreadyApproved,
+    NdcChangeRequestNotFound,
     NoAccountsError,
     ParticipantAlreadyApproved,
     ParticipantCreateValidationError,
     ParticipantNotFoundError,
     UnableToCreateAccountUpstream,
 } from "./errors";
-import { IAccountsBalancesAdapter } from "./iparticipant_account_balances_adapter";
-import { ParticipantPrivilegeNames } from "./privilege_names";
-import { IParticipantsRepository } from "./repo_interfaces";
-import { validateHeaderValue } from "http";
+import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
+import {ParticipantPrivilegeNames} from "./privilege_names";
+import {IParticipantsRepository} from "./repo_interfaces";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -102,6 +96,7 @@ enum AuditedActionNames {
     PARTICIPANT_ENDPOINT_CHANGED = "PARTICIPANT_ENDPOINT_CHANGED",
     PARTICIPANT_ENDPOINT_REMOVED = "PARTICIPANT_ENDPOINT_REMOVED",
     PARTICIPANT_ACCOUNT_ADDED = "PARTICIPANT_ACCOUNT_ADDED",
+    PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED = "PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED",
     PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED",
     PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED",
     PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED",
@@ -876,26 +871,36 @@ export class ParticipantAggregate {
      * Accounts
      * */
 
-    async createParticipantAccount(
+    async createParticipantAccountChangeRequest(
         secCtx: CallSecurityContext,
         participantId: string,
         accountChangeRequest: IParticipantAccountChangeRequest
     ): Promise<string> {
-        if(!accountChangeRequest.accountId)
-            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CHANGE_PARTICIPANT_ACCOUNT_BANK_DETAILS);
-        else
+        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_ACCOUNT);
+        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CHANGE_PARTICIPANT_ACCOUNT_BANK_DETAILS);
+        }else{
+            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+            this._logger.error(err);
+            throw err;
+        }
 
-        if (!participantId)
-            throw new InvalidParticipantError("[id] cannot be empty");
+        if (!participantId){
+            const err = new InvalidParticipantError("[id] cannot be empty");
+            this._logger.error(err);
+            throw err;
+        }
+
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (!existing)
-            throw new ParticipantNotFoundError(
-                `Participant with ID: '${participantId}' not found.`
-            );
+        if (!existing) {
+            const err = new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+            this._logger.error(err);
+            throw err;
+        }
         // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
 
         if (accountChangeRequest.type != ParticipantAccountTypes.SETTLEMENT && (accountChangeRequest.externalBankAccountId || accountChangeRequest.externalBankAccountName))
@@ -935,7 +940,7 @@ export class ParticipantAggregate {
             requestType: accountChangeRequest.requestType
         });
         existing.changeLog.push({
-            changeType: ParticipantChangeTypes.ADD_ACCOUNT_REQUEST,
+            changeType: accountChangeRequest.requestType==="ADD_ACCOUNT" ? ParticipantChangeTypes.ADD_ACCOUNT_REQUEST : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS_REQUEST,
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -955,7 +960,8 @@ export class ParticipantAggregate {
         );
 
         await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED,
+            (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED),
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
@@ -964,20 +970,16 @@ export class ParticipantAggregate {
         return accountChangeRequest.id;
     }
 
-    async approveParticipantAccount(
+    async approveParticipantAccountChangeRequest(
         secCtx: CallSecurityContext,
         participantId: string,
         accountChangeRequestId: string
     ): Promise<string| null> {
-        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST);
-
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) {
-            throw new ParticipantNotFoundError(
-                `Participant with ID: '${participantId}' not found.`
-            );
+            throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
         }
         // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
 
@@ -989,6 +991,9 @@ export class ParticipantAggregate {
                 `Cannot find a participant's account change request with id: ${accountChangeRequestId}`
             );
         }
+
+
+
         if (accountChangeRequest.approved) {
             throw new AccountChangeRequestAlreadyApproved(
                 `Participant's account change request with id: ${accountChangeRequestId} is already approved`
@@ -996,11 +1001,20 @@ export class ParticipantAggregate {
         }
 
         // now we can enforce the correct privilege
-        this._enforcePrivilege( secCtx,ParticipantPrivilegeNames.APPROVE_ACCOUNTS_CHANGE_REQUEST);
+        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_CREATION_REQUEST);
+        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST);
+        }else{
+            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+            this._logger.error(err);
+            throw err;
+        }
 
         if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
             await this._auditClient.audit(
-                ParticipantChangeTypes.ADD_ACCOUNT,
+                (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                    AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED),
                 false,
                 this._getAuditSecCtx(secCtx),
                 [{ key: "participantId", value: participantId }]
@@ -1078,20 +1092,30 @@ export class ParticipantAggregate {
                     account.externalBankAccountId = accountChangeRequest.externalBankAccountId,
                         account.externalBankAccountName = accountChangeRequest.externalBankAccountName
                 }
-            })
+            });
 
         }
 
+        const now = Date.now();
+
         accountChangeRequest.approved = true;
         accountChangeRequest.approvedBy = secCtx.username;
-        accountChangeRequest.approvedDate = Date.now();
+        accountChangeRequest.approvedDate = now;
 
-        existing.changeLog.push({
-            changeType: ParticipantChangeTypes.ADD_ACCOUNT,
-            user: secCtx.username!,
-            timestamp: Date.now(),
-            notes: null,
-        });
+        existing.changeLog.push(
+            {
+                changeType:  ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_APPROVED,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            },{
+                changeType:  (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                    ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
+        );
 
         const updateSuccess = await this._repo.store(existing);
         if (!updateSuccess) {
@@ -1107,7 +1131,15 @@ export class ParticipantAggregate {
         );
 
         await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED,
+            (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED),
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+        await this._auditClient.audit(
+            (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED : AuditedActionNames.PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED),
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]

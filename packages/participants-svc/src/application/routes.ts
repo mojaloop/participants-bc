@@ -110,8 +110,8 @@ export class ExpressRoutes {
 
         // account
         this._mainRouter.get("/participants/:id/accounts", this._accountsByParticipantId.bind(this));
-        this._mainRouter.post("/participants/:id/accountChangeRequest", this._participantAccountCreate.bind(this));
-        this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/approve", this._participantAccountApprove.bind(this));
+        this._mainRouter.post("/participants/:id/accountChangeRequest", this._participantAccountCreateChangeRequest.bind(this));
+        this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/approve", this._participantAccountApproveChangeRequest.bind(this));
         // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
 
         // funds management
@@ -433,7 +433,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantAccountCreate(req: express.Request, res: express.Response): Promise<void> {
+    private async _participantAccountCreateChangeRequest(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const data: IParticipantAccountChangeRequest = req.body;
         this._logger.debug(
@@ -441,7 +441,7 @@ export class ExpressRoutes {
         );
 
         try {
-            const createdId = await this._participantsAgg.createParticipantAccount(
+            const createdId = await this._participantsAgg.createParticipantAccountChangeRequest(
                 req.securityContext!,
                 id,
                 data
@@ -467,7 +467,7 @@ export class ExpressRoutes {
         }
     }
 
-    private async _participantAccountApprove(req: express.Request, res: express.Response): Promise<void> {
+    private async _participantAccountApproveChangeRequest(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const accountChangeRequestId = req.params["changereqid"] ?? null;
 
@@ -476,7 +476,7 @@ export class ExpressRoutes {
         );
 
         try {
-            await this._participantsAgg.approveParticipantAccount(
+            await this._participantsAgg.approveParticipantAccountChangeRequest(
                 req.securityContext!,
                 id,
                 accountChangeRequestId
