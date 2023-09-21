@@ -112,6 +112,7 @@ export const AppPrivilegesDefinition = [
         labelName: "Approves a SourceIP change request",
         description: "Approves a SourceIP information change request"
     }
+    
 
 ];
 
