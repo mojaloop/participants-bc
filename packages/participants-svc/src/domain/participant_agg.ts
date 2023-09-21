@@ -39,9 +39,11 @@ import {
     IParticipantAccount,
     IParticipantAccountChangeRequest,
     IParticipantActivityLogEntry,
+    IParticipantAllowedSourceIp,
     IParticipantEndpoint,
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
+    IParticipantSourceIpChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
 import {SettlementMatrixSettledEvt} from "@mojaloop/platform-shared-lib-public-messages-lib";
 import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
@@ -81,6 +83,8 @@ import {
     ParticipantAlreadyApproved,
     ParticipantCreateValidationError,
     ParticipantNotFoundError,
+    SourceIpChangeRequestAlreadyApproved,
+    SourceIpChangeRequestNotFound,
     UnableToCreateAccountUpstream,
 } from "./errors";
 import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
@@ -102,9 +106,9 @@ enum AuditedActionNames {
     PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED",
     PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED",
     PARTICIPANT_ACCOUNT_REMOVED = "PARTICIPANT_ACCOUNT_REMOVED",
-    PARTICIPANT_SOURCEIP_ADDED = "PARTICIPANT_SOURCEIP_ADDED",
-    PARTICIPANT_SOURCEIP_CHANGED = "PARTICIPANT_SOURCEIP_CHANGED",
-    PARTICIPANT_SOURCEIP_REMOVED = "PARTICIPANT_SOURCEIP_REMOVED",
+    PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED",
+    PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_SOURCE_IP_REMOVED = "PARTICIPANT_SOURCE_IP_REMOVED",
     PARTICIPANT_FUNDS_DEPOSIT_CREATED = "PARTICIPANT_FUNDS_DEPOSIT_CREATED",
     PARTICIPANT_FUNDS_DEPOSIT_APPROVED = "PARTICIPANT_FUNDS_DEPOSIT_APPROVED",
     PARTICIPANT_FUNDS_WITHDRAWAL_CREATED = "PARTICIPANT_FUNDS_WITHDRAWAL_CREATED",
@@ -467,6 +471,7 @@ export class ParticipantAggregate {
             participantAccountsChangeRequest: [],
             participantEndpoints: [],
             participantAllowedSourceIps: [],
+            participantSourceIpChangeRequests: [],
             fundsMovements: [],
             changeLog: [
                 {
@@ -865,6 +870,211 @@ export class ParticipantAggregate {
             );
 
         return part.participantEndpoints || [];
+    }
+
+    /*
+     * SourceIPs
+     * */
+
+    async getAllowedSourceIpsByParticipantId(secCtx: CallSecurityContext, id: string): Promise<IParticipantAllowedSourceIp[]> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllowedSourceIpsByParticipantId" });
+        const existing: IParticipant | null = await this._repo.fetchWhereId(id);
+        if (!existing) {
+            timerEndFn({ success: "false" });
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${id}' not found.`
+            );
+        }
+        const participantAllowedSourceIps = existing.participantAllowedSourceIps || [];
+
+        return participantAllowedSourceIps;
+    }
+
+    async createParticipantSourceIpChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        sourceIpChangeRequest: IParticipantSourceIpChangeRequest
+    ): Promise<string> {
+        if (!sourceIpChangeRequest.allowedSourceIpId)
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+        if (!participantId)
+            throw new InvalidParticipantError("[id] cannot be empty");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing)
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
+
+        if (!existing.participantSourceIpChangeRequests) {
+            existing.participantSourceIpChangeRequests = [];
+        }
+
+        existing.participantSourceIpChangeRequests.push({
+            id: sourceIpChangeRequest.id || randomUUID(),
+            allowedSourceIpId: sourceIpChangeRequest.allowedSourceIpId,
+            cidr: sourceIpChangeRequest.cidr,
+            portMode: sourceIpChangeRequest.portMode,
+            ports: sourceIpChangeRequest.ports,
+            portRange: sourceIpChangeRequest.portRange,
+            createdBy: secCtx.username!,
+            createdDate: Date.now(),
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: sourceIpChangeRequest.requestType
+        });
+
+        existing.changeLog.push({
+            changeType: ParticipantChangeTypes.ADD_SOURCE_IP,
+            user: secCtx.username!,
+            timestamp: Date.now(),
+            notes: null,
+        });
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on addParticipantSourceIp"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully created sourceIP for Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        return sourceIpChangeRequest.id;
+    }
+
+    async approveParticipantSourceIpChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        sourceIpChangeRequestId: string
+    ): Promise<string | null> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        }
+
+
+        const soureIPChangeRequest = existing.participantSourceIpChangeRequests.find(
+            (value: IParticipantSourceIpChangeRequest) => value.id === sourceIpChangeRequestId
+        );
+        if (!soureIPChangeRequest) {
+            throw new SourceIpChangeRequestNotFound(
+                `Cannot find a participant's sourceIP change request with id: ${soureIPChangeRequest}`
+            );
+        }
+        if (soureIPChangeRequest.approved) {
+            throw new SourceIpChangeRequestAlreadyApproved(
+                `Participant's sourceIP change request with id: ${soureIPChangeRequest} is already approved`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+        if (secCtx && soureIPChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                ParticipantChangeTypes.ADD_SOURCE_IP,
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and approve participant sourceIP change request"
+            );
+        }
+
+        if (!existing.participantAllowedSourceIps) {
+            existing.participantAllowedSourceIps = [];
+        } else {
+            if (soureIPChangeRequest.allowedSourceIpId == null &&
+                existing.participantAllowedSourceIps.find(
+                    (value: IParticipantAllowedSourceIp) =>
+                        value.cidr === soureIPChangeRequest.cidr
+                )
+            ) {
+                throw new CannotAddDuplicateAccountError(
+                    "Same sourceIP record already exists."
+                );
+            }
+        }
+
+        if (soureIPChangeRequest.requestType === "ADD_SOURCE_IP") {
+            soureIPChangeRequest.allowedSourceIpId = randomUUID();
+
+
+            existing.participantAllowedSourceIps.push({
+                id: soureIPChangeRequest.allowedSourceIpId,
+                cidr: soureIPChangeRequest.cidr,
+                portMode: soureIPChangeRequest.portMode,
+                ports: soureIPChangeRequest.ports,
+                portRange: soureIPChangeRequest.portRange
+            });
+        } else {
+            existing.participantAllowedSourceIps.map((sourceIP) => {
+                if (sourceIP.id == soureIPChangeRequest.allowedSourceIpId) {
+                    sourceIP.cidr = soureIPChangeRequest.cidr,
+                        sourceIP.portMode = soureIPChangeRequest.portMode,
+                        sourceIP.ports = soureIPChangeRequest.ports,
+                        sourceIP.portRange = soureIPChangeRequest.portRange
+                }
+            })
+
+        }
+
+        soureIPChangeRequest.approved = true;
+        soureIPChangeRequest.approvedBy = secCtx.username;
+        soureIPChangeRequest.approvedDate = Date.now();
+
+        existing.changeLog.push({
+            changeType: ParticipantChangeTypes.ADD_SOURCE_IP,
+            user: secCtx.username!,
+            timestamp: Date.now(),
+            notes: null,
+        });
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on addParticipantSourceIP"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully added sourceIP with id: ${soureIPChangeRequest.allowedSourceIpId} to Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        return soureIPChangeRequest.allowedSourceIpId;
     }
 
     /*

@@ -101,6 +101,16 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST,
         labelName: "Approves an existing NDC",
         description: "Approves an existing NDC change record in the participant"
+    },
+    ,{
+        privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST,
+        labelName: "Creates a SourceIP",
+        description: "Creates a SourceIP information of current participant"
+    },
+    {
+        privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST,
+        labelName: "Approves a SourceIP change request",
+        description: "Approves a SourceIP information change request"
     }
 
 ];

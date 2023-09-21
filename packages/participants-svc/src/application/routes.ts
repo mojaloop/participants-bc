@@ -39,6 +39,7 @@ import {
     IParticipantEndpoint,
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
+    IParticipantSourceIpChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
 import { ParticipantAggregate } from "../domain/participant_agg";
 
@@ -127,6 +128,12 @@ export class ExpressRoutes {
             "/participants/:id/ndcchangerequests/:ndcReqId/approve",
             this._participantNetDebitCapApprove.bind(this)
         );
+
+        // particpant's sourceIPs
+        this._mainRouter.get("/participants/:id/sourceIps", this._sourceIpsByParticipantId.bind(this));
+        this._mainRouter.post("/participants/:id/sourceIpChangeRequests", this._participantSourceIpChangeRequestCreate.bind(this));
+        this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/approve", this._participantSourceIpChangeRequestApprove.bind(this));
+
 
     }
 
@@ -401,6 +408,105 @@ export class ExpressRoutes {
         }
     }
 
+    /*
+     * Allowed Source Ips
+     * */
+
+    private async _sourceIpsByParticipantId(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        this._logger.debug(`Fetching allowed sourceIps for Participant [${id}].`);
+
+        try {
+            const fetched = await this._participantsAgg.getAllowedSourceIpsByParticipantId(
+                req.securityContext!,
+                id
+            );
+            res.send(fetched);
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof NoAccountsError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantSourceIpChangeRequestCreate(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const data: IParticipantSourceIpChangeRequest = req.body;
+        this._logger.debug(
+            `Received request to create sourceIP record for participant with ID: ${id}.`
+        );
+
+        try {
+            const createdId = await this._participantsAgg.createParticipantSourceIpChangeRequest(
+                req.securityContext!,
+                id,
+                data
+            );
+            res.send({
+                id: createdId,
+            });
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantSourceIpChangeRequestApprove(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to approve sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.approveParticipantSourceIpChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+    
     /*
      * Accounts
      * */

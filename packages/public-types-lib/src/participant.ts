@@ -53,7 +53,9 @@ export declare interface IParticipant {
 
   lastUpdated: number;
 
-  participantAllowedSourceIps: IParticipantAllowedSourceIps[];
+  participantAllowedSourceIps: IParticipantAllowedSourceIp[];
+  participantSourceIpChangeRequests: IParticipantSourceIpChangeRequest[];
+
   participantEndpoints: IParticipantEndpoint[];
   participantAccounts: IParticipantAccount[];
   participantAccountsChangeRequest: IParticipantAccountChangeRequest[];
@@ -66,31 +68,31 @@ export declare interface IParticipant {
   netDebitCapChangeRequests: IParticipantNetDebitCapChangeRequest[];
 }
 
-export declare interface IParticipantNetDebitCap{
-    currencyCode: string;
-    type: "ABSOLUTE" | "PERCENTAGE";
-    percentage: number | null; // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
-    currentValue: number;
+export declare interface IParticipantNetDebitCap {
+  currencyCode: string;
+  type: "ABSOLUTE" | "PERCENTAGE";
+  percentage: number | null; // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
+  currentValue: number;
 }
 
 export declare interface IParticipantNetDebitCapChangeRequest {
-    id: string;
-    createdBy: string;
-    createdDate: number;
-    approved: boolean;
-    approvedBy: string | null;
-    approvedDate: number | null;
+  id: string;
+  createdBy: string;
+  createdDate: number;
+  approved: boolean;
+  approvedBy: string | null;
+  approvedDate: number | null;
 
-    currencyCode: string;
-    type: "ABSOLUTE" | "PERCENTAGE";
-    // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
-    percentage: number | null;
-    // this will have the value in currency in case of type == "ABSOLUTE" - will directly to the currentValue when approved
-    // will be null when type === "PERCENTAGE"
-    fixedValue: number | null;
+  currencyCode: string;
+  type: "ABSOLUTE" | "PERCENTAGE";
+  // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
+  percentage: number | null;
+  // this will have the value in currency in case of type == "ABSOLUTE" - will directly to the currentValue when approved
+  // will be null when type === "PERCENTAGE"
+  fixedValue: number | null;
 
-    extReference: string | null;
-    note: string | null;
+  extReference: string | null;
+  note: string | null;
 }
 
 export declare interface IParticipantFundsMovement {
@@ -110,13 +112,27 @@ export declare interface IParticipantFundsMovement {
   note: string | null;
 }
 
-export declare interface IParticipantAllowedSourceIps {
+export declare interface IParticipantAllowedSourceIp {
   id: string;
-  cidr:string;                                            // proper cidr format
-  // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
+  cidr: string; // proper cidr format
+  portMode: "ANY" | "SPECIFIC" | "RANGE"; // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
+  ports?: number[]; // using a single or multiple ports
+  portRange?: { rangeFirst: number, rangeLast: number; }; // port range
+}
+
+export declare interface IParticipantSourceIpChangeRequest {
+  id: string;
+  allowedSourceIpId: string | null;
+  cidr: string;
   portMode: "ANY" | "SPECIFIC" | "RANGE";
-  ports?: number[];                                       // using a single or multiple ports
-  portRange?:{ rangeFirst: number, rangeLast: number;};   // port range
+  ports?: number[];
+  portRange?: { rangeFirst: number, rangeLast: number; };
+  createdBy: string;
+  createdDate: number;
+  approved: boolean;
+  approvedBy: string | null;
+  approvedDate: number | null;
+  requestType: "ADD_SOURCE_IP" | "CHANGE_SOURCE_IP"
 }
 
 export declare interface IParticipantEndpoint {
@@ -138,27 +154,27 @@ export declare interface IParticipantAccount {
   externalBankAccountName: string | null;
 }
 
-export declare interface IParticipantAccountChangeRequest{
-	id: string;
-	accountId: string | null;
-	type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
-	currencyCode: string;
-	externalBankAccountId: string | null;
-	externalBankAccountName: string | null;
-	createdBy: string;
-	createdDate: number;
-	approved: boolean;
-	approvedBy: string | null;
-	approvedDate: number | null;
-    requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
+export declare interface IParticipantAccountChangeRequest {
+  id: string;
+  accountId: string | null;
+  type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
+  currencyCode: string;
+  externalBankAccountId: string | null;
+  externalBankAccountName: string | null;
+  createdBy: string;
+  createdDate: number;
+  approved: boolean;
+  approvedBy: string | null;
+  approvedDate: number | null;
+  requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
 }
 
 export declare interface IParticipantActivityLogEntry {
   changeType: "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
-     | "ADD_ACCOUNT_REQUEST" | "ADD_ACCOUNT" | "REMOVE_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS_REQUEST" | "CHANGE_ACCOUNT_BANK_DETAILS"
-     | "ACCOUNT_CHANGE_REQUEST_APPROVED" | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
-      | "ADD_SOURCEIP" | "REMOVE_SOURCEIP" | "CHANGE_SOURCEIP"
-      | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";
+  | "ADD_ACCOUNT_REQUEST" | "ADD_ACCOUNT" | "REMOVE_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS_REQUEST" | "CHANGE_ACCOUNT_BANK_DETAILS"
+  | "ACCOUNT_CHANGE_REQUEST_APPROVED" | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
+  | "ADD_SOURCE_IP_REQUEST" | "CHANGE_SOURCE_IP_REQUEST" | "REMOVE_SOURCE_IP" | "ADD_SOURCE_IP" | "CHANGE_SOURCE_IP"
+  | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";
   user: string;
   timestamp: number;
   notes: string | null;

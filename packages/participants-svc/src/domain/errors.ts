@@ -44,6 +44,12 @@ export class AccountChangeRequestNotFound extends Error {}
 export class AccountChangeRequestAlreadyApproved extends Error {}
 export class InvalidAccountError extends Error {}
 
+export class CannotAddDuplicateSourceIpError extends Error {}
+export class SourceIpNotFoundError extends Error {}
+export class SourceIpChangeRequestNotFound extends Error {}
+export class SourceIpChangeRequestAlreadyApproved extends Error {}
+export class InvalidInvalidError extends Error {}
+
 // export class EndpointTypeExistsError extends Error {}
 // export class AccountTypeExistsError extends Error {}
 

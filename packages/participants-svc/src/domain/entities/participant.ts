@@ -35,20 +35,14 @@ import {
     IParticipantAccount,
     IParticipantAccountChangeRequest,
     IParticipantActivityLogEntry,
-    IParticipantAllowedSourceIps,
+    IParticipantAllowedSourceIp,
     IParticipantEndpoint,
-    IParticipantFundsMovement, IParticipantNetDebitCap, IParticipantNetDebitCapChangeRequest
+    IParticipantFundsMovement, IParticipantNetDebitCap, IParticipantNetDebitCapChangeRequest, IParticipantSourceIpChangeRequest
 } from "@mojaloop/participant-bc-public-types-lib";
 
 import {
-	ParticipantAccountTypes,
-	ParticipantAllowedSourceIpsPortModes,
 	ParticipantChangeTypes,
-	ParticipantFundsMovementDirections,
-	ParticipantTypes,
-	ParticipantEndpointProtocols,
-	ParticipantEndpointTypes,
-	ParticipantNetDebitCapTypes
+	ParticipantTypes
 } from "./enums";
 
 /** Participant entity **/
@@ -68,7 +62,9 @@ export class Participant implements IParticipant {
 
 	lastUpdated: number;
 
-	participantAllowedSourceIps: IParticipantAllowedSourceIps[];
+	participantAllowedSourceIps: IParticipantAllowedSourceIp[];
+	participantSourceIpChangeRequests: IParticipantSourceIpChangeRequest[];
+	
 	participantEndpoints: IParticipantEndpoint[];
 	participantAccounts: IParticipantAccount[];
 	participantAccountsChangeRequest: IParticipantAccountChangeRequest[];
@@ -97,6 +93,7 @@ export class Participant implements IParticipant {
 			participantAccountsChangeRequest: [],
 			participantEndpoints: [],
 			participantAllowedSourceIps: [],
+			participantSourceIpChangeRequests: [],
 			fundsMovements: [],
 			changeLog: [{
 				changeType: ParticipantChangeTypes.CREATE,
