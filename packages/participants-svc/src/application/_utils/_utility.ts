@@ -80,7 +80,6 @@ const validateParticipantSourceIP_PortRange = (rangeFirst?: number | null, range
     return true;
 };
 
-
 const validateParticipantSourceIP_Ports = (portsArray: number[] | undefined): boolean => {
 
     if(!portsArray) {
