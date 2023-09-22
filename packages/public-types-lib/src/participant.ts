@@ -35,12 +35,19 @@
 // NOTE types/enums here are kept as simple string type unions
 // If changes are made in the master participant entities and enums, these should be updated
 
+import {
+    ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes,
+    ParticipantChangeTypes,
+    ParticipantEndpointProtocols,
+    ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes, ParticipantTypes
+} from "./enums";
+
 export const HUB_PARTICIPANT_ID = "hub";
 
 export declare interface IParticipant {
   id: string;
   name: string;
-  type: "HUB" | "DFSP";
+  type: ParticipantTypes;
   isActive: boolean;
   description: string;
 
@@ -70,7 +77,7 @@ export declare interface IParticipant {
 
 export declare interface IParticipantNetDebitCap {
   currencyCode: string;
-  type: "ABSOLUTE" | "PERCENTAGE";
+  type: ParticipantNetDebitCapTypes;
   percentage: number | null; // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
   currentValue: number;
 }
@@ -84,7 +91,7 @@ export declare interface IParticipantNetDebitCapChangeRequest {
   approvedDate: number | null;
 
   currencyCode: string;
-  type: "ABSOLUTE" | "PERCENTAGE";
+  type: ParticipantNetDebitCapTypes;
   // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
   percentage: number | null;
   // this will have the value in currency in case of type == "ABSOLUTE" - will directly to the currentValue when approved
@@ -103,7 +110,7 @@ export declare interface IParticipantFundsMovement {
   approvedBy: string | null;
   approvedDate: number | null;
 
-  direction: "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL";
+  direction: ParticipantFundsMovementDirections;
   currencyCode: string;
   amount: string;
 
@@ -115,18 +122,13 @@ export declare interface IParticipantFundsMovement {
 export declare interface IParticipantAllowedSourceIp {
   id: string;
   cidr: string; // proper cidr format
-  portMode: "ANY" | "SPECIFIC" | "RANGE"; // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
+  portMode: ParticipantAllowedSourceIpsPortModes; // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
   ports?: number[]; // using a single or multiple ports
   portRange?: { rangeFirst: number, rangeLast: number; }; // port range
 }
 
-export declare interface IParticipantSourceIpChangeRequest {
-  id: string;
+export declare interface IParticipantSourceIpChangeRequest extends IParticipantAllowedSourceIp{
   allowedSourceIpId: string | null;
-  cidr: string;
-  portMode: "ANY" | "SPECIFIC" | "RANGE";
-  ports?: number[];
-  portRange?: { rangeFirst: number, rangeLast: number; };
   createdBy: string;
   createdDate: number;
   approved: boolean;
@@ -137,14 +139,14 @@ export declare interface IParticipantSourceIpChangeRequest {
 
 export declare interface IParticipantEndpoint {
   id: string;                                             // uuid of the endpoint
-  type: "FSPIOP" | "ISO20022";                            // "FSPIOP" | "ISO20022"
-  protocol: "HTTPs/REST";                                 // for now only "HTTPs/REST";
+  type: ParticipantEndpointTypes;                            // "FSPIOP" | "ISO20022"
+  protocol: ParticipantEndpointProtocols;                                 // for now only "HTTPs/REST";
   value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
 }
 
 export declare interface IParticipantAccount {
   id: string;                                             // uuid of the account (from the external accounts and balances system)
-  type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
+  type: ParticipantAccountTypes;
   //isActive: boolean                                     //TODO do we need this?
   currencyCode: string;                                   //TODO move
   debitBalance: string | null;                            // output only, we don't store this here
@@ -157,7 +159,7 @@ export declare interface IParticipantAccount {
 export declare interface IParticipantAccountChangeRequest {
   id: string;
   accountId: string | null;
-  type: "FEE" | "POSITION" | "SETTLEMENT" | "HUB_MULTILATERAL_SETTLEMENT" | "HUB_RECONCILIATION";
+  type: ParticipantAccountTypes;
   currencyCode: string;
   externalBankAccountId: string | null;
   externalBankAccountName: string | null;
@@ -169,14 +171,10 @@ export declare interface IParticipantAccountChangeRequest {
   requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
 }
 
+// TODO: standardise these verbs/entries
 export declare interface IParticipantActivityLogEntry {
-  changeType: "CREATE" | "APPROVE" | "ACTIVATE" | "DEACTIVATE"
-  | "ADD_ACCOUNT_REQUEST" | "ADD_ACCOUNT" | "REMOVE_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS_REQUEST" | "CHANGE_ACCOUNT_BANK_DETAILS"
-  | "ACCOUNT_CHANGE_REQUEST_APPROVED" | "ADD_ENDPOINT" | "REMOVE_ENDPOINT" | "CHANGE_ENDPOINT"
-  | "ADD_SOURCE_IP_REQUEST" | "CHANGE_SOURCE_IP_REQUEST" | "REMOVE_SOURCE_IP" | "ADD_SOURCE_IP" | "CHANGE_SOURCE_IP"
-  | "FUNDS_DEPOSIT" | "FUNDS_WITHDRAWAL" | "NDC_CHANGE" | "NDC_RECALCULATED";
+  changeType: ParticipantChangeTypes;
   user: string;
   timestamp: number;
   notes: string | null;
 }
-

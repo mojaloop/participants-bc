@@ -44,6 +44,13 @@ import {
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
     IParticipantSourceIpChangeRequest,
+    ParticipantAccountTypes,
+    ParticipantChangeTypes,
+    ParticipantEndpointProtocols,
+    ParticipantEndpointTypes,
+    ParticipantFundsMovementDirections,
+    ParticipantNetDebitCapTypes,
+    ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
 import {SettlementMatrixSettledEvt} from "@mojaloop/platform-shared-lib-public-messages-lib";
 import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
@@ -55,15 +62,6 @@ import {
     UnauthorizedError,
 } from "@mojaloop/security-bc-public-types-lib";
 import {randomUUID} from "crypto";
-import {
-    ParticipantAccountTypes,
-    ParticipantChangeTypes,
-    ParticipantEndpointProtocols,
-    ParticipantEndpointTypes,
-    ParticipantFundsMovementDirections,
-    ParticipantNetDebitCapTypes,
-    ParticipantTypes,
-} from "./entities/enums";
 import {Participant,} from "./entities/participant";
 
 import {
@@ -90,7 +88,6 @@ import {
 import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
 import {ParticipantPrivilegeNames} from "./privilege_names";
 import {IParticipantsRepository} from "./repo_interfaces";
-import { validateParticipantSourceIpChangeRequest } from "../application/_utils/_utility";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -109,6 +106,8 @@ enum AuditedActionNames {
     PARTICIPANT_ACCOUNT_REMOVED = "PARTICIPANT_ACCOUNT_REMOVED",
     PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED",
     PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_SOURCE_IP_ADDED = "PARTICIPANT_SOURCE_IP_ADDED",
+    PARTICIPANT_SOURCE_IP_CHANGED = "PARTICIPANT_SOURCE_IP_CHANGED",
     PARTICIPANT_SOURCE_IP_REMOVED = "PARTICIPANT_SOURCE_IP_REMOVED",
     PARTICIPANT_FUNDS_DEPOSIT_CREATED = "PARTICIPANT_FUNDS_DEPOSIT_CREATED",
     PARTICIPANT_FUNDS_DEPOSIT_APPROVED = "PARTICIPANT_FUNDS_DEPOSIT_APPROVED",
@@ -898,20 +897,20 @@ export class ParticipantAggregate {
         participantId: string,
         sourceIpChangeRequest: IParticipantSourceIpChangeRequest
     ): Promise<string> {
-       
+
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
 
         if (!participantId)
             throw new InvalidParticipantError("[id] cannot be empty");
 
-        await validateParticipantSourceIpChangeRequest(sourceIpChangeRequest);
+        await Participant.ValidateParticipantSourceIpChangeRequest(sourceIpChangeRequest);
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing)
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
-       
+
 
         if (!existing.participantSourceIpChangeRequests) {
             existing.participantSourceIpChangeRequests = [];
@@ -933,7 +932,7 @@ export class ParticipantAggregate {
         });
 
         existing.changeLog.push({
-            changeType: ParticipantChangeTypes.ADD_SOURCE_IP,
+            changeType: (sourceIpChangeRequest.requestType==="ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -1042,20 +1041,28 @@ export class ParticipantAggregate {
                         sourceIP.ports = soureIPChangeRequest.ports,
                         sourceIP.portRange = soureIPChangeRequest.portRange
                 }
-            })
-
+            });
         }
+
+        const now = Date.now();
 
         soureIPChangeRequest.approved = true;
         soureIPChangeRequest.approvedBy = secCtx.username;
         soureIPChangeRequest.approvedDate = Date.now();
 
-        existing.changeLog.push({
-            changeType: ParticipantChangeTypes.ADD_SOURCE_IP,
-            user: secCtx.username!,
-            timestamp: Date.now(),
-            notes: null,
-        });
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            },{
+                changeType: (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
+        );
 
         const updateSuccess = await this._repo.store(existing);
         if (!updateSuccess) {
@@ -1072,6 +1079,12 @@ export class ParticipantAggregate {
 
         await this._auditClient.audit(
             AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+        await this._auditClient.audit(
+            (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED),
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]

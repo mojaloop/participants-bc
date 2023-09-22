@@ -37,13 +37,11 @@ import {
     IParticipantActivityLogEntry,
     IParticipantAllowedSourceIp,
     IParticipantEndpoint,
-    IParticipantFundsMovement, IParticipantNetDebitCap, IParticipantNetDebitCapChangeRequest, IParticipantSourceIpChangeRequest
+    IParticipantFundsMovement, IParticipantNetDebitCap,
+    IParticipantNetDebitCapChangeRequest, IParticipantSourceIpChangeRequest,
+    ParticipantChangeTypes,
+    ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
-
-import {
-	ParticipantChangeTypes,
-	ParticipantTypes
-} from "./enums";
 
 /** Participant entity **/
 export class Participant implements IParticipant {
@@ -64,7 +62,7 @@ export class Participant implements IParticipant {
 
 	participantAllowedSourceIps: IParticipantAllowedSourceIp[];
 	participantSourceIpChangeRequests: IParticipantSourceIpChangeRequest[];
-	
+
 	participantEndpoints: IParticipantEndpoint[];
 	participantAccounts: IParticipantAccount[];
 	participantAccountsChangeRequest: IParticipantAccountChangeRequest[];
@@ -107,6 +105,118 @@ export class Participant implements IParticipant {
 
 		return hub;
 	}
+
+
+    /**
+     * To check sourceIpChangeRequest contains valid data
+     * @param request
+     * @returns Promise<void>
+     */
+    static async ValidateParticipantSourceIpChangeRequest(request: IParticipantSourceIpChangeRequest): Promise<void> {
+        try {
+            if (request.cidr.trim().length === 0) {
+                throw new Error(
+                    `CIDR cannot be empty.`
+                );
+            }
+
+            if (!_validateParticipantSourceIP_CIDR(request.cidr.trim())) {
+                throw new Error(
+                    `Invalid CIDR format.`
+                );
+            }
+
+            if(!_validateParticipantSourceIP_PortMode(request.portMode)){
+                throw new Error(
+                    `Invalid Port Mode.`
+                );
+            }
+
+            if (request.portMode === "RANGE") {
+                if (Number(request.portRange?.rangeFirst) === 0 || Number(request.portRange?.rangeFirst) === 0) {
+                    throw new Error(
+                        `Invalid Port Range values.`
+                    );
+                }
+
+                if (!_validateParticipantSourceIP_PortRange(Number(request.portRange?.rangeFirst), Number(request.portRange?.rangeLast))) {
+                    throw new Error(
+                        `Invalid Port Range values.`
+                    );
+                }
+            }
+
+            if (request.portMode === "SPECIFIC") {
+                if (!_validateParticipantSourceIP_Ports(request.ports)) {
+                    throw new Error(
+                        `Invalid Port value.`
+                    );
+                }
+            }
+            return Promise.resolve();
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    }
+
+
+
+}
+
+// Helper IP address validation functions called by Participant.ValidateParticipantSourceIpChangeRequest()
+////
+
+function _validateParticipantSourceIP_CIDR(input: string): boolean {
+    // Regular expression for CIDR notation validation
+    const cidrRegex = /^(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+
+    // Check if the input matches the CIDR regex
+    return cidrRegex.test(input);
+}
+
+function _validateParticipantSourceIP_PortMode(portMode: string): boolean {
+    return portMode === "ANY" || portMode === "SPECIFIC" || portMode === "RANGE";
+}
+
+function _validateParticipantSourceIP_PortRange(rangeFirst?: number | null, rangeLast?: number | null): boolean{
+    // Check if either both `rangeFirst` and `rangeLast` are null, or both are valid numbers
+    if (
+        !(rangeFirst === null && rangeLast === null) &&
+        !(rangeFirst === 0 && rangeLast === 0) &&
+        (!(typeof rangeFirst === 'number' && typeof rangeLast === 'number') ||
+            rangeFirst >= rangeLast)
+    ) {
+        // Invalid port range
+        return false;
+    }
+    // Valid port range
+    return true;
+}
+
+function _validateParticipantSourceIP_Ports(portsArray: number[] | undefined): boolean {
+    if(!portsArray) {
+        return false;
+    }
+
+    const portString = portsArray.join(",");
+
+    // Regular expression for ports validation
+    const portsRegex = /^([1-9]\d*)(,[1-9]\d*)*$/;
+
+    if (!portsRegex.test(portString)) {
+        return false;
+    }
+
+    // Check if each port in the array is a valid number
+    for (const port of portsArray) {
+        if (isNaN(port) || port < 1 || port > 65535) {
+            // Invalid port number
+            return false;
+        }
+    }
+
+    // Valid ports array
+    return true;
 }
 
 
