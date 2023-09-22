@@ -90,6 +90,7 @@ import {
 import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
 import {ParticipantPrivilegeNames} from "./privilege_names";
 import {IParticipantsRepository} from "./repo_interfaces";
+import { validateParticipantSourceIpChangeRequest } from "../application/_utils/_utility";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -897,18 +898,20 @@ export class ParticipantAggregate {
         participantId: string,
         sourceIpChangeRequest: IParticipantSourceIpChangeRequest
     ): Promise<string> {
-        if (!sourceIpChangeRequest.allowedSourceIpId)
-            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+       
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
 
         if (!participantId)
             throw new InvalidParticipantError("[id] cannot be empty");
+
+        await validateParticipantSourceIpChangeRequest(sourceIpChangeRequest);
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing)
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
-        // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
+       
 
         if (!existing.participantSourceIpChangeRequests) {
             existing.participantSourceIpChangeRequests = [];
@@ -946,7 +949,7 @@ export class ParticipantAggregate {
         }
 
         this._logger.info(
-            `Successfully created sourceIP for Participant with ID: '${participantId}'`
+            `Successfully created sourceIP change request for Participant with ID: '${participantId}'`
         );
 
         await this._auditClient.audit(

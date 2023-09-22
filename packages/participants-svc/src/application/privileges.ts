@@ -31,7 +31,7 @@
 "use strict";
 
 
-import {ParticipantPrivilegeNames} from "../domain/privilege_names";
+import { ParticipantPrivilegeNames } from "../domain/privilege_names";
 
 //TODO: move this definition to the domain, in ParticipantPrivilegeNames
 // there should be only one place where this is defined, not need to separate.
@@ -65,15 +65,15 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_ACCOUNT,
         labelName: "Create Participant Accounts",
         description: "Allows adding and changing participant's accounts records"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.CHANGE_PARTICIPANT_ACCOUNT_BANK_DETAILS,
         labelName: "Change Participant Accounts Bank Info",
         description: "Allows adding and changing participant's accounts bank info records"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_CREATION_REQUEST,
         labelName: "Approve Participant Accounts Creation Request",
         description: "Approves an existing participant's accounts creation request"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST,
         labelName: "Approve Participant Accounts Bank Details Change Request",
         description: "Approves an existing participant's accounts bank details change request"
@@ -93,16 +93,16 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.APPROVE_FUNDS_WITHDRAWAL,
         labelName: "Approves an existing withdrawal funds movement",
         description: "Approves an existing withdrawal funds movement record in the participant"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.CREATE_NDC_CHANGE_REQUEST,
         labelName: "Create NDC options",
         description: "Create NDC change record in the participant"
-    },{
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST,
         labelName: "Approves an existing NDC",
         description: "Approves an existing NDC change record in the participant"
     },
-    ,{
+    {
         privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST,
         labelName: "Creates a SourceIP",
         description: "Creates a SourceIP information of current participant"
@@ -112,7 +112,7 @@ export const AppPrivilegesDefinition = [
         labelName: "Approves a SourceIP change request",
         description: "Approves a SourceIP information change request"
     }
-    
+
 
 ];
 
