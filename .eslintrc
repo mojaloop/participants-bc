@@ -3,6 +3,7 @@
   "plugins": [ "@typescript-eslint" ],
   "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended"],
   "rules": {
+    "brace-style": ["error", "1tbs"],
     "semi": ["warn"],
     "@typescript-eslint/no-inferrable-types": "off",
       "@typescript-eslint/naming-convention": [

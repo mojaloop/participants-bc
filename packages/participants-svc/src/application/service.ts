@@ -286,7 +286,9 @@ export class Service {
             const routes = new ExpressRoutes(this.participantAgg, this.tokenHelper, this.logger);
 
             // Add health and metrics http routes - before others (to avoid authZ middleware)
-            this.app.get("/health", (req: express.Request, res: express.Response) => {return res.send({ status: "OK" }); });
+            this.app.get("/health", (req: express.Request, res: express.Response) => {
+                return res.send({ status: "OK" });
+            });
             this.app.get("/metrics", async (req: express.Request, res: express.Response) => {
                 const strMetrics = await (this.metrics as PrometheusMetrics).getMetricsForPrometheusScrapper();
                 return res.send(strMetrics);

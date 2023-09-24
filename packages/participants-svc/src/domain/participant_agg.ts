@@ -1036,10 +1036,10 @@ export class ParticipantAggregate {
         } else {
             existing.participantAllowedSourceIps.map((sourceIP) => {
                 if (sourceIP.id == soureIPChangeRequest.allowedSourceIpId) {
-                    sourceIP.cidr = soureIPChangeRequest.cidr,
-                        sourceIP.portMode = soureIPChangeRequest.portMode,
-                        sourceIP.ports = soureIPChangeRequest.ports,
-                        sourceIP.portRange = soureIPChangeRequest.portRange
+                    sourceIP.cidr = soureIPChangeRequest.cidr;
+                    sourceIP.portMode = soureIPChangeRequest.portMode;
+                    sourceIP.ports = soureIPChangeRequest.ports;
+                    sourceIP.portRange = soureIPChangeRequest.portRange;
                 }
             });
         }
@@ -1316,7 +1316,7 @@ export class ParticipantAggregate {
             existing.participantAccounts.map((account) => {
                 if (account.id == accountId) {
                     account.externalBankAccountId = accountChangeRequest.externalBankAccountId,
-                        account.externalBankAccountName = accountChangeRequest.externalBankAccountName
+                        account.externalBankAccountName = accountChangeRequest.externalBankAccountName;
                 }
             });
 
