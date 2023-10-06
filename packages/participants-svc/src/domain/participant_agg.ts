@@ -1604,14 +1604,21 @@ export class ParticipantAggregate {
                     `Could not get settlement account from accountsAndBalances adapter for participant id: ${participant.id}`
                 );
             }
-            
-            if (!updatedSettlementAcc.balance) {
+
+            const fundsMovAmount = Number(fundsMov.amount);
+            const balance = Number(updatedSettlementAcc.balance);
+
+            if (isNaN(fundsMovAmount)) {
                 throw new AccountNotFoundError(
-                    `No balance in the settlement account for participant id: ${participant.id}`
+                    `Invalid withdrawal amount for funds movement with id: ${fundsMovId}`
                 );
             }
-
-            if (Number(fundsMov.amount) > Number(updatedSettlementAcc.balance)) {
+            if (isNaN(balance)) {
+                throw new AccountNotFoundError(
+                    `Invalid balance value in the settlement account for participant id: ${participant.id}`
+                );
+            }
+            if (fundsMovAmount > balance) {
                 throw new WithdrawalExceedsBalanceError(
                     `Not enough balance in the settlement account for participant id: ${participant.id}`
                 );
