@@ -111,6 +111,16 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST,
         labelName: "Approves a SourceIP change request",
         description: "Approves a SourceIP information change request"
+    },
+    {
+        privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST,
+        labelName: "Creates a Contact Information change request",
+        description: "Creates a Contact Information change request"
+    },
+    {
+        privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST,
+        labelName: "Approves a Contact Information change request",
+        description: "Approves a Contact Information change request"
     }
 
 

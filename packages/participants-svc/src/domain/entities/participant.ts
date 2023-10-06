@@ -36,6 +36,8 @@ import {
     IParticipantAccountChangeRequest,
     IParticipantActivityLogEntry,
     IParticipantAllowedSourceIp,
+    IParticipantContactInfo,
+    IParticipantContactInfoChangeRequest,
     IParticipantEndpoint,
     IParticipantFundsMovement, IParticipantNetDebitCap,
     IParticipantNetDebitCapChangeRequest, IParticipantSourceIpChangeRequest,
@@ -45,66 +47,71 @@ import {
 
 /** Participant entity **/
 export class Participant implements IParticipant {
-	id: string;
-	name: string;
-	type: ParticipantTypes;
-	isActive: boolean;
-	description: string;
+    id: string;
+    name: string;
+    type: ParticipantTypes;
+    isActive: boolean;
+    description: string;
 
-	createdBy: string;
-	createdDate: number;
+    createdBy: string;
+    createdDate: number;
 
-	approved: boolean;
-	approvedBy: string | null;
-	approvedDate: number | null;
+    approved: boolean;
+    approvedBy: string | null;
+    approvedDate: number | null;
 
-	lastUpdated: number;
+    lastUpdated: number;
 
-	participantAllowedSourceIps: IParticipantAllowedSourceIp[];
-	participantSourceIpChangeRequests: IParticipantSourceIpChangeRequest[];
+    participantAllowedSourceIps: IParticipantAllowedSourceIp[];
+    participantSourceIpChangeRequests: IParticipantSourceIpChangeRequest[];
 
-	participantEndpoints: IParticipantEndpoint[];
-	participantAccounts: IParticipantAccount[];
-	participantAccountsChangeRequest: IParticipantAccountChangeRequest[];
+    participantEndpoints: IParticipantEndpoint[];
+    participantAccounts: IParticipantAccount[];
+    participantAccountsChangeRequest: IParticipantAccountChangeRequest[];
 
-	fundsMovements: IParticipantFundsMovement[];
-	changeLog: IParticipantActivityLogEntry[];
+    fundsMovements: IParticipantFundsMovement[];
+    changeLog: IParticipantActivityLogEntry[];
 
     netDebitCaps: IParticipantNetDebitCap[];
     netDebitCapChangeRequests: IParticipantNetDebitCapChangeRequest[];
 
-	static CreateHub(id:string, desc:string, user:string, changeLogNote:string){
-		const now = Date.now();
-		const hub :Participant = {
-			id: id,
-			name: "HUB",
-			type: ParticipantTypes.HUB,
-			isActive: true,
-			description: desc,
-			createdBy: user,
-			createdDate: now,
-			approved: true,
-			approvedBy: user,
-			approvedDate: now,
-			lastUpdated: now,
-			participantAccounts: [],
-			participantAccountsChangeRequest: [],
-			participantEndpoints: [],
-			participantAllowedSourceIps: [],
-			participantSourceIpChangeRequests: [],
-			fundsMovements: [],
-			changeLog: [{
-				changeType: ParticipantChangeTypes.CREATE,
-				user: user,
-				timestamp: now,
-				notes: changeLogNote
-			}],
-            netDebitCaps: [],
-            netDebitCapChangeRequests: []
-		};
+    participantContacts: IParticipantContactInfo[];
+    participantContactInfoChangeRequests: IParticipantContactInfoChangeRequest[];
 
-		return hub;
-	}
+    static CreateHub(id: string, desc: string, user: string, changeLogNote: string) {
+        const now = Date.now();
+        const hub: Participant = {
+            id: id,
+            name: "HUB",
+            type: ParticipantTypes.HUB,
+            isActive: true,
+            description: desc,
+            createdBy: user,
+            createdDate: now,
+            approved: true,
+            approvedBy: user,
+            approvedDate: now,
+            lastUpdated: now,
+            participantAccounts: [],
+            participantAccountsChangeRequest: [],
+            participantEndpoints: [],
+            participantAllowedSourceIps: [],
+            participantSourceIpChangeRequests: [],
+            fundsMovements: [],
+            changeLog: [{
+                changeType: ParticipantChangeTypes.CREATE,
+                user: user,
+                timestamp: now,
+                notes: changeLogNote
+            }],
+            netDebitCaps: [],
+            netDebitCapChangeRequests: [],
+            participantContacts: [],
+            participantContactInfoChangeRequests: []
+        };
+
+        return hub;
+    }
 
 
     /**
@@ -126,7 +133,7 @@ export class Participant implements IParticipant {
                 );
             }
 
-            if(!_validateParticipantSourceIP_PortMode(request.portMode)){
+            if (!_validateParticipantSourceIP_PortMode(request.portMode)) {
                 throw new Error(
                     `Invalid Port Mode.`
                 );
@@ -160,6 +167,42 @@ export class Participant implements IParticipant {
     }
 
 
+    /**
+     * To check sourceIpChangeRequest contains valid data
+     * @param request
+     * @returns Promise<void>
+     */
+    static async ValidateParticipantContactInfoChangeRequest(request: IParticipantContactInfoChangeRequest): Promise<void> {
+        try {
+
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            const phoneNumRegex = /^(\+\d{1,4}\s?)?(\(\d{1,4}\)\s?)?[\d\s\-]+$/;
+
+            if (request.name.trim().length === 0) {
+                throw new Error(
+                    `Contact name cannot be empty.`
+                );
+            }
+
+            if (!emailRegex.test(request.email)) {
+                throw new Error(
+                    `Invalid contact email.`
+                );
+            }
+
+            if (!phoneNumRegex.test(request.phoneNumber)) {
+                throw new Error(
+                    `Invalid contact phone number.`
+                );
+            }
+
+            return Promise.resolve();
+            
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    }
+
 
 }
 
@@ -178,7 +221,7 @@ function _validateParticipantSourceIP_PortMode(portMode: string): boolean {
     return portMode === "ANY" || portMode === "SPECIFIC" || portMode === "RANGE";
 }
 
-function _validateParticipantSourceIP_PortRange(rangeFirst?: number | null, rangeLast?: number | null): boolean{
+function _validateParticipantSourceIP_PortRange(rangeFirst?: number | null, rangeLast?: number | null): boolean {
     // Check if either both `rangeFirst` and `rangeLast` are null, or both are valid numbers
     if (
         !(rangeFirst === null && rangeLast === null) &&
@@ -194,7 +237,7 @@ function _validateParticipantSourceIP_PortRange(rangeFirst?: number | null, rang
 }
 
 function _validateParticipantSourceIP_Ports(portsArray: number[] | undefined): boolean {
-    if(!portsArray) {
+    if (!portsArray) {
         return false;
     }
 
@@ -253,71 +296,71 @@ export declare class ParticipantNetDebitCapChangeRequest implements IParticipant
 
 
 export declare class ParticipantFundsMovement implements IParticipantFundsMovement{
-	id: string;
-	createdBy: string;
-	createdDate: number;
-	approved: boolean;
-	approvedBy: string | null;
-	approvedDate: number | null;
+    id: string;
+    createdBy: string;
+    createdDate: number;
+    approved: boolean;
+    approvedBy: string | null;
+    approvedDate: number | null;
 
-	direction: ParticipantFundsMovementDirections;
-	currencyCode: string;
-	amount: string;
+    direction: ParticipantFundsMovementDirections;
+    currencyCode: string;
+    amount: string;
 
-	transferId: string | null;
-	extReference: string | null;
-	note: string | null;
+    transferId: string | null;
+    extReference: string | null;
+    note: string | null;
 }
 
 
 export declare class ParticipantAllowedSourceIps implements IParticipantAllowedSourceIps{
-	id: string;                                             // uuid of the source IP
-	cidr: string;                                            // proper cidr format
-	// ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
-	portMode: ParticipantAllowedSourceIpsPortModes;
-	ports?: number[];                                       // using a single or multiple ports
-	portRange?: { rangeFirst: number, rangeLast: number; };   // port range
+    id: string;                                             // uuid of the source IP
+    cidr: string;                                            // proper cidr format
+    // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
+    portMode: ParticipantAllowedSourceIpsPortModes;
+    ports?: number[];                                       // using a single or multiple ports
+    portRange?: { rangeFirst: number, rangeLast: number; };   // port range
 }
 
 
 export declare class ParticipantEndpoint implements IParticipantEndpoint{
-	id: string;                                             // uuid of the endpoint
-	type: ParticipantEndpointTypes;                            // "FSPIOP" | "ISO20022"
-	protocol: ParticipantEndpointProtocols;                                 // for now only "HTTPs/REST";
-	value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
+    id: string;                                             // uuid of the endpoint
+    type: ParticipantEndpointTypes;                            // "FSPIOP" | "ISO20022"
+    protocol: ParticipantEndpointProtocols;                                 // for now only "HTTPs/REST";
+    value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
 }
 
 
 export declare class ParticipantAccount implements IParticipantAccount{
-	id: string;                                             // uuid of the account (from the external accounts and balances system)
-	type: ParticipantAccountTypes;
-	//isActive: boolean                                     //TODO do we need this?
-	currencyCode: string;                                   //TODO move
-	debitBalance: string | null;                            // output only, we don't store this here
-	creditBalance: string | null;                           // output only, we don't store this here
+    id: string;                                             // uuid of the account (from the external accounts and balances system)
+    type: ParticipantAccountTypes;
+    //isActive: boolean                                     //TODO do we need this?
+    currencyCode: string;                                   //TODO move
+    debitBalance: string | null;                            // output only, we don't store this here
+    creditBalance: string | null;                           // output only, we don't store this here
     balance: string | null;									// output only, we don't store this here
-	externalBankAccountId: string | null;
-	externalBankAccountName: string | null;
+    externalBankAccountId: string | null;
+    externalBankAccountName: string | null;
 }
 
 export declare class ParticipantAccountChangeRequest implements IParticipantAccountChangeRequest{
-	id: string;
-	accountId: string | null;
-	type: ParticipantAccountTypes;
-	currencyCode: string;
-	externalBankAccountId: string | null;
-	externalBankAccountName: string | null;
-	createdBy: string;
-	createdDate: number;
-	approved: boolean;
-	approvedBy: string | null;
-	approvedDate: number | null;
+    id: string;
+    accountId: string | null;
+    type: ParticipantAccountTypes;
+    currencyCode: string;
+    externalBankAccountId: string | null;
+    externalBankAccountName: string | null;
+    createdBy: string;
+    createdDate: number;
+    approved: boolean;
+    approvedBy: string | null;
+    approvedDate: number | null;
 }
 
 export declare class ParticipantActivityLogEntry implements IParticipantActivityLogEntry{
-	changeType: ParticipantChangeTypes;
-	user: string;
-	timestamp: number;
-	notes: string | null;
+    changeType: ParticipantChangeTypes;
+    user: string;
+    timestamp: number;
+    notes: string | null;
 }
 */
