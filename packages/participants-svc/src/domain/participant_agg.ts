@@ -1371,6 +1371,7 @@ export class ParticipantAggregate {
         } else {
             const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
             this._logger.error(err);
+            
             throw err;
         }
 
