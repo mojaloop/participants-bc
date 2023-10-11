@@ -176,7 +176,7 @@ export class Participant implements IParticipant {
         try {
 
             const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-            const phoneNumRegex = /^(\+\d{1,4}\s?)?(\(\d{1,4}\)\s?)?[\d\s\-]+$/;
+            const phoneNumRegex = /^(\+\d{1,4}\s?)?(\(\d{1,4}\)\s?)?[\d\s-]+$/;
 
             if (request.name.trim().length === 0) {
                 throw new Error(
@@ -197,7 +197,7 @@ export class Participant implements IParticipant {
             }
 
             return Promise.resolve();
-            
+
         } catch (error) {
             return Promise.reject(error);
         }

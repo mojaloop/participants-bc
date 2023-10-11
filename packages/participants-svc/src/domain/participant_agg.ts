@@ -1041,8 +1041,7 @@ export class ParticipantAggregate {
                     value.phoneNumber === contactInfoChangeRequest.phoneNumber)) {
                     throw new CannotAddDuplicateContactInfoError("Same contact phone no. already exists.");
                 }
-            }
-            else {
+            } else {
                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
                     value.name === contactInfoChangeRequest.name &&
                     value.email === contactInfoChangeRequest.email &&
@@ -1371,7 +1370,7 @@ export class ParticipantAggregate {
         } else {
             const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
             this._logger.error(err);
-            
+
             throw err;
         }
 
