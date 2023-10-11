@@ -46,8 +46,8 @@
     "nock": "^13.3.1"
   },
   "dependencies": {
-    "@mojaloop/logging-bc-public-types-lib": "~0.1.19",
-    "@mojaloop/participant-bc-public-types-lib": "~0.0.13",
+    "@mojaloop/logging-bc-public-types-lib": "~0.1.20",
+    "@mojaloop/participant-bc-public-types-lib": "~0.0.17",
     "@mojaloop/security-bc-public-types-lib": "~0.2.1"
   }
 }
