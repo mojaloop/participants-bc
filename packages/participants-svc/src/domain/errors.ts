@@ -43,6 +43,7 @@ export class AccountNotFoundError extends Error {}
 export class AccountChangeRequestNotFound extends Error {}
 export class AccountChangeRequestAlreadyApproved extends Error {}
 export class InvalidAccountError extends Error {}
+export class WithdrawalExceedsBalanceError extends Error {}
 
 export class CannotAddDuplicateSourceIpError extends Error {}
 export class SourceIpNotFoundError extends Error {}

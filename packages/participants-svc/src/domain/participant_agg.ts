@@ -84,6 +84,7 @@ import {
     SourceIpChangeRequestAlreadyApproved,
     SourceIpChangeRequestNotFound,
     UnableToCreateAccountUpstream,
+    WithdrawalExceedsBalanceError,
 } from "./errors";
 import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
 import {ParticipantPrivilegeNames} from "./privilege_names";
@@ -1583,15 +1584,45 @@ export class ParticipantAggregate {
                 `Cannot find a hub's assets account for currency: ${fundsMov.currencyCode}`
             );
         }
-        const positionAccount = participant.participantAccounts.find(
+        const settlementAccount = participant.participantAccounts.find(
             (value: IParticipantAccount) =>
                 value.currencyCode === fundsMov.currencyCode &&
                 value.type === "SETTLEMENT"
         );
-        if (!positionAccount) {
+        if (!settlementAccount) {
             throw new AccountNotFoundError(
                 `Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`
             );
+        }
+
+        // Check if enough balance in settlement account for withdrawal
+        if (fundsMov.direction === ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL) {
+            // Get the account from account and balance adapter
+            const updatedSettlementAcc = await this._accBal.getAccount(settlementAccount.id);
+            if (!updatedSettlementAcc) {
+                throw new AccountNotFoundError(
+                    `Could not get settlement account from accountsAndBalances adapter for participant id: ${participant.id}`
+                );
+            }
+
+            const fundsMovAmount = Number(fundsMov.amount);
+            const balance = Number(updatedSettlementAcc.balance);
+
+            if (isNaN(fundsMovAmount)) {
+                throw new AccountNotFoundError(
+                    `Invalid withdrawal amount for funds movement with id: ${fundsMovId}`
+                );
+            }
+            if (isNaN(balance)) {
+                throw new AccountNotFoundError(
+                    `Invalid balance value in the settlement account for participant id: ${participant.id}`
+                );
+            }
+            if (fundsMovAmount > balance) {
+                throw new WithdrawalExceedsBalanceError(
+                    `Not enough balance in the settlement account for participant id: ${participant.id}`
+                );
+            }
         }
 
         const now = Date.now();
@@ -1605,9 +1636,9 @@ export class ParticipantAggregate {
             false,
             fundsMov.direction === "FUNDS_DEPOSIT"
                 ? hubReconAccount.id
-                : positionAccount.id,
+                : settlementAccount.id,
             fundsMov.direction === "FUNDS_DEPOSIT"
-                ? positionAccount.id
+                ? settlementAccount.id
                 : hubReconAccount.id
         ).catch((error: Error) => {
             this._logger.error(error);

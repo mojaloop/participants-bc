@@ -50,6 +50,7 @@ import {
     ParticipantCreateValidationError,
     ParticipantNotActive,
     ParticipantNotFoundError,
+    WithdrawalExceedsBalanceError,
 } from "../domain/errors";
 import { TokenHelper } from "@mojaloop/security-bc-client-lib";
 import {
@@ -824,6 +825,11 @@ export class ExpressRoutes {
                 res.status(400).json({
                     status: "error",
                     msg: "Transfer would exceed debits on account",
+                });
+            } else if (err instanceof WithdrawalExceedsBalanceError) {
+                res.status(400).json({
+                    status: "error",
+                    msg: err.message,
                 });
             } else {
                 this._logger.error(err);
