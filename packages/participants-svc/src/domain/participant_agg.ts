@@ -52,7 +52,11 @@ import {
     ParticipantNetDebitCapTypes,
     ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
-import {SettlementMatrixSettledEvt} from "@mojaloop/platform-shared-lib-public-messages-lib";
+import {
+    SettlementMatrixSettledEvt,
+    ParticipantChangedEvt,
+    ParticipantChangedEvtPayload
+} from "@mojaloop/platform-shared-lib-public-messages-lib";
 import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {
     CallSecurityContext,
@@ -88,6 +92,10 @@ import {
 import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
 import {ParticipantPrivilegeNames} from "./privilege_names";
 import {IParticipantsRepository} from "./repo_interfaces";
+import {
+    DomainEventMsg,
+    IMessageProducer
+} from "@mojaloop/platform-shared-lib-messaging-types-lib";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -124,10 +132,12 @@ export class ParticipantAggregate {
     private _repo: IParticipantsRepository;
     private _accBal: IAccountsBalancesAdapter;
     private _auditClient: IAuditClient;
-    private _authorizationClient: IAuthorizationClient;
+    private _authorizationClient: IAuthorizationClient;    
+    private _messageProducer: IMessageProducer;
     private _currencyList: Currency[];
     private _metrics: IMetrics;
     private readonly _requestsHisto: IHistogram;
+    private _outputEvents: DomainEventMsg[] = [];
 
     constructor(
         configClient: IConfigurationClient,
@@ -135,6 +145,7 @@ export class ParticipantAggregate {
         accBal: IAccountsBalancesAdapter,
         auditClient: IAuditClient,
         authorizationClient: IAuthorizationClient,
+        messageProducer: IMessageProducer,
         metrics: IMetrics,
         logger: ILogger
     ) {
@@ -144,6 +155,7 @@ export class ParticipantAggregate {
         this._accBal = accBal;
         this._auditClient = auditClient;
         this._authorizationClient = authorizationClient;
+        this._messageProducer = messageProducer;
         this._metrics = metrics;
         this._currencyList = this._configClient.globalConfigs.getCurrencies();
 
@@ -501,6 +513,20 @@ export class ParticipantAggregate {
             `Successfully created participant with ID: '${createdParticipant.id}'`
         );
 
+        //create event for participant create
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: inputParticipant.id,
+            actionName: ParticipantChangeTypes.CREATE
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        this._outputEvents = [];
+
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
+
         return createdParticipant.id;
     }
 
@@ -562,6 +588,20 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for participant approve
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.APPROVE
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+        
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
+
         this._logger.info(
             `Successfully approved participant with ID: '${existing.id}'`
         );
@@ -618,6 +658,20 @@ export class ParticipantAggregate {
         this._logger.info(
             `Successfully activated participant with ID: '${existing.id}'`
         );
+
+        //create event for participant activate
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.ACTIVATE
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
     }
 
     async deactivateParticipant(secCtx: CallSecurityContext, participantId: string, note: string | null): Promise<void> {
@@ -670,6 +724,20 @@ export class ParticipantAggregate {
         this._logger.info(
             `Successfully deactivated participant with ID: '${existing.id}'`
         );
+
+        //create event for participant deactivate
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.DEACTIVATE
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+                
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
     }
 
     /*
@@ -737,6 +805,20 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for participant add endpoint
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.ADD_ENDPOINT
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+        
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
+
         return endpoint.id;
     }
 
@@ -800,6 +882,20 @@ export class ParticipantAggregate {
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
+
+        //create event for participant change endpoint
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.CHANGE_ENDPOINT
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+        
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
     }
 
     async removeParticipantEndpoint(
@@ -858,6 +954,20 @@ export class ParticipantAggregate {
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
+
+        //create event for participant remove endpoint
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.REMOVE_ENDPOINT
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+                
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
     }
 
     async getParticipantEndpointsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantEndpoint[]> {
@@ -1089,6 +1199,20 @@ export class ParticipantAggregate {
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
+
+        //create event for participant source ip change request approved
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+        
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
 
         return soureIPChangeRequest.allowedSourceIpId;
     }
@@ -1371,6 +1495,20 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for Participant account change request approved
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_APPROVED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
+
         return accountId;
     }
 
@@ -1645,6 +1783,22 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for fund movement approved
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: fundsMov.direction === "FUNDS_DEPOSIT"
+                        ? ParticipantChangeTypes.FUNDS_DEPOSIT
+                        : ParticipantChangeTypes.FUNDS_WITHDRAWAL
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
+
         return;
     }
 
@@ -1859,6 +2013,20 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for NDC change
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: ParticipantChangeTypes.NDC_CHANGE
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        this._outputEvents = [];
+        
+        this._outputEvents.push(event);
+        
+        await this._messageProducer.send(this._outputEvents);
+
         return;
     }
 
@@ -2015,6 +2183,20 @@ export class ParticipantAggregate {
             await this._repo.store(participant);
 
             this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
+
+            //create event for NDC recalculated
+            const payload: ParticipantChangedEvtPayload = {
+                participantId: participant.id,
+                actionName: ParticipantChangeTypes.NDC_RECALCULATED
+            };
+    
+            const event = new ParticipantChangedEvt(payload);
+                
+            this._outputEvents = [];
+            
+            this._outputEvents.push(event);
+            
+            await this._messageProducer.send(this._outputEvents);
         }
     }
 }
