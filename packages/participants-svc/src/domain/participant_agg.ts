@@ -54,8 +54,12 @@ import {
     ParticipantNetDebitCapTypes,
     ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
-import { SettlementMatrixSettledEvt } from "@mojaloop/platform-shared-lib-public-messages-lib";
-import { Currency, IConfigurationClient } from "@mojaloop/platform-configuration-bc-public-types-lib";
+import {
+    SettlementMatrixSettledEvt,
+    ParticipantChangedEvt,
+    ParticipantChangedEvtPayload
+} from "@mojaloop/platform-shared-lib-public-messages-lib";
+import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {
     CallSecurityContext,
     ForbiddenError,
@@ -63,8 +67,8 @@ import {
     MakerCheckerViolationError,
     UnauthorizedError,
 } from "@mojaloop/security-bc-public-types-lib";
-import { randomUUID } from "crypto";
-import { Participant, } from "./entities/participant";
+import {randomUUID} from "crypto";
+import {Participant,} from "./entities/participant";
 
 import {
     AccountChangeRequestAlreadyApproved,
@@ -92,9 +96,10 @@ import {
     UnableToCreateAccountUpstream,
     WithdrawalExceedsBalanceError,
 } from "./errors";
-import { IAccountsBalancesAdapter } from "./iparticipant_account_balances_adapter";
-import { ParticipantPrivilegeNames } from "./privilege_names";
-import { IParticipantsRepository } from "./repo_interfaces";
+import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
+import {ParticipantPrivilegeNames} from "./privilege_names";
+import {IParticipantsRepository} from "./repo_interfaces";
+import {IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -137,6 +142,7 @@ export class ParticipantAggregate {
     private _accBal: IAccountsBalancesAdapter;
     private _auditClient: IAuditClient;
     private _authorizationClient: IAuthorizationClient;
+    private _messageProducer: IMessageProducer;
     private _currencyList: Currency[];
     private _metrics: IMetrics;
     private readonly _requestsHisto: IHistogram;
@@ -147,6 +153,7 @@ export class ParticipantAggregate {
         accBal: IAccountsBalancesAdapter,
         auditClient: IAuditClient,
         authorizationClient: IAuthorizationClient,
+        messageProducer: IMessageProducer,
         metrics: IMetrics,
         logger: ILogger
     ) {
@@ -156,6 +163,7 @@ export class ParticipantAggregate {
         this._accBal = accBal;
         this._auditClient = auditClient;
         this._authorizationClient = authorizationClient;
+        this._messageProducer = messageProducer;
         this._metrics = metrics;
         this._currencyList = this._configClient.globalConfigs.getCurrencies();
 
@@ -516,6 +524,16 @@ export class ParticipantAggregate {
             `Successfully created participant with ID: '${createdParticipant.id}'`
         );
 
+        //create event for participant create
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: inputParticipant.id,
+            actionName: AuditedActionNames.PARTICIPANT_CREATED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+
         return createdParticipant.id;
     }
 
@@ -577,6 +595,16 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for participant approve
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_APPROVED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+
         this._logger.info(
             `Successfully approved participant with ID: '${existing.id}'`
         );
@@ -633,6 +661,16 @@ export class ParticipantAggregate {
         this._logger.info(
             `Successfully activated participant with ID: '${existing.id}'`
         );
+
+        //create event for participant activate
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_ENABLED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
     }
 
     async deactivateParticipant(secCtx: CallSecurityContext, participantId: string, note: string | null): Promise<void> {
@@ -685,6 +723,16 @@ export class ParticipantAggregate {
         this._logger.info(
             `Successfully deactivated participant with ID: '${existing.id}'`
         );
+
+        //create event for participant deactivate
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_DISABLED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
     }
 
     /*
@@ -752,6 +800,16 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for participant add endpoint
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_ADDED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+
         return endpoint.id;
     }
 
@@ -815,6 +873,16 @@ export class ParticipantAggregate {
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
+
+        //create event for participant change endpoint
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_CHANGED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
     }
 
     async removeParticipantEndpoint(
@@ -873,6 +941,16 @@ export class ParticipantAggregate {
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
+
+        //create event for participant remove endpoint
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_REMOVED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
     }
 
     async getParticipantEndpointsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantEndpoint[]> {
@@ -1123,6 +1201,16 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for participant create
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+
         return contactInfoChangeRequest.contactInfoId;
     }
 
@@ -1283,7 +1371,6 @@ export class ParticipantAggregate {
             }
         }
 
-
         if (soureIPChangeRequest.requestType === "ADD_SOURCE_IP") {
             soureIPChangeRequest.allowedSourceIpId = randomUUID();
 
@@ -1318,12 +1405,12 @@ export class ParticipantAggregate {
                 user: secCtx.username!,
                 timestamp: now,
                 notes: null,
-            }, {
-            changeType: (soureIPChangeRequest.requestType === "ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
-            user: secCtx.username!,
-            timestamp: now + 1,
-            notes: null,
-        }
+            },{
+                changeType: (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
         );
 
         const updateSuccess = await this._repo.store(existing);
@@ -1346,11 +1433,21 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
         await this._auditClient.audit(
-            (soureIPChangeRequest.requestType === "ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED),
+            (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED),
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
+
+        //create event for participant source ip change request approved - we don't need both, just the reason for the actual change
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName:  (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED)
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
 
         return soureIPChangeRequest.allowedSourceIpId;
     }
@@ -1364,18 +1461,17 @@ export class ParticipantAggregate {
         participantId: string,
         accountChangeRequest: IParticipantAccountChangeRequest
     ): Promise<string> {
-        if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
+        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_ACCOUNT);
-        } else if (accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CHANGE_PARTICIPANT_ACCOUNT_BANK_DETAILS);
-        } else {
-            const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+        }else{
+            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
             this._logger.error(err);
-
             throw err;
         }
 
-        if (!participantId) {
+        if (!participantId){
             const err = new InvalidParticipantError("[id] cannot be empty");
             this._logger.error(err);
             throw err;
@@ -1429,7 +1525,7 @@ export class ParticipantAggregate {
             requestType: accountChangeRequest.requestType
         });
         existing.changeLog.push({
-            changeType: accountChangeRequest.requestType === "ADD_ACCOUNT" ? ParticipantChangeTypes.ADD_ACCOUNT_REQUEST : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS_REQUEST,
+            changeType: accountChangeRequest.requestType==="ADD_ACCOUNT" ? ParticipantChangeTypes.ADD_ACCOUNT_REQUEST : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS_REQUEST,
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -1449,7 +1545,7 @@ export class ParticipantAggregate {
         );
 
         await this._auditClient.audit(
-            (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
+            (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
                 AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED),
             true,
             this._getAuditSecCtx(secCtx),
@@ -1490,19 +1586,19 @@ export class ParticipantAggregate {
         }
 
         // now we can enforce the correct privilege
-        if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
+        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_CREATION_REQUEST);
-        } else if (accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST);
-        } else {
-            const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+        }else{
+            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
             this._logger.error(err);
             throw err;
         }
 
         if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
             await this._auditClient.audit(
-                (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
+                (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
                     AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED),
                 false,
                 this._getAuditSecCtx(secCtx),
@@ -1597,13 +1693,13 @@ export class ParticipantAggregate {
                 user: secCtx.username!,
                 timestamp: now,
                 notes: null,
-            }, {
-            changeType: (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
-                ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
-            user: secCtx.username!,
-            timestamp: now + 1,
-            notes: null,
-        }
+            },{
+                changeType: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                    ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
         );
 
         const updateSuccess = await this._repo.store(existing);
@@ -1633,6 +1729,17 @@ export class ParticipantAggregate {
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
+
+        //create event for Participant account change request approved - we don't need both, just the reason for the actual change
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED : AuditedActionNames.PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED)
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
 
         return accountId;
     }
@@ -1938,6 +2045,18 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for fund movement approved
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: fundsMov.direction === "FUNDS_DEPOSIT"
+                ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED
+                : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+
         return;
     }
 
@@ -2152,6 +2271,16 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+        //create event for NDC change
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+
         return;
     }
 
@@ -2308,6 +2437,16 @@ export class ParticipantAggregate {
             await this._repo.store(participant);
 
             this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
+
+            //create event for NDC recalculated
+            const payload: ParticipantChangedEvtPayload = {
+                participantId: participant.id,
+                actionName: ParticipantChangeTypes.NDC_RECALCULATED
+            };
+
+            const event = new ParticipantChangedEvt(payload);
+
+            await this._messageProducer.send(event);
         }
     }
 }

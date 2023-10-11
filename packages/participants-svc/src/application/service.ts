@@ -67,13 +67,13 @@ import {GetParticipantsConfigs} from "./configset";
 import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib";
 import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
 import {IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
+import {IMessageConsumer, IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
 import {
     DefaultConfigProvider,
     IConfigProvider
 } from "@mojaloop/platform-configuration-bc-client-lib";
-import {MLKafkaJsonConsumer, MLKafkaJsonConsumerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
+import {MLKafkaJsonConsumer, MLKafkaJsonConsumerOptions, MLKafkaJsonProducer, MLKafkaJsonProducerOptions} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
 import * as util from "util";
-import {IMessageConsumer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
 
 const APP_NAME = "participants-svc";
 const BC_NAME = "participants-bc";
@@ -124,6 +124,7 @@ export class Service {
     static auditClient: IAuditClient;
     static authorizationClient: IAuthorizationClient;
     static tokenHelper: TokenHelper;
+	static messageProducer: IMessageProducer;
     static participantAgg: ParticipantAggregate;
     static repoPart: IParticipantsRepository;
     static accountsBalancesAdapter: IAccountsBalancesAdapter;
@@ -139,6 +140,7 @@ export class Service {
         authorizationClient?: IAuthorizationClient,
         repoPart?: IParticipantsRepository,
         accAndBalAdapter?: IAccountsBalancesAdapter,
+        messageProducer?: IMessageProducer,
         configProvider?: IConfigProvider,
         metrics?:IMetrics,
         messageConsumer?: IMessageConsumer
@@ -240,6 +242,14 @@ export class Service {
         }
         this.metrics = metrics;
 
+        if (!messageProducer) {
+            const producerLogger = logger.createChild("producerLogger");
+            producerLogger.setLogLevel(LogLevel.INFO);
+            messageProducer = new MLKafkaJsonProducer(kafkaProducerOptions, producerLogger);
+            await messageProducer.connect();
+        }
+        this.messageProducer = messageProducer;
+
         // create the aggregate
         this.participantAgg = new ParticipantAggregate(
             this.configClient,
@@ -247,6 +257,7 @@ export class Service {
             this.accountsBalancesAdapter,
             this.auditClient,
             this.authorizationClient,
+            this.messageProducer,
             this.metrics,
             this.logger
         );
@@ -320,7 +331,7 @@ export class Service {
             const closeExpress = util.promisify(this.expressServer.close);
             await closeExpress();
         }
-
+        if (this.messageProducer) await this.messageProducer.destroy();
         if (this.auditClient) await this.auditClient.destroy();
         if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
         if (this.repoPart) await this.repoPart.destroy();

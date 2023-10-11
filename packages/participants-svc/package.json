@@ -55,7 +55,8 @@
     "@mojaloop/security-bc-public-types-lib": "~0.2.1",
     "@mojaloop/platform-shared-lib-observability-client-lib": "~0.1.9",
     "@mojaloop/platform-shared-lib-observability-types-lib": "~0.1.8",
-    "@mojaloop/platform-shared-lib-public-messages-lib": "~0.1.134",
+    "@mojaloop/platform-shared-lib-public-messages-lib": "~0.1.152",
+    "@mojaloop/platform-shared-lib-messaging-types-lib": "~0.2.101",
     "express": "~4.18.2",
     "mongodb": "~5.5.0"
   },
