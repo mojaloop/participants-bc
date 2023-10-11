@@ -193,6 +193,9 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
                     netDebitCaps: participant.netDebitCaps,
                     netDebitCapChangeRequests: participant.netDebitCapChangeRequests,
                     changeLog: participant.changeLog,
+
+                    participantContacts: participant.participantContacts,
+                    participantContactInfoChangeRequests: participant.participantContactInfoChangeRequests
                 },
             }
         );

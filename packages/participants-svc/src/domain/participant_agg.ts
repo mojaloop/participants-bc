@@ -29,10 +29,10 @@
  ******/
 
 "use strict";
-import {AccountsAndBalancesAccountType,} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
-import {IHistogram, IMetrics} from "@mojaloop/platform-shared-lib-observability-types-lib";
-import {AuditSecurityContext, IAuditClient,} from "@mojaloop/auditing-bc-public-types-lib";
-import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
+import { AccountsAndBalancesAccountType, } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
+import { IHistogram, IMetrics } from "@mojaloop/platform-shared-lib-observability-types-lib";
+import { AuditSecurityContext, IAuditClient, } from "@mojaloop/auditing-bc-public-types-lib";
+import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import {
     HUB_PARTICIPANT_ID,
     IParticipant,
@@ -40,6 +40,8 @@ import {
     IParticipantAccountChangeRequest,
     IParticipantActivityLogEntry,
     IParticipantAllowedSourceIp,
+    IParticipantContactInfo,
+    IParticipantContactInfoChangeRequest,
     IParticipantEndpoint,
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
@@ -52,8 +54,8 @@ import {
     ParticipantNetDebitCapTypes,
     ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
-import {SettlementMatrixSettledEvt} from "@mojaloop/platform-shared-lib-public-messages-lib";
-import {Currency, IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
+import { SettlementMatrixSettledEvt } from "@mojaloop/platform-shared-lib-public-messages-lib";
+import { Currency, IConfigurationClient } from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {
     CallSecurityContext,
     ForbiddenError,
@@ -61,15 +63,19 @@ import {
     MakerCheckerViolationError,
     UnauthorizedError,
 } from "@mojaloop/security-bc-public-types-lib";
-import {randomUUID} from "crypto";
-import {Participant,} from "./entities/participant";
+import { randomUUID } from "crypto";
+import { Participant, } from "./entities/participant";
 
 import {
     AccountChangeRequestAlreadyApproved,
     AccountChangeRequestNotFound,
     AccountNotFoundError,
     CannotAddDuplicateAccountError,
+    CannotAddDuplicateContactInfoError,
     CannotAddDuplicateEndpointError,
+    CannotAddDuplicateSourceIpError,
+    ContactInfoChangeRequestAlreadyApproved,
+    ContactInfoChangeRequestNotFound,
     CouldNotStoreParticipant,
     EndpointNotFoundError,
     InvalidAccountError,
@@ -86,9 +92,9 @@ import {
     UnableToCreateAccountUpstream,
     WithdrawalExceedsBalanceError,
 } from "./errors";
-import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter";
-import {ParticipantPrivilegeNames} from "./privilege_names";
-import {IParticipantsRepository} from "./repo_interfaces";
+import { IAccountsBalancesAdapter } from "./iparticipant_account_balances_adapter";
+import { ParticipantPrivilegeNames } from "./privilege_names";
+import { IParticipantsRepository } from "./repo_interfaces";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -116,7 +122,12 @@ enum AuditedActionNames {
     PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED = "PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED",
     PARTICIPANT_NDC_CHANGE_REQUEST_CREATED = "PARTICIPANT_NDC_CHANGE_REQUEST_CREATED",
     PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED = "PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED",
-    PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT = "PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT"
+    PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT = "PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT",
+    PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_CREATED = "PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_CREATED",
+    PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED = "PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_CONTACT_INFO_ADDED = "PARTICIPANT_CONTACT_INFO_ADDED",
+    PARTICIPANT_CONTACT_INFO_CHANGED = "PARTICIPANT_CONTACT_INFO_CHANGED",
+    PARTICIPANT_CONTACT_INFO_REMOVED = "PARTICIPANT_CONTACT_INFO_REMOVED",
 }
 
 export class ParticipantAggregate {
@@ -483,7 +494,10 @@ export class ParticipantAggregate {
                 },
             ],
             netDebitCaps: inputParticipant.netDebitCaps || [],
-            netDebitCapChangeRequests: []
+            netDebitCapChangeRequests: [],
+            participantContacts: [],
+            participantContactInfoChangeRequests: []
+
         };
 
         if (!(await this._repo.create(createdParticipant)))
@@ -873,6 +887,246 @@ export class ParticipantAggregate {
         return part.participantEndpoints || [];
     }
 
+
+    /*
+     * Contact Info
+     * */
+
+    async getContactInfoByParticipantId(secCtx: CallSecurityContext, id: string): Promise<IParticipantContactInfo[]> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getContactInfoByParticipantId" });
+        const existing: IParticipant | null = await this._repo.fetchWhereId(id);
+        if (!existing) {
+            timerEndFn({ success: "false" });
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${id}' not found.`
+            );
+        }
+        const participantContacts = existing.participantContacts || [];
+
+        return participantContacts;
+    }
+
+    async createParticipantContactInfoChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        contactInfoChangeRequest: IParticipantContactInfoChangeRequest
+    ): Promise<string> {
+
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
+
+        if (!participantId)
+            throw new InvalidParticipantError("[id] cannot be empty");
+
+        await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing)
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+
+
+        if (!existing.participantContactInfoChangeRequests) {
+            existing.participantContactInfoChangeRequests = [];
+        }
+
+        existing.participantContactInfoChangeRequests.push({
+            id: contactInfoChangeRequest.id || randomUUID(),
+            contactInfoId: contactInfoChangeRequest.contactInfoId,
+            name: contactInfoChangeRequest.name,
+            email: contactInfoChangeRequest.email,
+            phoneNumber: contactInfoChangeRequest.phoneNumber,
+            role: contactInfoChangeRequest.role,
+            createdBy: secCtx.username!,
+            createdDate: Date.now(),
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: contactInfoChangeRequest.requestType
+        });
+
+        existing.changeLog.push({
+            changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
+            user: secCtx.username!,
+            timestamp: Date.now(),
+            notes: null,
+        });
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on adding participant contact info change request."
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully created contact info change request for Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_CREATED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        return contactInfoChangeRequest.id;
+    }
+
+    async approveParticipantContactInfoChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        contactInfoChangeRequestId: string
+    ): Promise<string | null> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
+
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        }
+
+
+        const contactInfoChangeRequest = existing.participantContactInfoChangeRequests.find(
+            (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
+        );
+        if (!contactInfoChangeRequest) {
+            throw new ContactInfoChangeRequestNotFound(
+                `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
+            );
+        }
+        if (contactInfoChangeRequest.approved) {
+            throw new ContactInfoChangeRequestAlreadyApproved(
+                `Participant's contact info change request with id: ${contactInfoChangeRequestId} is already approved`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+        if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                ParticipantChangeTypes.ADD_CONTACT_INFO,
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and approve participant contact info change request."
+            );
+        }
+
+        if (!existing.participantContacts) {
+            existing.participantContacts = [];
+        } else {
+
+            if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
+                if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                    value.name === contactInfoChangeRequest.name)) {
+                    throw new CannotAddDuplicateContactInfoError("Same contact name already exists.");
+                }
+
+                if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                    value.email === contactInfoChangeRequest.email)) {
+                    throw new CannotAddDuplicateContactInfoError("Same contact email already exists.");
+                }
+
+                if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                    value.phoneNumber === contactInfoChangeRequest.phoneNumber)) {
+                    throw new CannotAddDuplicateContactInfoError("Same contact phone no. already exists.");
+                }
+            } else {
+                if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                    value.name === contactInfoChangeRequest.name &&
+                    value.email === contactInfoChangeRequest.email &&
+                    value.phoneNumber === contactInfoChangeRequest.phoneNumber &&
+                    value.role === contactInfoChangeRequest.role)) {
+
+                    throw new CannotAddDuplicateContactInfoError("Same contact information already exists.");
+                }
+            }
+        }
+
+
+        if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
+            contactInfoChangeRequest.contactInfoId = randomUUID();
+
+            existing.participantContacts.push({
+                id: contactInfoChangeRequest.contactInfoId,
+                name: contactInfoChangeRequest.name,
+                email: contactInfoChangeRequest.email,
+                phoneNumber: contactInfoChangeRequest.phoneNumber,
+                role: contactInfoChangeRequest.role
+            });
+        } else {
+            existing.participantContacts.map((contactInfo) => {
+                if (contactInfo.id == contactInfoChangeRequest.contactInfoId) {
+                    contactInfo.name = contactInfoChangeRequest.name,
+                        contactInfo.email = contactInfoChangeRequest.email,
+                        contactInfo.phoneNumber = contactInfoChangeRequest.phoneNumber,
+                        contactInfo.role = contactInfoChangeRequest.role
+                }
+            });
+        }
+
+        const now = Date.now();
+
+        contactInfoChangeRequest.approved = true;
+        contactInfoChangeRequest.approvedBy = secCtx.username;
+        contactInfoChangeRequest.approvedDate = Date.now();
+
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            }, {
+            changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
+            user: secCtx.username!,
+            timestamp: now + 1,
+            notes: null,
+        }
+        );
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on adding participant's contact info."
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully added contact info with id: ${contactInfoChangeRequest.contactInfoId} to Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        await this._auditClient.audit(
+            (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        return contactInfoChangeRequest.contactInfoId;
+    }
+
+
     /*
      * SourceIPs
      * */
@@ -933,7 +1187,7 @@ export class ParticipantAggregate {
         });
 
         existing.changeLog.push({
-            changeType: (sourceIpChangeRequest.requestType==="ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
+            changeType: (sourceIpChangeRequest.requestType === "ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -1011,17 +1265,24 @@ export class ParticipantAggregate {
         if (!existing.participantAllowedSourceIps) {
             existing.participantAllowedSourceIps = [];
         } else {
-            if (soureIPChangeRequest.allowedSourceIpId == null &&
-                existing.participantAllowedSourceIps.find(
-                    (value: IParticipantAllowedSourceIp) =>
-                        value.cidr === soureIPChangeRequest.cidr
-                )
-            ) {
-                throw new CannotAddDuplicateAccountError(
-                    "Same sourceIP record already exists."
-                );
+            const isDuplicate = existing.participantAllowedSourceIps.find((value: IParticipantAllowedSourceIp) => {
+                if (soureIPChangeRequest.requestType === "ADD_SOURCE_IP") {
+                    return value.cidr === soureIPChangeRequest.cidr;
+                } else {
+                    return (
+                        value.cidr === soureIPChangeRequest.cidr &&
+                        value.portMode === soureIPChangeRequest.portMode &&
+                        value.portRange === soureIPChangeRequest.portRange &&
+                        value.ports === soureIPChangeRequest.ports
+                    );
+                }
+            });
+
+            if (isDuplicate) {
+                throw new CannotAddDuplicateSourceIpError("Same sourceIP record already exists.");
             }
         }
+
 
         if (soureIPChangeRequest.requestType === "ADD_SOURCE_IP") {
             soureIPChangeRequest.allowedSourceIpId = randomUUID();
@@ -1057,12 +1318,12 @@ export class ParticipantAggregate {
                 user: secCtx.username!,
                 timestamp: now,
                 notes: null,
-            },{
-                changeType: (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
-                user: secCtx.username!,
-                timestamp: now+1,
-                notes: null,
-            }
+            }, {
+            changeType: (soureIPChangeRequest.requestType === "ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
+            user: secCtx.username!,
+            timestamp: now + 1,
+            notes: null,
+        }
         );
 
         const updateSuccess = await this._repo.store(existing);
@@ -1085,7 +1346,7 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
         await this._auditClient.audit(
-            (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED),
+            (soureIPChangeRequest.requestType === "ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED),
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
@@ -1103,17 +1364,18 @@ export class ParticipantAggregate {
         participantId: string,
         accountChangeRequest: IParticipantAccountChangeRequest
     ): Promise<string> {
-        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
+        if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_ACCOUNT);
-        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+        } else if (accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CHANGE_PARTICIPANT_ACCOUNT_BANK_DETAILS);
-        }else{
-            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+        } else {
+            const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
             this._logger.error(err);
+
             throw err;
         }
 
-        if (!participantId){
+        if (!participantId) {
             const err = new InvalidParticipantError("[id] cannot be empty");
             this._logger.error(err);
             throw err;
@@ -1167,7 +1429,7 @@ export class ParticipantAggregate {
             requestType: accountChangeRequest.requestType
         });
         existing.changeLog.push({
-            changeType: accountChangeRequest.requestType==="ADD_ACCOUNT" ? ParticipantChangeTypes.ADD_ACCOUNT_REQUEST : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS_REQUEST,
+            changeType: accountChangeRequest.requestType === "ADD_ACCOUNT" ? ParticipantChangeTypes.ADD_ACCOUNT_REQUEST : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS_REQUEST,
             user: secCtx.username!,
             timestamp: Date.now(),
             notes: null,
@@ -1187,7 +1449,7 @@ export class ParticipantAggregate {
         );
 
         await this._auditClient.audit(
-            (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+            (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                 AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED),
             true,
             this._getAuditSecCtx(secCtx),
@@ -1201,7 +1463,7 @@ export class ParticipantAggregate {
         secCtx: CallSecurityContext,
         participantId: string,
         accountChangeRequestId: string
-    ): Promise<string| null> {
+    ): Promise<string | null> {
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
@@ -1228,19 +1490,19 @@ export class ParticipantAggregate {
         }
 
         // now we can enforce the correct privilege
-        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
+        if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_CREATION_REQUEST);
-        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+        } else if (accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST);
-        }else{
-            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+        } else {
+            const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
             this._logger.error(err);
             throw err;
         }
 
         if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
             await this._auditClient.audit(
-                (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                     AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED),
                 false,
                 this._getAuditSecCtx(secCtx),
@@ -1254,7 +1516,7 @@ export class ParticipantAggregate {
         if (!existing.participantAccounts) {
             existing.participantAccounts = [];
         } else {
-            if ( accountChangeRequest.accountId == null &&
+            if (accountChangeRequest.accountId == null &&
                 existing.participantAccounts.find(
                     (value: IParticipantAccount) =>
                         value.type === accountChangeRequest.type &&
@@ -1331,17 +1593,17 @@ export class ParticipantAggregate {
 
         existing.changeLog.push(
             {
-                changeType:  ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_APPROVED,
+                changeType: ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_APPROVED,
                 user: secCtx.username!,
                 timestamp: now,
                 notes: null,
-            },{
-                changeType:  (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
-                    ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
-                user: secCtx.username!,
-                timestamp: now+1,
-                notes: null,
-            }
+            }, {
+            changeType: (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
+                ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
+            user: secCtx.username!,
+            timestamp: now + 1,
+            notes: null,
+        }
         );
 
         const updateSuccess = await this._repo.store(existing);
@@ -1358,14 +1620,14 @@ export class ParticipantAggregate {
         );
 
         await this._auditClient.audit(
-            (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+            (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                 AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED),
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
         );
         await this._auditClient.audit(
-            (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+            (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                 AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED : AuditedActionNames.PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED),
             true,
             this._getAuditSecCtx(secCtx),

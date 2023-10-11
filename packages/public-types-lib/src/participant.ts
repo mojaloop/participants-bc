@@ -36,10 +36,10 @@
 // If changes are made in the master participant entities and enums, these should be updated
 
 import {
-    ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes,
-    ParticipantChangeTypes,
-    ParticipantEndpointProtocols,
-    ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes, ParticipantTypes
+  ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes,
+  ParticipantChangeTypes,
+  ParticipantEndpointProtocols,
+  ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes, ParticipantTypes
 } from "./enums";
 
 export const HUB_PARTICIPANT_ID = "hub";
@@ -73,6 +73,9 @@ export declare interface IParticipant {
   // only per currency
   netDebitCaps: IParticipantNetDebitCap[];
   netDebitCapChangeRequests: IParticipantNetDebitCapChangeRequest[];
+
+  participantContacts: IParticipantContactInfo[];
+  participantContactInfoChangeRequests: IParticipantContactInfoChangeRequest[];
 }
 
 export declare interface IParticipantNetDebitCap {
@@ -127,7 +130,7 @@ export declare interface IParticipantAllowedSourceIp {
   portRange?: { rangeFirst: number, rangeLast: number; }; // port range
 }
 
-export declare interface IParticipantSourceIpChangeRequest extends IParticipantAllowedSourceIp{
+export declare interface IParticipantSourceIpChangeRequest extends IParticipantAllowedSourceIp {
   allowedSourceIpId: string | null;
   createdBy: string;
   createdDate: number;
@@ -177,4 +180,22 @@ export declare interface IParticipantActivityLogEntry {
   user: string;
   timestamp: number;
   notes: string | null;
+}
+
+export declare interface IParticipantContactInfo {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  role: string;
+}
+
+export declare interface IParticipantContactInfoChangeRequest extends IParticipantContactInfo {
+  contactInfoId: string | null;
+  createdBy: string;
+  createdDate: number;
+  approved: boolean;
+  approvedBy: string | null;
+  approvedDate: number | null;
+  requestType: "ADD_PARTICIPANT_CONTACT_INFO" | "CHANGE_PARTICIPANT_CONTACT_INFO";
 }

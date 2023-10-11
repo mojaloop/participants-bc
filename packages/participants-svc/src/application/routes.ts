@@ -36,6 +36,7 @@ import {
     IParticipant,
     IParticipantAccount,
     IParticipantAccountChangeRequest,
+    IParticipantContactInfoChangeRequest,
     IParticipantEndpoint,
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
@@ -135,7 +136,10 @@ export class ExpressRoutes {
         this._mainRouter.post("/participants/:id/sourceIpChangeRequests", this._participantSourceIpChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/approve", this._participantSourceIpChangeRequestApprove.bind(this));
 
-
+        // participant's contactInfo
+        this._mainRouter.get("/participants/:id/contactInfo", this._contactInfoByParticipantId.bind(this));
+        this._mainRouter.post("/participants/:id/contactInfoChangeRequests", this._participantContactInfoChangeRequestCreate.bind(this));
+        this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/approve", this._participantContactInfoChangeRequestApprove.bind(this));
     }
 
     private async _authenticationMiddleware(
@@ -406,6 +410,105 @@ export class ExpressRoutes {
                 status: "error",
                 msg: err.message,
             });
+        }
+    }
+
+    /*
+     * Contact Info
+     * */
+
+    private async _contactInfoByParticipantId(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        this._logger.debug(`Fetching contacts for Participant [${id}].`);
+
+        try {
+            const fetched = await this._participantsAgg.getContactInfoByParticipantId(
+                req.securityContext!,
+                id
+            );
+            res.send(fetched);
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof NoAccountsError) {
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantContactInfoChangeRequestCreate(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const data: IParticipantContactInfoChangeRequest = req.body;
+        this._logger.debug(
+            `Received request to create contact information for participant with ID: ${id}.`
+        );
+
+        try {
+            const createdId = await this._participantsAgg.createParticipantContactInfoChangeRequest(
+                req.securityContext!,
+                id,
+                data
+            );
+            res.send({
+                id: createdId,
+            });
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantContactInfoChangeRequestApprove(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to approve contact info change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.approveParticipantContactInfoChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
         }
     }
 

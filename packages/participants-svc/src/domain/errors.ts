@@ -49,7 +49,7 @@ export class CannotAddDuplicateSourceIpError extends Error {}
 export class SourceIpNotFoundError extends Error {}
 export class SourceIpChangeRequestNotFound extends Error {}
 export class SourceIpChangeRequestAlreadyApproved extends Error {}
-export class InvalidInvalidError extends Error {}
+export class InvalidSourceIpError extends Error {}
 
 // export class EndpointTypeExistsError extends Error {}
 // export class AccountTypeExistsError extends Error {}
@@ -65,3 +65,9 @@ export class ParticipantAlreadyApproved extends Error {}
 export class NdcChangeRequestNotFound extends Error {}
 export class NdcChangeRequestAlreadyApproved extends Error {}
 export class InvalidNdcChangeRequest extends Error {}
+
+export class CannotAddDuplicateContactInfoError extends Error {}
+export class ContactInfoNotFoundError extends Error {}
+export class ContactInfoChangeRequestNotFound extends Error {}
+export class ContactInfoChangeRequestAlreadyApproved extends Error {}
+export class InvalidContactInfoError extends Error {}
