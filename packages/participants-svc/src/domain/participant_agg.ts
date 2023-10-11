@@ -132,12 +132,11 @@ export class ParticipantAggregate {
     private _repo: IParticipantsRepository;
     private _accBal: IAccountsBalancesAdapter;
     private _auditClient: IAuditClient;
-    private _authorizationClient: IAuthorizationClient;    
+    private _authorizationClient: IAuthorizationClient;
     private _messageProducer: IMessageProducer;
     private _currencyList: Currency[];
     private _metrics: IMetrics;
     private readonly _requestsHisto: IHistogram;
-    private _outputEvents: DomainEventMsg[] = [];
 
     constructor(
         configClient: IConfigurationClient,
@@ -516,16 +515,12 @@ export class ParticipantAggregate {
         //create event for participant create
         const payload: ParticipantChangedEvtPayload = {
             participantId: inputParticipant.id,
-            actionName: ParticipantChangeTypes.CREATE
+            actionName: AuditedActionNames.PARTICIPANT_CREATED
         };
 
         const event = new ParticipantChangedEvt(payload);
 
-        this._outputEvents = [];
-
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+        await this._messageProducer.send(event);
 
         return createdParticipant.id;
     }
@@ -591,16 +586,12 @@ export class ParticipantAggregate {
         //create event for participant approve
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.APPROVE
+            actionName: AuditedActionNames.PARTICIPANT_APPROVED
         };
 
         const event = new ParticipantChangedEvt(payload);
-        
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+
+        await this._messageProducer.send(event);
 
         this._logger.info(
             `Successfully approved participant with ID: '${existing.id}'`
@@ -662,16 +653,12 @@ export class ParticipantAggregate {
         //create event for participant activate
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.ACTIVATE
+            actionName: AuditedActionNames.PARTICIPANT_ENABLED
         };
 
         const event = new ParticipantChangedEvt(payload);
 
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+        await this._messageProducer.send(event);
     }
 
     async deactivateParticipant(secCtx: CallSecurityContext, participantId: string, note: string | null): Promise<void> {
@@ -728,16 +715,12 @@ export class ParticipantAggregate {
         //create event for participant deactivate
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.DEACTIVATE
+            actionName: AuditedActionNames.PARTICIPANT_DISABLED
         };
 
         const event = new ParticipantChangedEvt(payload);
-                
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+
+        await this._messageProducer.send(event);
     }
 
     /*
@@ -808,16 +791,12 @@ export class ParticipantAggregate {
         //create event for participant add endpoint
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.ADD_ENDPOINT
+            actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_ADDED
         };
 
         const event = new ParticipantChangedEvt(payload);
-        
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+
+        await this._messageProducer.send(event);
 
         return endpoint.id;
     }
@@ -886,16 +865,12 @@ export class ParticipantAggregate {
         //create event for participant change endpoint
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.CHANGE_ENDPOINT
+            actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_CHANGED
         };
 
         const event = new ParticipantChangedEvt(payload);
-        
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+
+        await this._messageProducer.send(event);
     }
 
     async removeParticipantEndpoint(
@@ -958,16 +933,12 @@ export class ParticipantAggregate {
         //create event for participant remove endpoint
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.REMOVE_ENDPOINT
+            actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_REMOVED
         };
 
         const event = new ParticipantChangedEvt(payload);
-                
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+
+        await this._messageProducer.send(event);
     }
 
     async getParticipantEndpointsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantEndpoint[]> {
@@ -1200,19 +1171,15 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
-        //create event for participant source ip change request approved
+        //create event for participant source ip change request approved - we don't need both, just the reason for the actual change
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST
+            actionName:  (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED)
         };
 
         const event = new ParticipantChangedEvt(payload);
-        
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+
+        await this._messageProducer.send(event);
 
         return soureIPChangeRequest.allowedSourceIpId;
     }
@@ -1495,19 +1462,16 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
-        //create event for Participant account change request approved
+        //create event for Participant account change request approved - we don't need both, just the reason for the actual change
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_APPROVED
+            actionName: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED : AuditedActionNames.PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED)
         };
 
         const event = new ParticipantChangedEvt(payload);
 
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+        await this._messageProducer.send(event);
 
         return accountId;
     }
@@ -1787,17 +1751,13 @@ export class ParticipantAggregate {
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
             actionName: fundsMov.direction === "FUNDS_DEPOSIT"
-                        ? ParticipantChangeTypes.FUNDS_DEPOSIT
-                        : ParticipantChangeTypes.FUNDS_WITHDRAWAL
+                ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED
+                : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED
         };
 
         const event = new ParticipantChangedEvt(payload);
 
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+        await this._messageProducer.send(event);
 
         return;
     }
@@ -2016,16 +1976,12 @@ export class ParticipantAggregate {
         //create event for NDC change
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
-            actionName: ParticipantChangeTypes.NDC_CHANGE
+            actionName: AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED
         };
 
         const event = new ParticipantChangedEvt(payload);
 
-        this._outputEvents = [];
-        
-        this._outputEvents.push(event);
-        
-        await this._messageProducer.send(this._outputEvents);
+        await this._messageProducer.send(event);
 
         return;
     }
@@ -2189,14 +2145,10 @@ export class ParticipantAggregate {
                 participantId: participant.id,
                 actionName: ParticipantChangeTypes.NDC_RECALCULATED
             };
-    
+
             const event = new ParticipantChangedEvt(payload);
-                
-            this._outputEvents = [];
-            
-            this._outputEvents.push(event);
-            
-            await this._messageProducer.send(this._outputEvents);
+
+            await this._messageProducer.send(event);
         }
     }
 }

@@ -331,7 +331,7 @@ export class Service {
             const closeExpress = util.promisify(this.expressServer.close);
             await closeExpress();
         }
-
+        if (this.messageProducer) await this.messageProducer.destroy();
         if (this.auditClient) await this.auditClient.destroy();
         if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
         if (this.repoPart) await this.repoPart.destroy();
