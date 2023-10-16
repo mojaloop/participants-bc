@@ -1339,8 +1339,7 @@ export class ParticipantAggregate {
         if(statusChangeRequest.isActive) {
             await this.activateParticipant(secCtx, participantId, note);
             existing.isActive = true;
-        }
-        else {
+        } else {
             await this.deactivateParticipant(secCtx, participantId, note);
             existing.isActive = false;
         }
