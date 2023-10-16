@@ -41,6 +41,7 @@ import {
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
     IParticipantSourceIpChangeRequest,
+    IParticipantStatusChangeRequest,
 } from "@mojaloop/participant-bc-public-types-lib";
 import { ParticipantAggregate } from "../domain/participant_agg";
 
@@ -102,8 +103,8 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id", this._participantById.bind(this));
         this._mainRouter.post("/participants", this._participantCreate.bind(this));
         this._mainRouter.put("/participants/:id/approve", this._participantApprove.bind(this));
-        this._mainRouter.put("/participants/:id/disable", this._deactivateParticipant.bind(this));
-        this._mainRouter.put("/participants/:id/enable", this._activateParticipant.bind(this));
+        /* this._mainRouter.put("/participants/:id/disable", this._deactivateParticipant.bind(this));
+        this._mainRouter.put("/participants/:id/enable", this._activateParticipant.bind(this)); */
 
         // endpoint
         this._mainRouter.get("/participants/:id/endpoints", this._endpointsByParticipantId.bind(this));
@@ -140,6 +141,10 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id/contactInfo", this._contactInfoByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/contactInfoChangeRequests", this._participantContactInfoChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/approve", this._participantContactInfoChangeRequestApprove.bind(this));
+
+        // participant's status (isActive)
+        this._mainRouter.post("/participants/:id/participantStatusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
+        this._mainRouter.post("/participants/:id/participantStatusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
     }
 
     private async _authenticationMiddleware(
@@ -489,6 +494,76 @@ export class ExpressRoutes {
 
         try {
             await this._participantsAgg.approveParticipantContactInfoChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    /*
+     * Participant Status
+     * */
+
+    private async _participantStatusChangeRequestCreate(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const data: IParticipantStatusChangeRequest = req.body;
+        this._logger.debug(
+            `Received request to update the status of participant with ID: ${id}.`
+        );
+
+        try {
+            const createdId = await this._participantsAgg.createParticipantStatusChangeRequest(
+                req.securityContext!,
+                id,
+                data
+            );
+            res.send({
+                id: createdId,
+            });
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(451).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantStatusChangeRequestApprove(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+        this._logger.debug(
+            `Received request to approve sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.approveParticipantStatusChangeRequest(
                 req.securityContext!,
                 id,
                 changeRequestId

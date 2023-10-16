@@ -121,6 +121,16 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST,
         labelName: "Approves a Contact Information change request",
         description: "Approves a Contact Information change request"
+    },
+    {
+        privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_STATUS_CHANGE_REQUEST,
+        labelName: "Creates a change request for Participant Status",
+        description: "Creates a change request for Participant Status"
+    },
+    {
+        privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST,
+        labelName: "Approves a change request for Participant Status",
+        description: "Approves a change request for Participant Status"
     }
 
 

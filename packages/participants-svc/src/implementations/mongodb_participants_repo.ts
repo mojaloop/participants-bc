@@ -195,7 +195,8 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
                     changeLog: participant.changeLog,
 
                     participantContacts: participant.participantContacts,
-                    participantContactInfoChangeRequests: participant.participantContactInfoChangeRequests
+                    participantContactInfoChangeRequests: participant.participantContactInfoChangeRequests,
+                    participantStatusChangeRequests: participant.participantStatusChangeRequests
                 },
             }
         );

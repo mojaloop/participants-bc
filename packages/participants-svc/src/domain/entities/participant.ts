@@ -41,6 +41,7 @@ import {
     IParticipantEndpoint,
     IParticipantFundsMovement, IParticipantNetDebitCap,
     IParticipantNetDebitCapChangeRequest, IParticipantSourceIpChangeRequest,
+    IParticipantStatusChangeRequest,
     ParticipantChangeTypes,
     ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
@@ -78,6 +79,8 @@ export class Participant implements IParticipant {
     participantContacts: IParticipantContactInfo[];
     participantContactInfoChangeRequests: IParticipantContactInfoChangeRequest[];
 
+    participantStatusChangeRequests: IParticipantStatusChangeRequest[];
+
     static CreateHub(id: string, desc: string, user: string, changeLogNote: string) {
         const now = Date.now();
         const hub: Participant = {
@@ -107,7 +110,8 @@ export class Participant implements IParticipant {
             netDebitCaps: [],
             netDebitCapChangeRequests: [],
             participantContacts: [],
-            participantContactInfoChangeRequests: []
+            participantContactInfoChangeRequests: [],
+            participantStatusChangeRequests: []
         };
 
         return hub;

@@ -76,6 +76,8 @@ export declare interface IParticipant {
 
   participantContacts: IParticipantContactInfo[];
   participantContactInfoChangeRequests: IParticipantContactInfoChangeRequest[];
+
+  participantStatusChangeRequests : IParticipantStatusChangeRequest[];
 }
 
 export declare interface IParticipantNetDebitCap {
@@ -198,4 +200,15 @@ export declare interface IParticipantContactInfoChangeRequest extends IParticipa
   approvedBy: string | null;
   approvedDate: number | null;
   requestType: "ADD_PARTICIPANT_CONTACT_INFO" | "CHANGE_PARTICIPANT_CONTACT_INFO";
+}
+
+export declare interface IParticipantStatusChangeRequest {
+  id: string;
+  isActive: boolean;
+  createdBy: string;
+  createdDate: number;
+  approved: boolean;
+  approvedBy: string | null;
+  approvedDate: number | null;
+  requestType: "CHANGE_PARTICIPANT_STATUS";
 }

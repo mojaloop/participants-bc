@@ -46,6 +46,7 @@ import {
     IParticipantFundsMovement,
     IParticipantNetDebitCapChangeRequest,
     IParticipantSourceIpChangeRequest,
+    IParticipantStatusChangeRequest,
     ParticipantAccountTypes,
     ParticipantChangeTypes,
     ParticipantEndpointProtocols,
@@ -91,6 +92,8 @@ import {
     ParticipantAlreadyApproved,
     ParticipantCreateValidationError,
     ParticipantNotFoundError,
+    ParticipantStatusChangeRequestAlreadyApproved,
+    ParticipantStatusChangeRequestNotFound,
     SourceIpChangeRequestAlreadyApproved,
     SourceIpChangeRequestNotFound,
     UnableToCreateAccountUpstream,
@@ -133,6 +136,9 @@ enum AuditedActionNames {
     PARTICIPANT_CONTACT_INFO_ADDED = "PARTICIPANT_CONTACT_INFO_ADDED",
     PARTICIPANT_CONTACT_INFO_CHANGED = "PARTICIPANT_CONTACT_INFO_CHANGED",
     PARTICIPANT_CONTACT_INFO_REMOVED = "PARTICIPANT_CONTACT_INFO_REMOVED",
+    PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED = "PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED",
+    PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED",
 }
 
 export class ParticipantAggregate {
@@ -504,7 +510,8 @@ export class ParticipantAggregate {
             netDebitCaps: inputParticipant.netDebitCaps || [],
             netDebitCapChangeRequests: [],
             participantContacts: [],
-            participantContactInfoChangeRequests: []
+            participantContactInfoChangeRequests: [],
+            participantStatusChangeRequests: []
 
         };
 
@@ -572,7 +579,7 @@ export class ParticipantAggregate {
         }
 
         const now = Date.now();
-        // existing.isActive = true;
+        existing.isActive = true;
         existing.approved = true;
         existing.approvedBy = secCtx.username;
         existing.approvedDate = now;
@@ -1212,6 +1219,192 @@ export class ParticipantAggregate {
         await this._messageProducer.send(event);
 
         return contactInfoChangeRequest.contactInfoId;
+    }
+
+    /*
+     * Participant Status
+     * */
+    
+    async createParticipantStatusChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        participantStatusChangeRequest: IParticipantStatusChangeRequest
+    ): Promise<string> {
+
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_STATUS_CHANGE_REQUEST);
+
+        if (!participantId)
+            throw new InvalidParticipantError("[id] cannot be empty");
+
+        //await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing)
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+
+
+        if (!existing.participantStatusChangeRequests) {
+            existing.participantStatusChangeRequests = [];
+        }
+
+        existing.participantStatusChangeRequests.push({
+            id: participantStatusChangeRequest.id || randomUUID(),
+            isActive: participantStatusChangeRequest.isActive,
+            createdBy: secCtx.username!,
+            createdDate: Date.now(),
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: participantStatusChangeRequest.requestType
+        });
+
+        existing.changeLog.push({
+            changeType: ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS,
+            user: secCtx.username!,
+            timestamp: Date.now(),
+            notes: null,
+        });
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant's status on change request."
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully created participant's status change request for Participant with ID: '${participantId}'.`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        return participantStatusChangeRequest.id;
+    }
+
+    async approveParticipantStatusChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        changeRequestId: string,
+        note: string = ""
+    ): Promise<string | null> {
+
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST);
+        
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        }
+
+        const statusChangeRequest = existing.participantStatusChangeRequests.find(
+            (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
+        );
+
+        if (!statusChangeRequest) {
+            throw new ParticipantStatusChangeRequestNotFound(
+                `Cannot find a participant's status change request with id: ${changeRequestId}.`
+            );
+        }
+        if (statusChangeRequest.approved) {
+            throw new ParticipantStatusChangeRequestAlreadyApproved(
+                `Participant's sourceIP change request with id: ${changeRequestId} is already approved.`
+            );
+        }
+
+        if (secCtx && statusChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS,
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and approve participant status change request."
+            );
+        }
+
+        if(statusChangeRequest.isActive) {
+            await this.activateParticipant(secCtx, participantId, note);
+            existing.isActive = true;
+        }
+        else {
+            await this.deactivateParticipant(secCtx, participantId, note);
+            existing.isActive = false;
+        }
+        
+        
+
+        const now = Date.now();
+
+        statusChangeRequest.approved = true;
+        statusChangeRequest.approvedBy = secCtx.username;
+        statusChangeRequest.approvedDate = Date.now();
+
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.APPROVE_PARTICIPANT_STATUS_REQUEST,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            },{
+                changeType: ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS,
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
+        );
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not approve participant status change request."
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully approved change request with id: ${statusChangeRequest.id} to Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        /* await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_STATUS_CHANGED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        ); */
+
+        //create event for participant source ip change request approved - we don't need both, just the reason for the actual change
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName:  AuditedActionNames.PARTICIPANT_STATUS_CHANGED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+
+        return statusChangeRequest.id;
     }
 
 
