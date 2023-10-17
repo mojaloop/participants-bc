@@ -398,6 +398,11 @@ export class ParticipantAggregate {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${id}' not found.`
             );
+        
+        if (!part.isActive)
+        throw new InvalidParticipantError(
+            `Participant with ID: '${id}' is disabled.`
+        );
 
         this._applyDefaultSorts(part);
         timerEndFn({ success: "true" });
