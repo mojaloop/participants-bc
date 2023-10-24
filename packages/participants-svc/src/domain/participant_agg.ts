@@ -138,7 +138,7 @@ enum AuditedActionNames {
     PARTICIPANT_CONTACT_INFO_REMOVED = "PARTICIPANT_CONTACT_INFO_REMOVED",
     PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED = "PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED",
     PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED",
-    PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED",
+    PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED"
 }
 
 export class ParticipantAggregate {
@@ -398,7 +398,7 @@ export class ParticipantAggregate {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${id}' not found.`
             );
-        
+
         /* if (!part.isActive)
         throw new InvalidParticipantError(
             `Participant with ID: '${id}' is disabled.`
@@ -1229,36 +1229,35 @@ export class ParticipantAggregate {
     /*
      * Participant Status
      * */
-    
+
     async createParticipantStatusChangeRequest(
         secCtx: CallSecurityContext,
         participantId: string,
         participantStatusChangeRequest: IParticipantStatusChangeRequest
     ): Promise<string> {
-
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_STATUS_CHANGE_REQUEST);
 
-        if (!participantId)
-            throw new InvalidParticipantError("[id] cannot be empty");
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
         //await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing)
-            throw new ParticipantNotFoundError(
-                `Participant with ID: '${participantId}' not found.`
-            );
+            throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
 
+        // pedro: Shouldn't we check if other non-approved requests exist and reject this one if they do?
 
         if (!existing.participantStatusChangeRequests) {
             existing.participantStatusChangeRequests = [];
         }
 
+        const now = Date.now();
+
         existing.participantStatusChangeRequests.push({
             id: participantStatusChangeRequest.id || randomUUID(),
             isActive: participantStatusChangeRequest.isActive,
             createdBy: secCtx.username!,
-            createdDate: Date.now(),
+            createdDate: now,
             approved: false,
             approvedBy: null,
             approvedDate: null,
@@ -1266,9 +1265,9 @@ export class ParticipantAggregate {
         });
 
         existing.changeLog.push({
-            changeType: ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS,
+            changeType: ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS_REQUEST,
             user: secCtx.username!,
-            timestamp: Date.now(),
+            timestamp: now,
             notes: null,
         });
 
@@ -1301,16 +1300,12 @@ export class ParticipantAggregate {
         changeRequestId: string,
         note: string = ""
     ): Promise<string | null> {
-
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST);
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
-        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST);
-        
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) {
-            throw new ParticipantNotFoundError(
-                `Participant with ID: '${participantId}' not found.`
-            );
+            throw new ParticipantNotFoundError( `Participant with ID: '${participantId}' not found.`);
         }
 
         const statusChangeRequest = existing.participantStatusChangeRequests.find(
@@ -1324,13 +1319,13 @@ export class ParticipantAggregate {
         }
         if (statusChangeRequest.approved) {
             throw new ParticipantStatusChangeRequestAlreadyApproved(
-                `Participant's sourceIP change request with id: ${changeRequestId} is already approved.`
+                `Participant's status change request with id: ${changeRequestId} is already approved.`
             );
         }
 
         if (secCtx && statusChangeRequest.createdBy === secCtx.username) {
             await this._auditClient.audit(
-                ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS,
+                (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
                 false,
                 this._getAuditSecCtx(secCtx),
                 [{ key: "participantId", value: participantId }]
@@ -1348,8 +1343,8 @@ export class ParticipantAggregate {
             await this.deactivateParticipant(secCtx, participantId, note);
             existing.isActive = false;
         }
-        
-        
+
+
 
         const now = Date.now();
 
@@ -1364,7 +1359,7 @@ export class ParticipantAggregate {
                 timestamp: now,
                 notes: null,
             },{
-                changeType: ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS,
+                changeType: (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
                 user: secCtx.username!,
                 timestamp: now+1,
                 notes: null,
@@ -1391,12 +1386,12 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
-        /* await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_STATUS_CHANGED,
+        await this._auditClient.audit(
+            (statusChangeRequest.isActive ? AuditedActionNames.PARTICIPANT_ENABLED : AuditedActionNames.PARTICIPANT_DISABLED),
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "participantId", value: participantId }]
-        ); */
+        );
 
         //create event for participant source ip change request approved - we don't need both, just the reason for the actual change
         const payload: ParticipantChangedEvtPayload = {

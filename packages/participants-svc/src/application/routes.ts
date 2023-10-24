@@ -91,9 +91,6 @@ export class ExpressRoutes {
         // inject authentication - all request below this require a valid token
         this._mainRouter.use(this._authenticationMiddleware.bind(this));
 
-        // example
-        //        this._mainRouter.get("/", this.getExample.bind(this));
-
         // participant
         this._mainRouter.get("/participants", this._getAllParticipants.bind(this));
         this._mainRouter.get(
@@ -103,8 +100,6 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id", this._participantById.bind(this));
         this._mainRouter.post("/participants", this._participantCreate.bind(this));
         this._mainRouter.put("/participants/:id/approve", this._participantApprove.bind(this));
-        /* this._mainRouter.put("/participants/:id/disable", this._deactivateParticipant.bind(this));
-        this._mainRouter.put("/participants/:id/enable", this._activateParticipant.bind(this)); */
 
         // endpoint
         this._mainRouter.get("/participants/:id/endpoints", this._endpointsByParticipantId.bind(this));
@@ -143,8 +138,8 @@ export class ExpressRoutes {
         this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/approve", this._participantContactInfoChangeRequestApprove.bind(this));
 
         // participant's status (isActive)
-        this._mainRouter.post("/participants/:id/participantStatusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
-        this._mainRouter.post("/participants/:id/participantStatusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/statusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
+        this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
     }
 
     private async _authenticationMiddleware(
@@ -470,7 +465,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -503,7 +498,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -541,7 +536,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -573,7 +568,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -639,7 +634,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -672,7 +667,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -685,7 +680,7 @@ export class ExpressRoutes {
             }
         }
     }
-    
+
     /*
      * Accounts
      * */
@@ -738,7 +733,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -771,7 +766,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -957,7 +952,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -990,7 +985,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -1040,7 +1035,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });
@@ -1073,7 +1068,7 @@ export class ExpressRoutes {
             if (this._handleUnauthorizedError(err, res)) return;
 
             if (err instanceof ParticipantNotActive) {
-                res.status(451).json({
+                res.status(422).json({
                     status: "error",
                     msg: err.message,
                 });

@@ -132,7 +132,4 @@ export const AppPrivilegesDefinition = [
         labelName: "Approves a change request for Participant Status",
         description: "Approves a change request for Participant Status"
     }
-
-
 ];
-
