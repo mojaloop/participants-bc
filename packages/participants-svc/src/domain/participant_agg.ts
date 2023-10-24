@@ -399,10 +399,10 @@ export class ParticipantAggregate {
                 `Participant with ID: '${id}' not found.`
             );
         
-        if (!part.isActive)
+        /* if (!part.isActive)
         throw new InvalidParticipantError(
             `Participant with ID: '${id}' is disabled.`
-        );
+        ); */
 
         this._applyDefaultSorts(part);
         timerEndFn({ success: "true" });
