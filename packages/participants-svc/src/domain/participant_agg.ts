@@ -460,9 +460,7 @@ export class ParticipantAggregate {
         }
 
         if (inputParticipant.id) {
-            if (
-                inputParticipant.id.toUpperCase() === HUB_PARTICIPANT_ID.toUpperCase()
-            ) {
+            if (inputParticipant.id.toUpperCase() === HUB_PARTICIPANT_ID.toUpperCase()) {
                 this._logger.warn(
                     "Cannot create a participant with the Hub reserved Id"
                 );
@@ -558,6 +556,9 @@ export class ParticipantAggregate {
         if (!participantId)
             throw new ParticipantNotFoundError("[id] cannot be empty");
 
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
@@ -631,6 +632,9 @@ export class ParticipantAggregate {
         if (!participantId)
             throw new ParticipantNotFoundError("[id] cannot be empty");
 
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
@@ -693,6 +697,9 @@ export class ParticipantAggregate {
 
         if (!participantId)
             throw new ParticipantNotFoundError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
@@ -760,6 +767,9 @@ export class ParticipantAggregate {
 
         if (participantId.trim().length == 0)
             throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
@@ -841,6 +851,9 @@ export class ParticipantAggregate {
         if (participantId.trim().length == 0)
             throw new ParticipantCreateValidationError("[id] cannot be empty");
 
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
@@ -918,6 +931,9 @@ export class ParticipantAggregate {
 
         if (participantId.trim().length == 0)
             throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
@@ -1026,6 +1042,9 @@ export class ParticipantAggregate {
         if (!participantId)
             throw new InvalidParticipantError("[id] cannot be empty");
 
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
         await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
@@ -1097,6 +1116,9 @@ export class ParticipantAggregate {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
 
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) {
@@ -1265,6 +1287,9 @@ export class ParticipantAggregate {
 
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
         //await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
@@ -1328,6 +1353,9 @@ export class ParticipantAggregate {
     ): Promise<string | null> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST);
         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) {
@@ -1463,6 +1491,8 @@ export class ParticipantAggregate {
 
         if (!participantId)
             throw new InvalidParticipantError("[id] cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         await Participant.ValidateParticipantSourceIpChangeRequest(sourceIpChangeRequest);
 
@@ -1534,7 +1564,10 @@ export class ParticipantAggregate {
     ): Promise<string | null> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
 
-        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+        if (!participantId)
+            throw new InvalidParticipantError("[id] cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
         if (!existing) {
@@ -2057,7 +2090,11 @@ export class ParticipantAggregate {
                 : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
         );
 
-        if (!participantId) throw new ParticipantNotFoundError("participantId cannot be empty");
+        if (!participantId)
+            throw new ParticipantNotFoundError("participantId cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
         if (!fundsMov.currencyCode) throw new Error("currencyCode cannot be empty");
         if (!fundsMov.amount) throw new Error("amount cannot be empty");
 
@@ -2139,6 +2176,8 @@ export class ParticipantAggregate {
     async approveFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string): Promise<void> {
         if (!participantId)
             throw new ParticipantNotFoundError("participantId cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const participant: IParticipant | null = await this._repo.fetchWhereId(
             participantId
@@ -2319,6 +2358,9 @@ export class ParticipantAggregate {
 
         if (!participantId)
             throw new ParticipantNotFoundError("participantId cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
         if (!netDebitCapChangeRequest.currencyCode) throw new Error("currencyCode cannot be empty");
         if (netDebitCapChangeRequest.type === "PERCENTAGE" &&
             !(typeof netDebitCapChangeRequest.percentage === "number" && netDebitCapChangeRequest.percentage >= 0 && netDebitCapChangeRequest.percentage <= 100)) {
@@ -2409,6 +2451,8 @@ export class ParticipantAggregate {
     async approveParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
         if (!participantId)
             throw new ParticipantNotFoundError("participantId cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
         const participant: IParticipant | null = await this._repo.fetchWhereId(
             participantId
