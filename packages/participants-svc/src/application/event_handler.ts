@@ -73,7 +73,7 @@ export class ParticipantsEventHandler{
         const secCts: CallSecurityContext = {
             clientId: token.payload.azp,
             accessToken: token.accessToken,
-            rolesIds:token.payload.roles,
+            platformRoleIds:token.payload.platformRoles,
             username: null
         };
         return secCts;

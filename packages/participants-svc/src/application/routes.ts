@@ -64,6 +64,7 @@ import {
     MakerCheckerViolationError,
     UnauthorizedError,
     CallSecurityContext,
+    ITokenHelper,
 } from "@mojaloop/security-bc-public-types-lib";
 
 // Extend express request to include our security fields
@@ -75,13 +76,13 @@ declare module "express-serve-static-core" {
 
 export class ExpressRoutes {
     private _logger: ILogger;
-    private _tokenHelper: TokenHelper;
+    private _tokenHelper: ITokenHelper;
     private _participantsAgg: ParticipantAggregate;
     private _mainRouter = express.Router();
 
     constructor(
         participantsAgg: ParticipantAggregate,
-        tokenHelper: TokenHelper,
+        tokenHelper: ITokenHelper,
         logger: ILogger
     ) {
         this._logger = logger.createChild("ExpressRoutes");
@@ -157,33 +158,13 @@ export class ExpressRoutes {
         }
 
         const bearerToken = bearer[1];
-        let verified;
-        try {
-            verified = await this._tokenHelper.verifyToken(bearerToken);
-        } catch (err) {
-            this._logger.error(err, "unable to verify token");
-            return res.sendStatus(401);
-        }
-        if (!verified) {
+        const callSecCtx:  CallSecurityContext | null = await this._tokenHelper.getCallSecurityContextFromAccessToken(bearerToken);
+
+        if(!callSecCtx){
             return res.sendStatus(401);
         }
 
-        const decoded = this._tokenHelper.decodeToken(bearerToken);
-        if (!decoded.sub || decoded.sub.indexOf("::") == -1) {
-            return res.sendStatus(401);
-        }
-
-        const subSplit = decoded.sub.split("::");
-        const subjectType = subSplit[0];
-        const subject = subSplit[1];
-
-        req.securityContext = {
-            accessToken: bearerToken,
-            clientId: subjectType.toUpperCase().startsWith("APP") ? subject : null,
-            username: subjectType.toUpperCase().startsWith("USER") ? subject : null,
-            rolesIds: decoded.roles,
-        };
-
+        req.securityContext = callSecCtx;
         return next();
     }
 

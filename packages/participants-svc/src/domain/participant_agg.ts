@@ -85,7 +85,7 @@ import {
     EndpointNotFoundError,
     InvalidAccountError,
     InvalidNdcChangeRequest,
-    InvalidParticipantError,
+    InvalidParticipantError, InvalidParticipantStatusError,
     NdcChangeRequestAlreadyApproved,
     NdcChangeRequestNotFound,
     NoAccountsError,
@@ -343,7 +343,7 @@ export class ParticipantAggregate {
     }
 
     private _enforcePrivilege(secCtx: CallSecurityContext, privName: string): void {
-        for (const roleId of secCtx.rolesIds) {
+        for (const roleId of secCtx.platformRoleIds) {
             if (this._authorizationClient.roleHasPrivilege(roleId, privName)) return;
         }
         throw new ForbiddenError(
@@ -764,10 +764,16 @@ export class ParticipantAggregate {
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (existing == null)
+        if (existing == null) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         if (!existing.participantEndpoints) existing.participantEndpoints = [];
 
@@ -838,10 +844,16 @@ export class ParticipantAggregate {
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (existing == null)
+        if (existing == null) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         if (!existing.participantEndpoints) existing.participantEndpoints = [];
 
@@ -910,13 +922,18 @@ export class ParticipantAggregate {
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (existing == null)
+        if (existing == null) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
-        if (
-            !existing.participantEndpoints ||
+        if (!existing.participantEndpoints ||
             existing.participantEndpoints.length <= 0 ||
             !existing.participantEndpoints.find(
                 (value: IParticipantEndpoint) => value.id === endpointId
@@ -1012,11 +1029,16 @@ export class ParticipantAggregate {
         await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-        if (!existing)
+        if (!existing) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
-
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         if (!existing.participantContactInfoChangeRequests) {
             existing.participantContactInfoChangeRequests = [];
@@ -1082,7 +1104,11 @@ export class ParticipantAggregate {
                 `Participant with ID: '${participantId}' not found.`
             );
         }
-
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         const contactInfoChangeRequest = existing.participantContactInfoChangeRequests.find(
             (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
@@ -1441,11 +1467,16 @@ export class ParticipantAggregate {
         await Participant.ValidateParticipantSourceIpChangeRequest(sourceIpChangeRequest);
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-        if (!existing)
+        if (!existing) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
-
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         if (!existing.participantSourceIpChangeRequests) {
             existing.participantSourceIpChangeRequests = [];
@@ -1509,6 +1540,12 @@ export class ParticipantAggregate {
         if (!existing) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
+            );
+        }
+
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
             );
         }
 
@@ -1678,7 +1715,11 @@ export class ParticipantAggregate {
             this._logger.error(err);
             throw err;
         }
-        // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         if (accountChangeRequest.type != ParticipantAccountTypes.SETTLEMENT && (accountChangeRequest.externalBankAccountId || accountChangeRequest.externalBankAccountName))
             throw new InvalidAccountError(
@@ -1758,7 +1799,11 @@ export class ParticipantAggregate {
         if (!existing) {
             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
         }
-        // if (!existing.isActive) throw new ParticipantNotActive("Participant is not active.");
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         const accountChangeRequest = existing.participantAccountsChangeRequest.find(
             (value: IParticipantAccountChangeRequest) => value.id === accountChangeRequestId
@@ -2012,8 +2057,7 @@ export class ParticipantAggregate {
                 : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
         );
 
-        if (!participantId)
-            throw new ParticipantNotFoundError("participantId cannot be empty");
+        if (!participantId) throw new ParticipantNotFoundError("participantId cannot be empty");
         if (!fundsMov.currencyCode) throw new Error("currencyCode cannot be empty");
         if (!fundsMov.amount) throw new Error("amount cannot be empty");
 
@@ -2022,10 +2066,17 @@ export class ParticipantAggregate {
         const participant: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (!participant)
+        if (!participant) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
+
+        if (!participant.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         const settlementAccount = participant.participantAccounts.find(
             (value: IParticipantAccount) =>
@@ -2092,10 +2143,17 @@ export class ParticipantAggregate {
         const participant: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (!participant)
+        if (!participant) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
+
+        if (!participant.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         const fundsMov = participant.fundsMovements.find(
             (value: IParticipantFundsMovement) => value.id === fundsMovId
@@ -2274,10 +2332,17 @@ export class ParticipantAggregate {
         const participant: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (!participant)
+        if (!participant) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
+
+        if (!participant.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         const settlementAccount = participant.participantAccounts.find(
             (value: IParticipantAccount) =>
@@ -2348,10 +2413,17 @@ export class ParticipantAggregate {
         const participant: IParticipant | null = await this._repo.fetchWhereId(
             participantId
         );
-        if (!participant)
+        if (!participant) {
             throw new ParticipantNotFoundError(
                 `Participant with ID: '${participantId}' not found.`
             );
+        }
+
+        if (!participant.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
 
         const netDebitCapChange = participant.netDebitCapChangeRequests.find(
             (value: IParticipantNetDebitCapChangeRequest) => value.id === ndcReqId

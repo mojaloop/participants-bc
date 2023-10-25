@@ -64,7 +64,7 @@ import {GrpcAccountsAndBalancesAdapter} from "../implementations/grpc_acc_bal_ad
 import {PrometheusMetrics} from "@mojaloop/platform-shared-lib-observability-client-lib";
 import {IMetrics} from "@mojaloop/platform-shared-lib-observability-types-lib";
 import {GetParticipantsConfigs} from "./configset";
-import {IAuthorizationClient} from "@mojaloop/security-bc-public-types-lib";
+import {IAuthorizationClient, ITokenHelper} from "@mojaloop/security-bc-public-types-lib";
 import {IAuditClient} from "@mojaloop/auditing-bc-public-types-lib";
 import {IConfigurationClient} from "@mojaloop/platform-configuration-bc-public-types-lib";
 import {IMessageConsumer, IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
@@ -123,7 +123,7 @@ export class Service {
     static expressServer: Server;
     static auditClient: IAuditClient;
     static authorizationClient: IAuthorizationClient;
-    static tokenHelper: TokenHelper;
+    static tokenHelper: ITokenHelper;
 	static messageProducer: IMessageProducer;
     static participantAgg: ParticipantAggregate;
     static repoPart: IParticipantsRepository;
@@ -277,9 +277,12 @@ export class Service {
         }
         this.messageConsumer = messageConsumer;
 
-        const tokenHelper = new LoginHelper(AUTH_N_SVC_TOKEN_URL, this.logger);
-        tokenHelper.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
-        this.eventHandler = new ParticipantsEventHandler(this.messageConsumer, this.participantAgg, tokenHelper, this.logger);
+        // login helper for the eventHandler (using service credentials)
+        const loginHelper = new LoginHelper(AUTH_N_SVC_TOKEN_URL, this.logger);
+        loginHelper.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
+
+        // instantiate and start the event handler
+        this.eventHandler = new ParticipantsEventHandler(this.messageConsumer, this.participantAgg, loginHelper, this.logger);
         await this.eventHandler.start();
 
         await this.setupExpress();

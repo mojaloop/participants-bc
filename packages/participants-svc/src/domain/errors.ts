@@ -75,3 +75,4 @@ export class InvalidContactInfoError extends Error {}
 export class ParticipantStatusChangeRequestNotFound extends Error {}
 export class ParticipantStatusChangeRequestAlreadyApproved extends Error {}
 export class InvalidParticipantStatusError extends Error {}
+
