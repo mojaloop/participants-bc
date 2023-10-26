@@ -66,6 +66,7 @@ import {
     CallSecurityContext,
     ITokenHelper,
 } from "@mojaloop/security-bc-public-types-lib";
+import { ParticipantSearchResults } from "../domain/server_types";
 
 // Extend express request to include our security fields
 declare module "express-serve-static-core" {
@@ -141,6 +142,10 @@ export class ExpressRoutes {
         // participant's status (isActive)
         this._mainRouter.post("/participants/:id/statusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
+
+        this._mainRouter.get("/entries/", this._getSearchEntries.bind(this));
+        this._mainRouter.get("/searchKeywords/", this._getSearchKeywords.bind(this));
+
     }
 
     private async _authenticationMiddleware(
@@ -1060,6 +1065,59 @@ export class ExpressRoutes {
                     msg: err.message,
                 });
             }
+        }
+    }
+
+    private async _getSearchEntries(req: express.Request, res: express.Response){
+        const id = req.query.id as string || null;
+        const name = req.query.name as string || null;
+        const state = req.query.state as string || null;
+        const userId = req.query.userId as string || null;
+
+
+        // optional pagination
+        const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
+        const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
+
+        const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
+        const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
+
+        try{
+            const ret:ParticipantSearchResults = await this._participantsAgg.searchEntries(
+                req.securityContext!,
+                userId,
+                id,
+                name,
+                state,
+                pageIndex,
+                pageSize
+            );
+            res.send(ret);
+        }   catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: (err as Error).message,
+            });
+        }
+    }
+
+    private async _getSearchKeywords(req: express.Request, res: express.Response){
+        try{
+            const ret = await this._participantsAgg.getSearchKeywords(
+                req.securityContext!
+            );
+            res.send(ret);
+        }   catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: (err as Error).message,
+            });
         }
     }
 }

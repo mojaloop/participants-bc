@@ -31,24 +31,37 @@
 "use strict";
 
 import { IParticipant } from "@mojaloop/participant-bc-public-types-lib";
+import { ParticipantSearchResults } from "./server_types";
 
 export interface IParticipantsRepository {
-  init(): Promise<void>;
+    init(): Promise<void>;
+    destroy(): Promise<void>;
 
-  //Participant
-  create(participant: IParticipant): Promise<boolean>;
-  store(participant: IParticipant): Promise<boolean>;
+    //Participant
+    create(participant: IParticipant): Promise<boolean>;
+    store(participant: IParticipant): Promise<boolean>;
 
-  fetchAll(): Promise<IParticipant[]>;
-  fetchWhereId(id: string): Promise<IParticipant | null>;
-  fetchWhereName(participantName: string): Promise<IParticipant | null>;
-  fetchWhereIds(id: string[]): Promise<IParticipant[]>;
+    fetchAll(): Promise<IParticipant[]>;
+    fetchWhereId(id: string): Promise<IParticipant | null>;
+    fetchWhereName(participantName: string): Promise<IParticipant | null>;
+    fetchWhereIds(id: string[]): Promise<IParticipant[]>;
 
-  searchParticipants(
-    id: string,
-    name: string,
-    state: string
-  ): Promise<IParticipant[]>;
+    
+    searchParticipants(
+        id: string,
+        name: string,
+        state: string
+    ): Promise<IParticipant[]>;
 
-  destroy(): Promise<void>;
+    searchEntries(
+        userId:string|null,
+        id:string|null,
+        name:string|null,
+        state:string|null,
+        pageIndex?:number,
+        pageSize?: number
+    ): Promise<ParticipantSearchResults>;
+
+    getSearchKeywords():Promise<{fieldName:string, distinctTerms:string[]}[]>
+
 }

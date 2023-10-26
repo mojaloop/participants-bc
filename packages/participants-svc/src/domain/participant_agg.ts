@@ -103,6 +103,7 @@ import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter"
 import {ParticipantPrivilegeNames} from "./privilege_names";
 import {IParticipantsRepository} from "./repo_interfaces";
 import {IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
+import { ParticipantSearchResults } from "./server_types";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -2756,5 +2757,27 @@ export class ParticipantAggregate {
 
             await this._messageProducer.send(event);
         }
+    }
+
+    async searchEntries(secCtx: CallSecurityContext, userId:string|null, id:string|null, name:string|null, state:string|null, pageIndex?:number, pageSize?: number): Promise<any> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "searchEntries" });
+        const part = await this._repo.searchEntries(userId, id, name, state, pageIndex, pageSize);
+
+        timerEndFn({ success: "true" });
+
+        return part;
+    }
+    
+    async getSearchKeywords(secCtx: CallSecurityContext): Promise<any> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getSearchKeywords" });
+        const part = await this._repo.getSearchKeywords();
+
+        timerEndFn({ success: "true" });
+
+        return part;
     }
 }
