@@ -140,26 +140,68 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         return returnVal;
     }
 
-    async searchParticipants(id: string, name: string, state: string): Promise<IParticipant[]> {
-        const filter: any = {$and: []};
+    async searchParticipants(
+        id:string|null,
+        name:string|null,
+        state:string|null,
+        pageIndex = 0,
+        pageSize: number = MAX_ENTRIES_PER_PAGE
+    ): Promise<ParticipantSearchResults> {
+        // make sure we don't go over or below the limits
+        pageSize = Math.min(pageSize, MAX_ENTRIES_PER_PAGE);
+        pageIndex = Math.max(pageIndex, 0);
+
+        const searchResults: ParticipantSearchResults = {
+            pageSize: pageSize,
+            pageIndex: pageIndex,
+            totalPages: 0,
+            items: []
+        };
+
+        let filter: any = { $and: [] }; // eslint-disable-line @typescript-eslint/no-explicit-any
         if (id) {
-            filter.$and.push({id: {$regex: id, $options: "i"}});
+            filter.$and.push({ id: { $regex: id, $options: "i" } });
         }
         if (name) {
-            filter.$and.push({name: {$regex: name, $options: "i"}});
+            filter.$and.push({ name: { $regex: name, $options: "i" } });
         }
         if (state) {
-            filter.$and.push({approved: (state === "APPROVED")});
+            filter.$and.push({ approved: { $eq: state === "APPROVED" ? true : false } });
+        }
+        if(filter.$and.length === 0) {
+            filter = {};
         }
 
-        const found = await this._collectionParticipant
-            .find(filter, {
-                projection: {_id: 0},
-            })
-            .toArray();
+        try {
+            const skip = Math.floor(pageIndex * pageSize);
+			const result = await this._collectionParticipant.find(
+				filter,
+				{
+					sort:["updatedAt", "desc"], 
+					skip: skip,
+                    limit: pageSize
+				}
+			).toArray().catch((e: unknown) => {
+                this._logger.error(`Unable to get participants: ${(e as Error).message}`);
+                throw new Error("Unable to get participants");
+			});
 
-        return found as unknown as IParticipant[];
+            const countResult = await this._collectionParticipant.countDocuments(filter).catch(reason => {
+                this._logger.error("Unable to get quotes count");
+            }) || result.length;
+
+			searchResults.items = result as unknown as IParticipant[];
+
+            searchResults.totalPages = Math.ceil(countResult / pageSize);
+            searchResults.pageSize = Math.max(pageSize, result.length);
+            
+        } catch (err) {
+            this._logger.error(err);
+        }
+
+        return Promise.resolve(searchResults);
     }
+    
 
     async create(participant: IParticipant): Promise<boolean> {
         this._logger.info(`Name:  ${participant.name} - created in:`);
@@ -206,97 +248,28 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
         return result.modifiedCount === 1;
     }
 
-    async searchEntries(
-        userId:string|null,
-        id:string|null,
-        name:string|null,
-        state:string|null,
-        pageIndex = 0,
-        pageSize: number = MAX_ENTRIES_PER_PAGE
-    ): Promise<any> {
-        // make sure we don't go over or below the limits
-        pageSize = Math.min(pageSize, MAX_ENTRIES_PER_PAGE);
-        pageIndex = Math.max(pageIndex, 0);
-
-        const searchResults: ParticipantSearchResults = {
-            pageSize: pageSize,
-            pageIndex: pageIndex,
-            totalPages: 0,
-            items: []
-        };
-
-        const conditions = [];
-
-        if(userId) conditions.push({match: {"securityContext.userId": userId}});
-
-        let filter: any = { $and: [] }; // eslint-disable-line @typescript-eslint/no-explicit-any
-        if (id) {
-            filter.$and.push({ id: { $regex: id, $options: "i" } });
-        }
-        if (name) {
-            filter.$and.push({ name: { $regex: name, $options: "i" } });
-        }
-        if (state) {
-            filter.$and.push({ approved: { $eq: state === "APPROVED" ? true : false } });
-        }
-        if(filter.$and.length === 0) {
-            filter = {};
-        }
-
-        try {
-            const skip = Math.floor(pageIndex * pageSize);
-			const result = await this._collectionParticipant.find(
-				filter,
-				{
-					sort:["updatedAt", "desc"], 
-					skip: skip,
-                    limit: pageSize
-				}
-			).toArray().catch((e: unknown) => {
-                this._logger.error(`Unable to get participants: ${(e as Error).message}`);
-                throw new Error("Unable to get participants");
-			});
-
-			searchResults.items = result as unknown as IParticipant[];
-
-			const totalEntries = await this._collectionParticipant.find(
-				filter
-            ).toArray().catch((e: unknown) => {
-                this._logger.error(`Unable to get participants page size: ${(e as Error).message}`);
-                throw new Error("Unable to get participants page size");
-			});
-
-			searchResults.totalPages = Math.ceil(totalEntries.length / pageSize);
-			searchResults.pageSize = Math.max(pageSize, result.length);
-            
-        } catch (err) {
-            this._logger.error(err);
-        }
-
-        return Promise.resolve(searchResults);
-    }
-    
 	async getSearchKeywords():Promise<{fieldName:string, distinctTerms:string[]}[]>{
         const retObj:{fieldName:string, distinctTerms:string[]}[] = [];
 
         try {
-            const result = await this._collectionParticipant
-                .find({})
-                .project({_id: 0})
-                .toArray() as IParticipant[];
+            const result = this._collectionParticipant
+                .aggregate([
+					{$group: { "_id": { approved: "$approved" } } }
+				]);
 
 			const state:{fieldName:string, distinctTerms:string[]} = {
 				fieldName: "state",
 				distinctTerms: []
 			};
+            
+			for await (const term of result) {
 
-            for (let i=0; i<result.length ; i+=1) { 
-                const approved = result[i].approved ? "APPROVED" : "NOTAPPROVED";
-				if(!state.distinctTerms.includes(approved)) state.distinctTerms.push(approved);
-
+                const approved = term._id.approved ? "APPROVED" : "NOTAPPROVED";
+				if(!state.distinctTerms.includes(approved)) {
+					state.distinctTerms.push(approved);
+				}
+				retObj.push(state);
 			}
-			retObj.push(state);
-			
         } catch (err) {
             this._logger.error(err);
         }

@@ -374,17 +374,19 @@ export class ParticipantAggregate {
         return list;
     }
 
-    async searchParticipants(secCtx: CallSecurityContext, id: string, name: string, state: string): Promise<IParticipant[]> {
+    async searchParticipants(secCtx: CallSecurityContext, id:string|null, name:string|null, state:string|null, pageIndex?:number, pageSize?: number): Promise<ParticipantSearchResults> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
         const timerEndFn = this._requestsHisto.startTimer({ callName: "searchParticipants" });
 
-        const list: IParticipant[] = await this._repo.searchParticipants(
+        const list: ParticipantSearchResults = await this._repo.searchParticipants(
             id,
             name,
-            state
+            state,
+            pageIndex,
+            pageSize
         );
-        list.forEach(this._applyDefaultSorts);
+        list.items.forEach(this._applyDefaultSorts);
         timerEndFn({ success: "true" });
 
         return list;
@@ -2757,17 +2759,6 @@ export class ParticipantAggregate {
 
             await this._messageProducer.send(event);
         }
-    }
-
-    async searchEntries(secCtx: CallSecurityContext, userId:string|null, id:string|null, name:string|null, state:string|null, pageIndex?:number, pageSize?: number): Promise<any> {
-        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
-
-        const timerEndFn = this._requestsHisto.startTimer({ callName: "searchEntries" });
-        const part = await this._repo.searchEntries(userId, id, name, state, pageIndex, pageSize);
-
-        timerEndFn({ success: "true" });
-
-        return part;
     }
     
     async getSearchKeywords(secCtx: CallSecurityContext): Promise<any> {

@@ -46,15 +46,8 @@ export interface IParticipantsRepository {
     fetchWhereName(participantName: string): Promise<IParticipant | null>;
     fetchWhereIds(id: string[]): Promise<IParticipant[]>;
 
-    
-    searchParticipants(
-        id: string,
-        name: string,
-        state: string
-    ): Promise<IParticipant[]>;
 
-    searchEntries(
-        userId:string|null,
+    searchParticipants(
         id:string|null,
         name:string|null,
         state:string|null,

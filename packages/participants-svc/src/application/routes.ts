@@ -143,7 +143,6 @@ export class ExpressRoutes {
         this._mainRouter.post("/participants/:id/statusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
 
-        this._mainRouter.get("/entries/", this._getSearchEntries.bind(this));
         this._mainRouter.get("/searchKeywords/", this._getSearchKeywords.bind(this));
 
     }
@@ -212,35 +211,38 @@ export class ExpressRoutes {
     }
 
     private async _getAllParticipants(req: express.Request, res: express.Response): Promise<void> {
-        const id = req.query.id as string;
-        const name = req.query.name as string;
-        const state = req.query.state as string;
-
         try {
-            let fetched;
+            const id = req.query.id as string || null;
+            const name = req.query.name as string || null;
+            const state = req.query.state as string || null;
+    
+    
+            // optional pagination
+            const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
+            const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
+    
+            const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
+            const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
 
-            if (id || name || state) {
-                this._logger.info("Filtering participants");
-                fetched = await this._participantsAgg.searchParticipants(
-                    req.securityContext!,
-                    id,
-                    name,
-                    state
-                );
-            } else {
-                this._logger.debug("Fetching all participants");
-                fetched = await this._participantsAgg.getAllParticipants(
-                    req.securityContext!
-                );
-            }
+            this._logger.debug("Fetching all participants");
+
+            const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
+                req.securityContext!,
+                id,
+                name,
+                state,
+                pageIndex,
+                pageSize
+            );
+
             res.send(fetched);
-        } catch (err: any) {
-            if (this._handleUnauthorizedError(err, res)) return;
+        } catch (err: unknown) {
+            if (this._handleUnauthorizedError((err as Error), res)) return;
 
             this._logger.error(err);
             res.status(500).json({
                 status: "error",
-                msg: err.message,
+                msg: (err as Error).message,
             });
         }
     }
@@ -1065,42 +1067,6 @@ export class ExpressRoutes {
                     msg: err.message,
                 });
             }
-        }
-    }
-
-    private async _getSearchEntries(req: express.Request, res: express.Response){
-        const id = req.query.id as string || null;
-        const name = req.query.name as string || null;
-        const state = req.query.state as string || null;
-        const userId = req.query.userId as string || null;
-
-
-        // optional pagination
-        const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
-        const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
-
-        const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
-        const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
-
-        try{
-            const ret:ParticipantSearchResults = await this._participantsAgg.searchEntries(
-                req.securityContext!,
-                userId,
-                id,
-                name,
-                state,
-                pageIndex,
-                pageSize
-            );
-            res.send(ret);
-        }   catch (err: any) {
-            if (this._handleUnauthorizedError(err, res)) return;
-
-            this._logger.error(err);
-            res.status(500).json({
-                status: "error",
-                msg: (err as Error).message,
-            });
         }
     }
 
