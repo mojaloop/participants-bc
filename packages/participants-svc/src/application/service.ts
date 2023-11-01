@@ -203,11 +203,21 @@ export class Service {
 
         // authorization client
         if (!authorizationClient) {
+            const messageConsumer = new MLKafkaJsonConsumer(
+                kafkaConsumerOptions,
+                logger.createChild("authorizationClientConsumer")
+            );
+
             // setup privileges - bootstrap app privs and get priv/role associations
-            authorizationClient = new AuthorizationClient(BC_NAME, APP_NAME, APP_VERSION, AUTH_Z_SVC_BASEURL, logger.createChild("AuthorizationClient"));
+            authorizationClient = new AuthorizationClient(
+                BC_NAME, APP_NAME, APP_VERSION,
+                AUTH_Z_SVC_BASEURL, logger.createChild("AuthorizationClient"),
+                messageConsumer
+            );
             authorizationClient.addPrivilegesArray(AppPrivilegesDefinition);
             await (authorizationClient as AuthorizationClient).bootstrap(true);
             await (authorizationClient as AuthorizationClient).fetch();
+            await (authorizationClient as AuthorizationClient).init();
 
         }
         this.authorizationClient = authorizationClient;

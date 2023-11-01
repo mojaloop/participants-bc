@@ -43,11 +43,11 @@
     "TEST_postpack": "rm -Rf node_modules"
   },
   "devDependencies": {
-    "nock": "^13.3.6"
+    "nock": "^13.3.7"
   },
   "dependencies": {
-    "@mojaloop/logging-bc-public-types-lib": "~0.1.20",
+    "@mojaloop/logging-bc-public-types-lib": "~0.1.22",
     "@mojaloop/participant-bc-public-types-lib": "~0.0.19",
-    "@mojaloop/security-bc-public-types-lib": "~0.3.3"
+    "@mojaloop/security-bc-public-types-lib": "~0.3.4"
   }
 }
