@@ -2337,6 +2337,10 @@ export class ParticipantAggregate {
             [{ key: "participantId", value: participantId }]
         );
 
+
+        const actionName = fundsMov.direction === "FUNDS_DEPOSIT" ? "Deposit" : "Withdrawal";
+        await this._updateNdcForParticipants([participant], `Funds movement approved (${actionName})`);
+
         //create event for fund movement approved
         const payload: ParticipantChangedEvtPayload = {
             participantId: participantId,
@@ -2760,7 +2764,7 @@ export class ParticipantAggregate {
             await this._messageProducer.send(event);
         }
     }
-    
+
     async getSearchKeywords(secCtx: CallSecurityContext): Promise<any> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
