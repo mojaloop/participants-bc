@@ -2766,7 +2766,7 @@ export class ParticipantAggregate {
         }
     }
 
-    async getSearchKeywords(secCtx: CallSecurityContext): Promise<any> {
+    async getSearchKeywords(secCtx: CallSecurityContext): Promise<{fieldName:string, distinctTerms:string[]}[]> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
         const timerEndFn = this._requestsHisto.startTimer({ callName: "getSearchKeywords" });
