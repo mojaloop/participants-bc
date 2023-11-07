@@ -2191,12 +2191,6 @@ export class ParticipantAggregate {
             );
         }
 
-        if (!participant.isActive) {
-            throw new InvalidParticipantStatusError(
-                `Participant with ID: '${participantId}' is not active.`
-            );
-        }
-
         const fundsMov = participant.fundsMovements.find(
             (value: IParticipantFundsMovement) => value.id === fundsMovId
         );
@@ -2218,6 +2212,13 @@ export class ParticipantAggregate {
                 ? ParticipantPrivilegeNames.APPROVE_FUNDS_DEPOSIT
                 : ParticipantPrivilegeNames.APPROVE_FUNDS_WITHDRAWAL
         );
+
+        // inactive participants can only deposit funds, not withdrawal
+        if (!participant.isActive && fundsMov.direction === "FUNDS_WITHDRAWAL") {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active, cannot withdrawal funds.`
+            );
+        }
 
         if (secCtx && fundsMov.createdBy === secCtx.username) {
             await this._auditClient.audit(
