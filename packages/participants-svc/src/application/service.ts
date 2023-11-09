@@ -203,22 +203,30 @@ export class Service {
 
         // authorization client
         if (!authorizationClient) {
+            // create the instance of IAuthenticatedHttpRequester
+            const authRequester = new AuthenticatedHttpRequester(logger, AUTH_N_SVC_TOKEN_URL);
+            authRequester.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
+
             const messageConsumer = new MLKafkaJsonConsumer(
-                kafkaConsumerOptions,
-                logger.createChild("authorizationClientConsumer")
+                {
+                    kafkaBrokerList: KAFKA_URL,
+                    kafkaGroupId: `${BC_NAME}_${APP_NAME}_authz_client`
+                }, logger.createChild("authorizationClientConsumer")
             );
 
             // setup privileges - bootstrap app privs and get priv/role associations
             authorizationClient = new AuthorizationClient(
                 BC_NAME, APP_NAME, APP_VERSION,
                 AUTH_Z_SVC_BASEURL, logger.createChild("AuthorizationClient"),
+                authRequester,
                 messageConsumer
             );
+
             authorizationClient.addPrivilegesArray(AppPrivilegesDefinition);
             await (authorizationClient as AuthorizationClient).bootstrap(true);
             await (authorizationClient as AuthorizationClient).fetch();
+            // init message consumer to automatically update on role changed events
             await (authorizationClient as AuthorizationClient).init();
-
         }
         this.authorizationClient = authorizationClient;
 
