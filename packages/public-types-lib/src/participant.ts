@@ -215,14 +215,14 @@ export declare interface IParticipantStatusChangeRequest {
 
 export declare interface IParticipantLiquidityBalanceAdjustment {
   matrixId: string;
+  isDuplicate: boolean;
   participantId: string;
   participantName: string | null;
   participantBankAccountInfo: string;
-  bankbalance: string;
+  bankBalance: string;
   settledTransferAmount: string;
   currencyCode: string;
   direction: ParticipantFundsMovementDirections | null;
   updateAmount: string | null;
   settlementAccountId: string | null;
-  isDuplicate: boolean;
 }
