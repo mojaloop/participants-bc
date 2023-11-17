@@ -212,3 +212,17 @@ export declare interface IParticipantStatusChangeRequest {
   approvedDate: number | null;
   requestType: "CHANGE_PARTICIPANT_STATUS";
 }
+
+export declare interface IParticipantLiquidityBalanceAdjustment {
+  matrixId: string;
+  participantId: string;
+  participantName: string | null;
+  participantBankAccountInfo: string;
+  bankbalance: string;
+  settledTransferAmount: string;
+  currencyCode: string;
+  direction: ParticipantFundsMovementDirections | null;
+  updateAmount: string | null;
+  settlementAccountId: string | null;
+  isDuplicate: boolean;
+}

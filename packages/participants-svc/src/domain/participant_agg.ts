@@ -53,7 +53,8 @@ import {
     ParticipantEndpointTypes,
     ParticipantFundsMovementDirections,
     ParticipantNetDebitCapTypes,
-    ParticipantTypes
+    ParticipantTypes,
+    IParticipantLiquidityBalanceAdjustment
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
     SettlementMatrixSettledEvt,
@@ -86,6 +87,7 @@ import {
     InvalidAccountError,
     InvalidNdcChangeRequest,
     InvalidParticipantError, InvalidParticipantStatusError,
+    LiquidityAdjustmentAlreadyProcessed,
     NdcChangeRequestAlreadyApproved,
     NdcChangeRequestNotFound,
     NoAccountsError,
@@ -127,6 +129,9 @@ enum AuditedActionNames {
     PARTICIPANT_SOURCE_IP_REMOVED = "PARTICIPANT_SOURCE_IP_REMOVED",
     PARTICIPANT_FUNDS_DEPOSIT_CREATED = "PARTICIPANT_FUNDS_DEPOSIT_CREATED",
     PARTICIPANT_FUNDS_DEPOSIT_APPROVED = "PARTICIPANT_FUNDS_DEPOSIT_APPROVED",
+    PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED",
+    PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CREATED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CREATED",
+    PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED",
     PARTICIPANT_FUNDS_WITHDRAWAL_CREATED = "PARTICIPANT_FUNDS_WITHDRAWAL_CREATED",
     PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED = "PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED",
     PARTICIPANT_NDC_CHANGE_REQUEST_CREATED = "PARTICIPANT_NDC_CHANGE_REQUEST_CREATED",
@@ -2775,5 +2780,187 @@ export class ParticipantAggregate {
         timerEndFn({ success: "true" });
 
         return part;
+    }
+
+    async liquidityCheckValidate(
+        secCtx: CallSecurityContext,
+        liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[]
+    ): Promise<IParticipantLiquidityBalanceAdjustment[]> {
+        this._enforcePrivilege(
+            secCtx,
+            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT
+        );
+
+        if (!liquidityBalanceAdjustments)
+            throw new Error("Invalid data for liquidity balance adjustment.");
+
+        for (const obj of liquidityBalanceAdjustments) {
+            // Validate values for each object
+            if (!obj.matrixId) {
+                throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
+            } else if (!obj.participantId) {
+                throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
+            } else if (!obj.bankbalance) {
+                throw new Error(`Invalid bankbalance: ${obj.bankbalance} in liquidity balance adjustment.`);
+            } else if (!obj.currencyCode) {
+                throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
+            }
+            const checkParticipant = await this._repo.fetchWhereId(obj.participantId);
+            if (!checkParticipant) {
+                throw new ParticipantNotFoundError(
+                    `Participant with ID: '${obj.participantId}' not found.`
+                );
+            }
+            if (!checkParticipant.isActive) {
+                throw new InvalidParticipantStatusError(
+                    `Participant with ID: '${obj.participantId}' is not active.`
+                );
+            }
+
+            obj.participantName = checkParticipant.name;
+
+            const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
+                return fundMov.extReference?.trim() === obj.matrixId.trim()
+            });
+
+            if (checkExistingFundMov.length > 0) {
+                obj.isDuplicate = true;
+            } else {
+                obj.isDuplicate = false;
+            }
+
+            const settlementAccount = checkParticipant.participantAccounts.find(
+                (value: IParticipantAccount) =>
+                    value.currencyCode === obj.currencyCode &&
+                    value.type === "SETTLEMENT"
+            );
+            if (!settlementAccount) {
+                throw new AccountNotFoundError(
+                    `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+                );
+            }
+
+            obj.settlementAccountId = settlementAccount.id;
+            const accounts = await this.getParticipantAccountsById(secCtx, obj.participantId);
+            const checkSettlementBalance = accounts.find(
+                (value: IParticipantAccount) =>
+                    value.id === settlementAccount.id
+            );
+
+            const amount = parseFloat(obj.bankbalance) - parseFloat(checkSettlementBalance?.balance || "0");
+            obj.updateAmount = Math.abs(amount).toString();
+            if (amount > 0) {
+                obj.direction = ParticipantFundsMovementDirections.FUNDS_DEPOSIT;
+            } else {
+                obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
+            }
+        }
+       
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            []
+        );
+
+        return liquidityBalanceAdjustments;
+    }
+
+    async createLiquidityCheckRequestAdjustment(
+        secCtx: CallSecurityContext,
+        ignoreDuplicate: boolean,
+        liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[]
+    ) {
+        this._enforcePrivilege(
+            secCtx,
+            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT
+        );
+
+        if (!liquidityBalanceAdjustments)
+            throw new Error("Invalid data for liquidity balance adjustment.");
+
+        let isDuplicate = false;
+        for (const obj of liquidityBalanceAdjustments) {
+            // Validate values for each object
+            if (!obj.matrixId) {
+                throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
+            } else if (!obj.participantId) {
+                throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
+            } else if (!obj.bankbalance) {
+                throw new Error(`Invalid bankbalance: ${obj.bankbalance} in liquidity balance adjustment.`);
+            } else if (!obj.currencyCode) {
+                throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
+            }
+
+            const checkParticipant = await this._repo.fetchWhereId(obj.participantId);
+            if (!checkParticipant) {
+                throw new ParticipantNotFoundError(
+                    `Participant with ID: '${obj.participantId}' not found.`
+                );
+            }
+            if (!checkParticipant.isActive) {
+                throw new InvalidParticipantStatusError(
+                    `Participant with ID: '${obj.participantId}' is not active.`
+                );
+            }
+
+            const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
+                return fundMov.extReference?.trim() === obj.matrixId.trim()
+            });
+
+            if (checkExistingFundMov.length > 0) {
+                obj.isDuplicate = true;
+                isDuplicate = true;
+            } else {
+                obj.isDuplicate = false;
+            }
+
+            const settlementAccount = checkParticipant.participantAccounts.find(
+                (value: IParticipantAccount) =>
+                    value.currencyCode === obj.currencyCode &&
+                    value.type === "SETTLEMENT"
+            );
+
+            if (!settlementAccount) {
+                throw new AccountNotFoundError(
+                    `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+                );
+            }
+        }
+
+        if(!ignoreDuplicate && isDuplicate){
+            throw new LiquidityAdjustmentAlreadyProcessed('Liquidity adjustment already exists.');
+        }
+
+        for(const obj of liquidityBalanceAdjustments){
+            const amountValue: number | null = obj.updateAmount !== null ? parseFloat(obj.updateAmount) : 0;
+
+            if(amountValue > 0){
+                const fundMovement: IParticipantFundsMovement = {
+                    id: randomUUID(),
+                    createdBy: secCtx.username!,
+                    createdDate: Date.now(),
+                    approved: false,
+                    approvedBy: null,
+                    approvedDate: null,
+                    direction: obj.direction as ParticipantFundsMovementDirections,
+                    currencyCode: obj.currencyCode,
+                    amount: obj.updateAmount || "0",
+                    transferId: null,
+                    extReference: obj.matrixId,
+                    note: `liquidityBalanceAdjustments for matrixid:${obj.matrixId}`
+                }
+                await this.createFundsMovement(secCtx,obj.participantId, fundMovement);
+            }            
+        }
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CREATED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            []
+        );
+
+        return;
     }
 }

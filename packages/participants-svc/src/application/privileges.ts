@@ -131,5 +131,15 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST,
         labelName: "Approves a change request for Participant Status",
         description: "Approves a change request for Participant Status"
+    },
+    {
+        privId: ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT,
+        labelName: "Checks and creates a request for Participant liquidity adjustment",
+        description: "Checks and creates a request for Participant liquidity adjustment"
+    },
+    {
+        privId: ParticipantPrivilegeNames.APPROVE_LIQUIDITY_ADJUSTMENT,
+        labelName: "Approves a request for Participant liquidity adjustment",
+        description: "Approves a request for Participant liquidity adjustment"
     }
 ];
