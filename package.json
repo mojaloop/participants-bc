@@ -19,6 +19,7 @@
     "clean:npm": "rm -Rf node_modules; npm -ws run clean:npm",
     "clean:dist": "rm -Rf dist; npm -ws run clean:dist",
     "lint": "npm -ws -p run lint",
+    "lint:fix": "npm -ws -p run lint:fix",
     "build": "npm -ws -p run build",
     "docker:build": "npm run build && docker build . -t \"mojaloop/participants-bc-participants-svc\"",
     "clean-and-build": "npm run clean && npm run build",

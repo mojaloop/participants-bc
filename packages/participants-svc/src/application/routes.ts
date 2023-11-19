@@ -68,8 +68,8 @@ import {
     ITokenHelper,
 } from "@mojaloop/security-bc-public-types-lib";
 import { ParticipantSearchResults } from "../domain/server_types";
-import multer from 'multer';
-import ExcelJS from 'exceljs';
+import multer from "multer";
+import ExcelJS from "exceljs";
 
 // Extend express request to include our security fields
 declare module "express-serve-static-core" {
@@ -92,10 +92,10 @@ export class ExpressRoutes {
         this._logger = logger.createChild("ExpressRoutes");
         this._tokenHelper = tokenHelper;
         this._participantsAgg = participantsAgg;
-        
+
         const storage = multer.memoryStorage();
         const uploadfile = multer({ storage: storage });
-    
+
         // inject authentication - all request below this require a valid token
         this._mainRouter.use(this._authenticationMiddleware.bind(this));
 
@@ -152,7 +152,7 @@ export class ExpressRoutes {
         this._mainRouter.get("/searchKeywords/", this._getSearchKeywords.bind(this));
 
         // liquidity balance adjust file import
-        this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single('settlementInitiation'), this._participantLiquidityCheckValidate.bind(this));
+        this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single("settlementInitiation"), this._participantLiquidityCheckValidate.bind(this));
         this._mainRouter.post("/participants/liquidityCheckRequestAdjustment", this._participantLiquidityCheckRequestAdjustment.bind(this));
 
         // participant's bulk approval
@@ -229,12 +229,12 @@ export class ExpressRoutes {
             const id = req.query.id as string || null;
             const name = req.query.name as string || null;
             const state = req.query.state as string || null;
-    
-    
+
+
             // optional pagination
             const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
             const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
-    
+
             const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
             const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
 
@@ -1086,21 +1086,21 @@ export class ExpressRoutes {
 
     private async _participantLiquidityCheckValidate(req: express.Request, res: express.Response): Promise<void> {
 		this._logger.debug(
-            `Received request to validate liquidity adjustment.`
+            "Received request to validate liquidity adjustment."
         );
 
-        try {            
+        try {
 			if (!req.file) {
-                res.status(400).json({ error: 'No file uploaded' });
+                res.status(400).json({ error: "No file uploaded" });
               }
-          
+
               const excelBuffer = req.file?.buffer;
-              
+
               if(excelBuffer){
                 this._extractDataFromExcel(excelBuffer).then(async (data)=> {
                     const result = await this._participantsAgg.liquidityCheckValidate(req.securityContext!, data);
                     res.send(result);
-                });  
+                });
               }
 		} catch (error: any) {
 			this._logger.error(error);
@@ -1125,23 +1125,23 @@ export class ExpressRoutes {
     private async _extractDataFromExcel(buffer: Buffer): Promise<IParticipantLiquidityBalanceAdjustment[]> {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(buffer);
-     
+
       // Assuming that the data is in the first worksheet
       const worksheet = workbook.worksheets[0];
-     
+
       // Find the row index where Settlement ID is located
       let rowIndex = 1;
-      while (rowIndex <= worksheet.rowCount && worksheet.getCell(rowIndex, 1).value !== 'Settlement ID') {
+      while (rowIndex <= worksheet.rowCount && worksheet.getCell(rowIndex, 1).value !== "Settlement ID") {
         rowIndex++;
       }
-     
+
       // If Settlement ID is found, extract data from subsequent rows
       if (rowIndex < worksheet.rowCount) {
         const settlementId = worksheet.getCell(rowIndex, 2).value as string;
-     
+
         // Array to store extracted data
         const extractedData: IParticipantLiquidityBalanceAdjustment[] = [];
-        
+
         // Iterate over rows starting from the row after Settlement ID
         for (let i = rowIndex + 5; i <= worksheet.rowCount; i++) {
           const rowData: IParticipantLiquidityBalanceAdjustment = {
@@ -1149,35 +1149,40 @@ export class ExpressRoutes {
             participantId: worksheet.getCell(i, 1).value as string,
             participantName: "",
             participantBankAccountInfo: worksheet.getCell(i, 2).value as string,
-            bankbalance: worksheet.getCell(i, 3).value as string,
+            bankBalance: worksheet.getCell(i, 3).value as string,
             settledTransferAmount: worksheet.getCell(i, 4).value as string,
             currencyCode: worksheet.getCell(i, 5).value as string,
             direction: null,
             updateAmount: "",
             settlementAccountId: "",
-            isDuplicate: false, 
+            isDuplicate: false,
           };
-     
+
           extractedData.push(rowData);
         }
-     
+
         return extractedData;
       } else {
-        throw new Error('Settlement ID not found in the Excel file');
+        throw new Error("Settlement ID not found in the Excel file");
       }
     }
 
     private async _participantLiquidityCheckRequestAdjustment(req: express.Request, res: express.Response): Promise<void> {
         this._logger.debug(
-            `Received request to check and create liquidity adjustment.`
+            "Received request to check and create liquidity adjustment."
         );
-        try {    
-            const ignoreDuplicate = req.query.ignoreDuplicate as unknown as boolean || false;
+        try {
+            const ignoreDuplicate = req.query.ignoreDuplicate as unknown as boolean ||
+                req.query.ignoreduplicate as unknown as boolean || false;
             const liquidityBalanceAdjustments = req.body as IParticipantLiquidityBalanceAdjustment[];
-            
-            const result = await this._participantsAgg.createLiquidityCheckRequestAdjustment(req.securityContext!,ignoreDuplicate,liquidityBalanceAdjustments);
+
+            const result = await this._participantsAgg.createLiquidityCheckRequestAdjustment(
+                req.securityContext!,
+                liquidityBalanceAdjustments,
+                ignoreDuplicate
+            );
             res.send(result);
-            
+
         } catch (error: any) {
 			this._logger.error(error);
 			if (this._handleUnauthorizedError(error, res)) return;

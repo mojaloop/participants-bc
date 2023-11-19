@@ -29,7 +29,10 @@
  ******/
 
 "use strict";
-import { AccountsAndBalancesAccountType, } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
+import {
+    AccountsAndBalancesAccount,
+    AccountsAndBalancesAccountType,
+} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 import { IHistogram, IMetrics } from "@mojaloop/platform-shared-lib-observability-types-lib";
 import { AuditSecurityContext, IAuditClient, } from "@mojaloop/auditing-bc-public-types-lib";
 import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
@@ -607,7 +610,7 @@ export class ParticipantAggregate {
         });
 
         if (!(await this._repo.store(existing))) {
-            throw new CouldNotStoreParticipant(`Unable to approve participant.`);
+            throw new CouldNotStoreParticipant("Unable to approve participant.");
         }
 
         await this._auditClient.audit(
@@ -1218,7 +1221,7 @@ export class ParticipantAggregate {
                     contactInfo.name = contactInfoChangeRequest.name,
                         contactInfo.email = contactInfoChangeRequest.email,
                         contactInfo.phoneNumber = contactInfoChangeRequest.phoneNumber,
-                        contactInfo.role = contactInfoChangeRequest.role
+                        contactInfo.role = contactInfoChangeRequest.role;
                 }
             });
         }
@@ -1765,7 +1768,7 @@ export class ParticipantAggregate {
 
         if (accountChangeRequest.type != ParticipantAccountTypes.SETTLEMENT && (accountChangeRequest.externalBankAccountId || accountChangeRequest.externalBankAccountName))
             throw new InvalidAccountError(
-                `Only the SETTLEMENT account type can have external bank account info.`
+                "Only the SETTLEMENT account type can have external bank account info."
             );
 
         if (!existing.participantAccountsChangeRequest) {
@@ -2789,24 +2792,28 @@ export class ParticipantAggregate {
     ): Promise<IParticipantLiquidityBalanceAdjustment[]> {
         this._enforcePrivilege(
             secCtx,
-            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT
+            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
         );
 
         if (!liquidityBalanceAdjustments)
             throw new Error("Invalid data for liquidity balance adjustment.");
 
+        const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
+        const allParticipants = await this._repo.fetchWhereIds(participantIds);
+
+        // first pass to validate participants, duplicates and get the account Ids
         for (const obj of liquidityBalanceAdjustments) {
             // Validate values for each object
             if (!obj.matrixId) {
                 throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
             } else if (!obj.participantId) {
                 throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
-            } else if (!obj.bankbalance) {
-                throw new Error(`Invalid bankbalance: ${obj.bankbalance} in liquidity balance adjustment.`);
+            } else if (!obj.bankBalance) {
+                throw new Error(`Invalid bankbalance: ${obj.bankBalance} in liquidity balance adjustment.`);
             } else if (!obj.currencyCode) {
                 throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
             }
-            const checkParticipant = await this._repo.fetchWhereId(obj.participantId);
+            const checkParticipant = allParticipants.find(item => item.id === obj.participantId);
             if (!checkParticipant) {
                 throw new ParticipantNotFoundError(
                     `Participant with ID: '${obj.participantId}' not found.`
@@ -2821,7 +2828,7 @@ export class ParticipantAggregate {
             obj.participantName = checkParticipant.name;
 
             const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
-                return fundMov.extReference?.trim() === obj.matrixId.trim()
+                return fundMov.extReference?.trim() === obj.matrixId.trim();
             });
 
             if (checkExistingFundMov.length > 0) {
@@ -2842,13 +2849,27 @@ export class ParticipantAggregate {
             }
 
             obj.settlementAccountId = settlementAccount.id;
-            const accounts = await this.getParticipantAccountsById(secCtx, obj.participantId);
-            const checkSettlementBalance = accounts.find(
-                (value: IParticipantAccount) =>
-                    value.id === settlementAccount.id
-            );
+        }
 
-            const amount = parseFloat(obj.bankbalance) - parseFloat(checkSettlementBalance?.balance || "0");
+        // get balances we've checked settlementAccountId above
+        const accountIds = liquidityBalanceAdjustments.map(value => value.settlementAccountId!);
+
+        let accounts: AccountsAndBalancesAccount[] = [];
+        try {
+            accounts = await this._accBal.getAccounts(accountIds);
+        }catch(err){
+           throw new Error("Could not get account balances in liquidity balance adjustment");
+        }
+
+        for (const obj of liquidityBalanceAdjustments) {
+            const settlementAccount = accounts.find(value => value.id === obj.settlementAccountId);
+            if(!settlementAccount || settlementAccount.balance == null || settlementAccount.balance == undefined){
+                throw new AccountNotFoundError(
+                    `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+                );
+            }
+
+            const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
             obj.updateAmount = Math.abs(amount).toString();
             if (amount > 0) {
                 obj.direction = ParticipantFundsMovementDirections.FUNDS_DEPOSIT;
@@ -2856,7 +2877,8 @@ export class ParticipantAggregate {
                 obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
             }
         }
-       
+
+
         await this._auditClient.audit(
             AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED,
             true,
@@ -2869,31 +2891,34 @@ export class ParticipantAggregate {
 
     async createLiquidityCheckRequestAdjustment(
         secCtx: CallSecurityContext,
+        liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[],
         ignoreDuplicate: boolean,
-        liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[]
     ) {
         this._enforcePrivilege(
             secCtx,
-            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT
+            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
         );
 
         if (!liquidityBalanceAdjustments)
             throw new Error("Invalid data for liquidity balance adjustment.");
 
-        let isDuplicate = false;
+        const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
+        const allParticipants = await this._repo.fetchWhereIds(participantIds);
+
+        let duplicateFound = false;
         for (const obj of liquidityBalanceAdjustments) {
             // Validate values for each object
             if (!obj.matrixId) {
                 throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
             } else if (!obj.participantId) {
                 throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
-            } else if (!obj.bankbalance) {
-                throw new Error(`Invalid bankbalance: ${obj.bankbalance} in liquidity balance adjustment.`);
+            } else if (!obj.bankBalance) {
+                throw new Error(`Invalid bankbalance: ${obj.bankBalance} in liquidity balance adjustment.`);
             } else if (!obj.currencyCode) {
                 throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
             }
 
-            const checkParticipant = await this._repo.fetchWhereId(obj.participantId);
+            const checkParticipant = allParticipants.find(item => item.id === obj.participantId);
             if (!checkParticipant) {
                 throw new ParticipantNotFoundError(
                     `Participant with ID: '${obj.participantId}' not found.`
@@ -2906,15 +2931,10 @@ export class ParticipantAggregate {
             }
 
             const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
-                return fundMov.extReference?.trim() === obj.matrixId.trim()
+                return fundMov.extReference?.trim() === obj.matrixId.trim();
             });
 
-            if (checkExistingFundMov.length > 0) {
-                obj.isDuplicate = true;
-                isDuplicate = true;
-            } else {
-                obj.isDuplicate = false;
-            }
+            duplicateFound = (checkExistingFundMov.length > 0);
 
             const settlementAccount = checkParticipant.participantAccounts.find(
                 (value: IParticipantAccount) =>
@@ -2929,12 +2949,12 @@ export class ParticipantAggregate {
             }
         }
 
-        if(!ignoreDuplicate && isDuplicate){
-            throw new LiquidityAdjustmentAlreadyProcessed('Liquidity adjustment already exists.');
+        if(duplicateFound && !ignoreDuplicate){
+            throw new LiquidityAdjustmentAlreadyProcessed("Liquidity adjustment already exists.");
         }
 
         for(const obj of liquidityBalanceAdjustments){
-            const amountValue: number | null = obj.updateAmount !== null ? parseFloat(obj.updateAmount) : 0;
+            const amountValue: number = obj.updateAmount !== null ? parseFloat(obj.updateAmount) : 0;
 
             if(amountValue > 0){
                 const fundMovement: IParticipantFundsMovement = {
@@ -2949,10 +2969,10 @@ export class ParticipantAggregate {
                     amount: obj.updateAmount || "0",
                     transferId: null,
                     extReference: obj.matrixId,
-                    note: `liquidityBalanceAdjustments for matrixid:${obj.matrixId}`
-                }
+                    note: `LiquidityBalanceAdjustments for matrixId:${obj.matrixId}`
+                };
                 await this.createFundsMovement(secCtx,obj.participantId, fundMovement);
-            }            
+            }
         }
 
         await this._auditClient.audit(

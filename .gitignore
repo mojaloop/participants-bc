@@ -116,7 +116,6 @@ devspace*
 # General Ignore
 *IGNORE*
 
-
 # yarn not using Zero-Installs:
 .pnp.*
 .yarn/*
@@ -131,3 +130,6 @@ devspace*
 # --------------- #
 .idea
 **/*.iml
+
+# Gedit backups.
+*~

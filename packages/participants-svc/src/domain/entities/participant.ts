@@ -127,32 +127,32 @@ export class Participant implements IParticipant {
         try {
             if (request.cidr.trim().length === 0) {
                 throw new Error(
-                    `CIDR cannot be empty.`
+                    "CIDR cannot be empty."
                 );
             }
 
             if (!_validateParticipantSourceIP_CIDR(request.cidr.trim())) {
                 throw new Error(
-                    `Invalid CIDR format.`
+                    "Invalid CIDR format."
                 );
             }
 
             if (!_validateParticipantSourceIP_PortMode(request.portMode)) {
                 throw new Error(
-                    `Invalid Port Mode.`
+                    "Invalid Port Mode."
                 );
             }
 
             if (request.portMode === "RANGE") {
                 if (Number(request.portRange?.rangeFirst) === 0 || Number(request.portRange?.rangeFirst) === 0) {
                     throw new Error(
-                        `Invalid Port Range values.`
+                        "Invalid Port Range values."
                     );
                 }
 
                 if (!_validateParticipantSourceIP_PortRange(Number(request.portRange?.rangeFirst), Number(request.portRange?.rangeLast))) {
                     throw new Error(
-                        `Invalid Port Range values.`
+                        "Invalid Port Range values."
                     );
                 }
             }
@@ -160,7 +160,7 @@ export class Participant implements IParticipant {
             if (request.portMode === "SPECIFIC") {
                 if (!_validateParticipantSourceIP_Ports(request.ports)) {
                     throw new Error(
-                        `Invalid Port value.`
+                        "Invalid Port value."
                     );
                 }
             }
@@ -184,19 +184,19 @@ export class Participant implements IParticipant {
 
             if (request.name.trim().length === 0) {
                 throw new Error(
-                    `Contact name cannot be empty.`
+                    "Contact name cannot be empty."
                 );
             }
 
             if (!emailRegex.test(request.email)) {
                 throw new Error(
-                    `Invalid contact email.`
+                    "Invalid contact email."
                 );
             }
 
             if (!phoneNumRegex.test(request.phoneNumber)) {
                 throw new Error(
-                    `Invalid contact phone number.`
+                    "Invalid contact phone number."
                 );
             }
 
@@ -230,7 +230,7 @@ function _validateParticipantSourceIP_PortRange(rangeFirst?: number | null, rang
     if (
         !(rangeFirst === null && rangeLast === null) &&
         !(rangeFirst === 0 && rangeLast === 0) &&
-        (!(typeof rangeFirst === 'number' && typeof rangeLast === 'number') ||
+        (!(typeof rangeFirst === "number" && typeof rangeLast === "number") ||
             rangeFirst >= rangeLast)
     ) {
         // Invalid port range
