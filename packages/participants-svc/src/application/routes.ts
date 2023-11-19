@@ -151,8 +151,14 @@ export class ExpressRoutes {
 
         this._mainRouter.get("/searchKeywords/", this._getSearchKeywords.bind(this));
 
+        // liquidity balance adjust file import
         this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single('settlementInitiation'), this._participantLiquidityCheckValidate.bind(this));
         this._mainRouter.post("/participants/liquidityCheckRequestAdjustment", this._participantLiquidityCheckRequestAdjustment.bind(this));
+
+        // participant's bulk approval
+        this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
+        this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
+        this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
     }
 
     private async _authenticationMiddleware(
@@ -1199,6 +1205,117 @@ export class ExpressRoutes {
             res.send(ret);
         }   catch (err: any) {
             if (this._handleUnauthorizedError(err, res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: (err as Error).message,
+            });
+        }
+    }
+
+    private async _participantPendingApprovalSummary(req: express.Request, res: express.Response): Promise<void> {
+        try {
+            const id = req.query.id as string || null;
+            const name = req.query.name as string || null;
+            const state = req.query.state as string || null;
+    
+    
+            // optional pagination
+            const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
+            const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
+    
+            const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
+            const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
+
+            this._logger.debug("Fetching all participants");
+
+            const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
+                req.securityContext!,
+                id,
+                name,
+                state,
+                pageIndex,
+                pageSize
+            );
+
+            res.send(fetched);
+        } catch (err: unknown) {
+            if (this._handleUnauthorizedError((err as Error), res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: (err as Error).message,
+            });
+        }
+    }
+
+    private async _participantPendingApprovals(req: express.Request, res: express.Response): Promise<void> {
+        try {
+            const id = req.query.id as string || null;
+            const name = req.query.name as string || null;
+            const state = req.query.state as string || null;
+    
+    
+            // optional pagination
+            const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
+            const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
+    
+            const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
+            const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
+
+            this._logger.debug("Fetching all participants");
+
+            const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
+                req.securityContext!,
+                id,
+                name,
+                state,
+                pageIndex,
+                pageSize
+            );
+
+            res.send(fetched);
+        } catch (err: unknown) {
+            if (this._handleUnauthorizedError((err as Error), res)) return;
+
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: (err as Error).message,
+            });
+        }
+    }
+
+    private async _participantApprovePendingApprovals(req: express.Request, res: express.Response): Promise<void> {
+        try {
+            const id = req.query.id as string || null;
+            const name = req.query.name as string || null;
+            const state = req.query.state as string || null;
+    
+    
+            // optional pagination
+            const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
+            const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
+    
+            const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
+            const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
+
+            this._logger.debug("Fetching all participants");
+
+            const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
+                req.securityContext!,
+                id,
+                name,
+                state,
+                pageIndex,
+                pageSize
+            );
+
+            res.send(fetched);
+        } catch (err: unknown) {
+            if (this._handleUnauthorizedError((err as Error), res)) return;
 
             this._logger.error(err);
             res.status(500).json({
