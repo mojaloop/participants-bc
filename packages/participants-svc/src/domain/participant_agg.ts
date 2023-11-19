@@ -134,6 +134,7 @@ enum AuditedActionNames {
     PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED",
     PARTICIPANT_FUNDS_WITHDRAWAL_CREATED = "PARTICIPANT_FUNDS_WITHDRAWAL_CREATED",
     PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED = "PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED",
+    PARTICIPANT_BULK_FUNDS_MOVEMENT_APPROVED = "PARTICIPANT_BULK_FUNDS_MOVEMENT_APPROVED",
     PARTICIPANT_NDC_CHANGE_REQUEST_CREATED = "PARTICIPANT_NDC_CHANGE_REQUEST_CREATED",
     PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED = "PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED",
     PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT = "PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT",
@@ -2962,5 +2963,38 @@ export class ParticipantAggregate {
         );
 
         return;
+    }
+
+    async getPendingApprovalSummary(secCtx: CallSecurityContext): Promise<any> {
+        // this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_ALL_PENDING_APPROVALS);
+
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
+
+        const participants = await this.getAllParticipants(secCtx);
+
+        let totalCount = 0;
+        let fundsMovement = 0;
+        let ipChange = 0;
+        let accountsChange = 0;
+        let ndcChange = 0;
+        let contactInfoChange = 0;
+        let statusChange = 0;
+        for(const participant of participants){
+            
+        }
+
+        timerEndFn({ success: "true" });
+        return;
+    }
+
+    async getAllPendingApprovals(secCtx: CallSecurityContext): Promise<any> {
+        // this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_ALL_PENDING_APPROVALS);
+
+        const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
+
+        const result = 
+
+        timerEndFn({ success: "true" });
+        return result;
     }
 }
