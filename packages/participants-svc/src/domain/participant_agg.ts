@@ -2793,103 +2793,107 @@ export class ParticipantAggregate {
         secCtx: CallSecurityContext,
         liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[]
     ): Promise<IParticipantLiquidityBalanceAdjustment[]> {
-        this._enforcePrivilege(
-            secCtx,
-            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
-        );
-
-        if (!liquidityBalanceAdjustments)
-            throw new Error("Invalid data for liquidity balance adjustment.");
-
-        const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
-        const allParticipants = await this._repo.fetchWhereIds(participantIds);
-
-        // first pass to validate participants, duplicates and get the account Ids
-        for (const obj of liquidityBalanceAdjustments) {
-            // Validate values for each object
-            if (!obj.matrixId) {
-                throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
-            } else if (!obj.participantId) {
-                throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
-            } else if (!obj.bankBalance) {
-                throw new Error(`Invalid bankbalance: ${obj.bankBalance} in liquidity balance adjustment.`);
-            } else if (!obj.currencyCode) {
-                throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
-            }
-            const checkParticipant = allParticipants.find(item => item.id === obj.participantId);
-            if (!checkParticipant) {
-                throw new ParticipantNotFoundError(
-                    `Participant with ID: '${obj.participantId}' not found.`
-                );
-            }
-            if (!checkParticipant.isActive) {
-                throw new InvalidParticipantStatusError(
-                    `Participant with ID: '${obj.participantId}' is not active.`
-                );
-            }
-
-            obj.participantName = checkParticipant.name;
-
-            const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
-                return fundMov.extReference?.trim() === obj.matrixId.trim();
-            });
-
-            if (checkExistingFundMov.length > 0) {
-                obj.isDuplicate = true;
-            } else {
-                obj.isDuplicate = false;
-            }
-
-            const settlementAccount = checkParticipant.participantAccounts.find(
-                (value: IParticipantAccount) =>
-                    value.currencyCode === obj.currencyCode &&
-                    value.type === "SETTLEMENT"
-            );
-            if (!settlementAccount) {
-                throw new AccountNotFoundError(
-                    `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
-                );
-            }
-
-            obj.settlementAccountId = settlementAccount.id;
-        }
-
-        // get balances we've checked settlementAccountId above
-        const accountIds = liquidityBalanceAdjustments.map(value => value.settlementAccountId!);
-
-        let accounts: AccountsAndBalancesAccount[] = [];
         try {
-            accounts = await this._accBal.getAccounts(accountIds);
-        }catch(err){
-           throw new Error("Could not get account balances in liquidity balance adjustment");
-        }
+            this._enforcePrivilege(
+                secCtx,
+                ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
+            );
 
-        for (const obj of liquidityBalanceAdjustments) {
-            const settlementAccount = accounts.find(value => value.id === obj.settlementAccountId);
-            if(!settlementAccount || settlementAccount.balance == null || settlementAccount.balance == undefined){
-                throw new AccountNotFoundError(
-                    `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+            if (!liquidityBalanceAdjustments)
+                throw new Error("Invalid data for liquidity balance adjustment.");
+
+            const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
+            const allParticipants = await this._repo.fetchWhereIds(participantIds);
+
+            // first pass to validate participants, duplicates and get the account Ids
+            for (const obj of liquidityBalanceAdjustments) {
+                // Validate values for each object
+                if (!obj.matrixId) {
+                    throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
+                } else if (!obj.participantId) {
+                    throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
+                } else if (!obj.bankBalance) {
+                    throw new Error(`Invalid bankbalance: ${obj.bankBalance} in liquidity balance adjustment.`);
+                } else if (!obj.currencyCode) {
+                    throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
+                }
+                const checkParticipant = allParticipants.find(item => item.id === obj.participantId);
+                if (!checkParticipant) {
+                    throw new ParticipantNotFoundError(
+                        `Participant with ID: '${obj.participantId}' not found.`
+                    );
+                }
+                if (!checkParticipant.isActive) {
+                    throw new InvalidParticipantStatusError(
+                        `Participant with ID: '${obj.participantId}' is not active.`
+                    );
+                }
+
+                obj.participantName = checkParticipant.name;
+
+                const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
+                    return fundMov.extReference?.trim() === obj.matrixId.trim();
+                });
+
+                if (checkExistingFundMov.length > 0) {
+                    obj.isDuplicate = true;
+                } else {
+                    obj.isDuplicate = false;
+                }
+
+                const settlementAccount = checkParticipant.participantAccounts.find(
+                    (value: IParticipantAccount) =>
+                        value.currencyCode === obj.currencyCode &&
+                        value.type === "SETTLEMENT"
                 );
+                if (!settlementAccount) {
+                    throw new AccountNotFoundError(
+                        `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+                    );
+                }
+
+                obj.settlementAccountId = settlementAccount.id;
             }
 
-            const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
-            obj.updateAmount = Math.abs(amount).toString();
-            if (amount > 0) {
-                obj.direction = ParticipantFundsMovementDirections.FUNDS_DEPOSIT;
-            } else {
-                obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
+            // get balances we've checked settlementAccountId above
+            const accountIds = liquidityBalanceAdjustments.map(value => value.settlementAccountId!);
+
+            let accounts: AccountsAndBalancesAccount[] = [];
+            try {
+                accounts = await this._accBal.getAccounts(accountIds);
+            } catch (err) {
+                throw new Error("Could not get account balances in liquidity balance adjustment");
             }
+
+            for (const obj of liquidityBalanceAdjustments) {
+                const settlementAccount = accounts.find(value => value.id === obj.settlementAccountId);
+                if (!settlementAccount || settlementAccount.balance == null || settlementAccount.balance == undefined) {
+                    throw new AccountNotFoundError(
+                        `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+                    );
+                }
+
+                const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
+                obj.updateAmount = Math.abs(amount).toString();
+                if (amount > 0) {
+                    obj.direction = ParticipantFundsMovementDirections.FUNDS_DEPOSIT;
+                } else {
+                    obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
+                }
+            }
+
+
+            await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED,
+                true,
+                this._getAuditSecCtx(secCtx),
+                []
+            );
+
+            return liquidityBalanceAdjustments;
+        } catch (err: any) {
+            throw new Error(err.message);
         }
-
-
-        await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED,
-            true,
-            this._getAuditSecCtx(secCtx),
-            []
-        );
-
-        return liquidityBalanceAdjustments;
     }
 
     async createLiquidityCheckRequestAdjustment(

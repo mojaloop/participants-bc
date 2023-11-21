@@ -1100,7 +1100,7 @@ export class ExpressRoutes {
               const excelBuffer = req.file?.buffer;
 
               if(excelBuffer){
-                this._extractDataFromExcel(excelBuffer).then(async (data)=> {
+                await this._extractDataFromExcel(excelBuffer).then(async (data)=> {
                     const result = await this._participantsAgg.liquidityCheckValidate(req.securityContext!, data);
                     res.send(result);
                 });
