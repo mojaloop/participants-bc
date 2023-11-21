@@ -42,7 +42,8 @@ import {
     IParticipantNetDebitCapChangeRequest,
     IParticipantSourceIpChangeRequest,
     IParticipantStatusChangeRequest,
-    IParticipantLiquidityBalanceAdjustment
+    IParticipantLiquidityBalanceAdjustment,
+    IParticipantPendingApproval
 } from "@mojaloop/participant-bc-public-types-lib";
 import { ParticipantAggregate } from "../domain/participant_agg";
 
@@ -98,6 +99,12 @@ export class ExpressRoutes {
 
         // inject authentication - all request below this require a valid token
         this._mainRouter.use(this._authenticationMiddleware.bind(this));
+
+        
+        // participant's bulk approval
+        this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
+        this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
+        this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
 
         // participant
         this._mainRouter.get("/participants", this._getAllParticipants.bind(this));
@@ -155,10 +162,6 @@ export class ExpressRoutes {
         this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single("settlementInitiation"), this._participantLiquidityCheckValidate.bind(this));
         this._mainRouter.post("/participants/liquidityCheckRequestAdjustment", this._participantLiquidityCheckRequestAdjustment.bind(this));
 
-        // participant's bulk approval
-        this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
-        this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
-        this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
     }
 
     private async _authenticationMiddleware(
@@ -1172,8 +1175,19 @@ export class ExpressRoutes {
             "Received request to check and create liquidity adjustment."
         );
         try {
-            const ignoreDuplicate = req.query.ignoreDuplicate as unknown as boolean ||
-                req.query.ignoreduplicate as unknown as boolean || false;
+            const ignoreDuplicateParam = req.query.ignoreDuplicate as string ||
+                req.query.ignoreduplicate as string || "false";
+            let ignoreDuplicate;
+            if (ignoreDuplicateParam === "false" ||
+                ignoreDuplicateParam === "0" ||
+                ignoreDuplicateParam === "true" || 
+                ignoreDuplicateParam === "1") {
+                //convert to boolean value
+                ignoreDuplicate = Boolean(JSON.parse(ignoreDuplicateParam.toLowerCase()));
+
+            } else {
+                throw new Error("Invalid input parameter value.");
+            }
             const liquidityBalanceAdjustments = req.body as IParticipantLiquidityBalanceAdjustment[];
 
             const result = await this._participantsAgg.createLiquidityCheckRequestAdjustment(
@@ -1220,31 +1234,14 @@ export class ExpressRoutes {
     }
 
     private async _participantPendingApprovalSummary(req: express.Request, res: express.Response): Promise<void> {
-        try {
-            const id = req.query.id as string || null;
-            const name = req.query.name as string || null;
-            const state = req.query.state as string || null;
-    
-    
-            // optional pagination
-            const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
-            const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
-    
-            const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
-            const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
-
+        try {            
             this._logger.debug("Fetching all participants");
 
-            const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
-                req.securityContext!,
-                id,
-                name,
-                state,
-                pageIndex,
-                pageSize
+            const result = await this._participantsAgg.getPendingApprovalSummary(
+                req.securityContext!                
             );
 
-            res.send(fetched);
+            res.send(result);
         } catch (err: unknown) {
             if (this._handleUnauthorizedError((err as Error), res)) return;
 
@@ -1258,30 +1255,14 @@ export class ExpressRoutes {
 
     private async _participantPendingApprovals(req: express.Request, res: express.Response): Promise<void> {
         try {
-            const id = req.query.id as string || null;
-            const name = req.query.name as string || null;
-            const state = req.query.state as string || null;
-    
-    
-            // optional pagination
-            const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
-            const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
-    
-            const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
-            const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
+           
+            this._logger.debug("Fetching all pending approvals");
 
-            this._logger.debug("Fetching all participants");
-
-            const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
-                req.securityContext!,
-                id,
-                name,
-                state,
-                pageIndex,
-                pageSize
+            const pendingApprovals = await this._participantsAgg.getAllPendingApprovals(
+                req.securityContext!
             );
 
-            res.send(fetched);
+            res.send(pendingApprovals);
         } catch (err: unknown) {
             if (this._handleUnauthorizedError((err as Error), res)) return;
 
@@ -1295,33 +1276,14 @@ export class ExpressRoutes {
 
     private async _participantApprovePendingApprovals(req: express.Request, res: express.Response): Promise<void> {
         try {
-            const id = req.query.id as string || null;
-            const name = req.query.name as string || null;
-            const state = req.query.state as string || null;
-    
-    
-            // optional pagination
-            const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
-            const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
-    
-            const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
-            const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
+            this._logger.debug("Bulk approve pending approvals");
 
-            this._logger.debug("Fetching all participants");
+            const pendingApprovals: IParticipantPendingApproval = req.body;
+            const result = await this._participantsAgg.approveBulkPendingApprovalRequests(req.securityContext!, pendingApprovals);
 
-            const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
-                req.securityContext!,
-                id,
-                name,
-                state,
-                pageIndex,
-                pageSize
-            );
-
-            res.send(fetched);
+            res.send(result);
         } catch (err: unknown) {
             if (this._handleUnauthorizedError((err as Error), res)) return;
-
             this._logger.error(err);
             res.status(500).json({
                 status: "error",
@@ -1329,4 +1291,6 @@ export class ExpressRoutes {
             });
         }
     }
+
+    
 }

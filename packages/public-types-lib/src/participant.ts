@@ -77,7 +77,7 @@ export declare interface IParticipant {
   participantContacts: IParticipantContactInfo[];
   participantContactInfoChangeRequests: IParticipantContactInfoChangeRequest[];
 
-  participantStatusChangeRequests : IParticipantStatusChangeRequest[];
+  participantStatusChangeRequests: IParticipantStatusChangeRequest[];
 }
 
 export declare interface IParticipantNetDebitCap {
@@ -225,4 +225,23 @@ export declare interface IParticipantLiquidityBalanceAdjustment {
   direction: ParticipantFundsMovementDirections | null;
   updateAmount: string | null;
   settlementAccountId: string | null;
+}
+
+export declare interface IParticipantPendingApprovalCountByType {
+  type: string,
+  count: number
+}
+
+export declare interface IParticipantPendingApprovalSummary {
+  totalCount: number;
+  countByType: IParticipantPendingApprovalCountByType[]
+}
+
+export declare interface IParticipantPendingApproval {
+  accountsChangeRequest: (IParticipantAccountChangeRequest & { participantId: string; participantName: string })[];
+  fundsMovementRequest: (IParticipantFundsMovement & { participantId: string; participantName: string })[];
+  ndcChangeRequests: (IParticipantNetDebitCapChangeRequest & { participantId: string; participantName: string })[];
+  ipChangeRequests: (IParticipantSourceIpChangeRequest & { participantId: string; participantName: string })[];
+  contactInfoChangeRequests: (IParticipantContactInfoChangeRequest & { participantId: string; participantName: string })[];
+  statusChangeRequests: (IParticipantStatusChangeRequest & { participantId: string; participantName: string })[];
 }
