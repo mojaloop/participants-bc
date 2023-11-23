@@ -2998,7 +2998,8 @@ export class ParticipantAggregate {
         try {
             const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
 
-            const participants = await this.getAllParticipants(secCtx);
+            let participants: IParticipant[] | null = await this._repo.fetchAll();
+            participants = participants.filter(p => p.id !== HUB_PARTICIPANT_ID);
 
             let totalCount = 0;
             let accountsChangeRequest = 0;
@@ -3097,7 +3098,8 @@ export class ParticipantAggregate {
         try {
             const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
 
-            const participants = await this.getAllParticipants(secCtx);
+            let participants: IParticipant[] | null = await this._repo.fetchAll();
+            participants = participants.filter(p => p.id !== HUB_PARTICIPANT_ID);
 
             const accountsChangeRequest = participants
                 .flatMap(({ id: participantId, name: participantName, ...value }) => {

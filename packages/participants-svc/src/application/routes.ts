@@ -100,12 +100,6 @@ export class ExpressRoutes {
         // inject authentication - all request below this require a valid token
         this._mainRouter.use(this._authenticationMiddleware.bind(this));
 
-        
-        // participant's bulk approval
-        this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
-        this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
-        this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
-
         // participant
         this._mainRouter.get("/participants", this._getAllParticipants.bind(this));
         this._mainRouter.get(
@@ -161,6 +155,11 @@ export class ExpressRoutes {
         // liquidity balance adjust file import
         this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single("settlementInitiation"), this._participantLiquidityCheckValidate.bind(this));
         this._mainRouter.post("/participants/liquidityCheckRequestAdjustment", this._participantLiquidityCheckRequestAdjustment.bind(this));
+
+        // participant's bulk approval
+        this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
+        this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
+        this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
 
     }
 
@@ -1093,18 +1092,19 @@ export class ExpressRoutes {
         );
 
         try {
-			if (!req.file) {
+            if (!req.file) {
                 res.status(400).json({ error: "No file uploaded" });
-              }
+                return;
+            }
 
-              const excelBuffer = req.file?.buffer;
+            const excelBuffer = req.file.buffer;
 
-              if(excelBuffer){
+            if(excelBuffer){
                 await this._extractDataFromExcel(excelBuffer).then(async (data)=> {
                     const result = await this._participantsAgg.liquidityCheckValidate(req.securityContext!, data);
                     res.send(result);
                 });
-              }
+            }
 		} catch (error: any) {
 			this._logger.error(error);
 			if (this._handleUnauthorizedError(error, res)) return;
@@ -1175,19 +1175,7 @@ export class ExpressRoutes {
             "Received request to check and create liquidity adjustment."
         );
         try {
-            const ignoreDuplicateParam = req.query.ignoreDuplicate as string ||
-                req.query.ignoreduplicate as string || "false";
-            let ignoreDuplicate;
-            if (ignoreDuplicateParam === "false" ||
-                ignoreDuplicateParam === "0" ||
-                ignoreDuplicateParam === "true" || 
-                ignoreDuplicateParam === "1") {
-                //convert to boolean value
-                ignoreDuplicate = Boolean(JSON.parse(ignoreDuplicateParam.toLowerCase()));
-
-            } else {
-                throw new Error("Invalid input parameter value.");
-            }
+            const ignoreDuplicate = (req.query.ignoreDuplicate !== undefined && (req.query.ignoreDuplicate as string).toUpperCase() === "TRUE");
             const liquidityBalanceAdjustments = req.body as IParticipantLiquidityBalanceAdjustment[];
 
             const result = await this._participantsAgg.createLiquidityCheckRequestAdjustment(
@@ -1196,7 +1184,6 @@ export class ExpressRoutes {
                 ignoreDuplicate
             );
             res.send(result);
-
         } catch (error: any) {
 			this._logger.error(error);
 			if (this._handleUnauthorizedError(error, res)) return;
@@ -1234,11 +1221,11 @@ export class ExpressRoutes {
     }
 
     private async _participantPendingApprovalSummary(req: express.Request, res: express.Response): Promise<void> {
-        try {            
-            this._logger.debug("Fetching all participants");
+        try {
+            this._logger.debug("Fetching pending approval summary");
 
             const result = await this._participantsAgg.getPendingApprovalSummary(
-                req.securityContext!                
+                req.securityContext!
             );
 
             res.send(result);
@@ -1255,7 +1242,7 @@ export class ExpressRoutes {
 
     private async _participantPendingApprovals(req: express.Request, res: express.Response): Promise<void> {
         try {
-           
+
             this._logger.debug("Fetching all pending approvals");
 
             const pendingApprovals = await this._participantsAgg.getAllPendingApprovals(
@@ -1292,5 +1279,4 @@ export class ExpressRoutes {
         }
     }
 
-    
 }
