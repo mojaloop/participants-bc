@@ -100,6 +100,13 @@ export class ExpressRoutes {
         // inject authentication - all request below this require a valid token
         this._mainRouter.use(this._authenticationMiddleware.bind(this));
 
+        
+        // participant's bulk approval
+        this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
+        this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
+        this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
+
+        
         // participant
         this._mainRouter.get("/participants", this._getAllParticipants.bind(this));
         this._mainRouter.get(
@@ -155,11 +162,6 @@ export class ExpressRoutes {
         // liquidity balance adjust file import
         this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single("settlementInitiation"), this._participantLiquidityCheckValidate.bind(this));
         this._mainRouter.post("/participants/liquidityCheckRequestAdjustment", this._participantLiquidityCheckRequestAdjustment.bind(this));
-
-        // participant's bulk approval
-        this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
-        this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
-        this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
 
     }
 
