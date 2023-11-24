@@ -34,7 +34,7 @@ import { ConfigurationClient,IConfigProvider } from "@mojaloop/platform-configur
 import {ConfigParameterTypes} from "@mojaloop/platform-configuration-bc-public-types-lib";
 
 // configs - constants / code dependent
-const CONFIGSET_VERSION = "0.0.3";
+const CONFIGSET_VERSION = "0.3.8";
 
 export function GetParticipantsConfigs(
     configProvider: IConfigProvider,

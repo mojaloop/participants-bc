@@ -1791,6 +1791,17 @@ export class ParticipantAggregate {
             );
         }
 
+        /*Check duplicate requests*/
+        if(existing.participantAccountsChangeRequest.find(
+            (value: IParticipantAccountChangeRequest) =>
+                value.type === accountChangeRequest.type &&
+                value.currencyCode === accountChangeRequest.currencyCode
+        )){
+            throw new CannotAddDuplicateAccountError(
+                "Account create request with the same information exists already"
+            );
+        }
+
         existing.participantAccountsChangeRequest.push({
             id: accountChangeRequest.id || randomUUID(),
             accountId: accountChangeRequest.accountId,
