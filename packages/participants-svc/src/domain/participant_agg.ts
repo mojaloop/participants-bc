@@ -1795,24 +1795,10 @@ export class ParticipantAggregate {
         if(existing.participantAccountsChangeRequest.find(
             (value: IParticipantAccountChangeRequest) =>
                 value.type === accountChangeRequest.type &&
-                value.currencyCode === accountChangeRequest.currencyCode && 
-                accountChangeRequest.requestType === "ADD_ACCOUNT"
+                value.currencyCode === accountChangeRequest.currencyCode
         )){
             throw new CannotAddDuplicateAccountError(
-                "Account change request with the same information exists already"
-            );
-        }
-
-        if(existing.participantAccountsChangeRequest.find(
-            (value: IParticipantAccountChangeRequest) =>
-                value.type === accountChangeRequest.type &&
-                value.currencyCode === accountChangeRequest.currencyCode &&
-                value.externalBankAccountId === accountChangeRequest.externalBankAccountId && 
-                value.externalBankAccountName === accountChangeRequest.externalBankAccountName &&
-                accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS"
-        )){
-            throw new CannotAddDuplicateAccountError(
-                "Account change request with the same information exists already"
+                "Account create request with the same information exists already"
             );
         }
 
