@@ -57,7 +57,10 @@ import {
     ParticipantFundsMovementDirections,
     ParticipantNetDebitCapTypes,
     ParticipantTypes,
-    IParticipantLiquidityBalanceAdjustment
+    IParticipantLiquidityBalanceAdjustment,
+    IParticipantPendingApprovalSummary,
+    IParticipantPendingApproval,
+    IParticipantPendingApprovalCountByType
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
     SettlementMatrixSettledEvt,
@@ -137,6 +140,7 @@ enum AuditedActionNames {
     PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED",
     PARTICIPANT_FUNDS_WITHDRAWAL_CREATED = "PARTICIPANT_FUNDS_WITHDRAWAL_CREATED",
     PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED = "PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED",
+    PARTICIPANT_BULK_FUNDS_MOVEMENT_APPROVED = "PARTICIPANT_BULK_FUNDS_MOVEMENT_APPROVED",
     PARTICIPANT_NDC_CHANGE_REQUEST_CREATED = "PARTICIPANT_NDC_CHANGE_REQUEST_CREATED",
     PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED = "PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED",
     PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT = "PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT",
@@ -2814,103 +2818,107 @@ export class ParticipantAggregate {
         secCtx: CallSecurityContext,
         liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[]
     ): Promise<IParticipantLiquidityBalanceAdjustment[]> {
-        this._enforcePrivilege(
-            secCtx,
-            ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
-        );
-
-        if (!liquidityBalanceAdjustments)
-            throw new Error("Invalid data for liquidity balance adjustment.");
-
-        const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
-        const allParticipants = await this._repo.fetchWhereIds(participantIds);
-
-        // first pass to validate participants, duplicates and get the account Ids
-        for (const obj of liquidityBalanceAdjustments) {
-            // Validate values for each object
-            if (!obj.matrixId) {
-                throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
-            } else if (!obj.participantId) {
-                throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
-            } else if (!obj.bankBalance) {
-                throw new Error(`Invalid bankbalance: ${obj.bankBalance} in liquidity balance adjustment.`);
-            } else if (!obj.currencyCode) {
-                throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
-            }
-            const checkParticipant = allParticipants.find(item => item.id === obj.participantId);
-            if (!checkParticipant) {
-                throw new ParticipantNotFoundError(
-                    `Participant with ID: '${obj.participantId}' not found.`
-                );
-            }
-            if (!checkParticipant.isActive) {
-                throw new InvalidParticipantStatusError(
-                    `Participant with ID: '${obj.participantId}' is not active.`
-                );
-            }
-
-            obj.participantName = checkParticipant.name;
-
-            const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
-                return fundMov.extReference?.trim() === obj.matrixId.trim();
-            });
-
-            if (checkExistingFundMov.length > 0) {
-                obj.isDuplicate = true;
-            } else {
-                obj.isDuplicate = false;
-            }
-
-            const settlementAccount = checkParticipant.participantAccounts.find(
-                (value: IParticipantAccount) =>
-                    value.currencyCode === obj.currencyCode &&
-                    value.type === "SETTLEMENT"
-            );
-            if (!settlementAccount) {
-                throw new AccountNotFoundError(
-                    `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
-                );
-            }
-
-            obj.settlementAccountId = settlementAccount.id;
-        }
-
-        // get balances we've checked settlementAccountId above
-        const accountIds = liquidityBalanceAdjustments.map(value => value.settlementAccountId!);
-
-        let accounts: AccountsAndBalancesAccount[] = [];
         try {
-            accounts = await this._accBal.getAccounts(accountIds);
-        }catch(err){
-           throw new Error("Could not get account balances in liquidity balance adjustment");
-        }
+            this._enforcePrivilege(
+                secCtx,
+                ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
+            );
 
-        for (const obj of liquidityBalanceAdjustments) {
-            const settlementAccount = accounts.find(value => value.id === obj.settlementAccountId);
-            if(!settlementAccount || settlementAccount.balance == null || settlementAccount.balance == undefined){
-                throw new AccountNotFoundError(
-                    `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+            if (!liquidityBalanceAdjustments)
+                throw new Error("Invalid data for liquidity balance adjustment.");
+
+            const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
+            const allParticipants = await this._repo.fetchWhereIds(participantIds);
+
+            // first pass to validate participants, duplicates and get the account Ids
+            for (const obj of liquidityBalanceAdjustments) {
+                // Validate values for each object
+                if (!obj.matrixId) {
+                    throw new Error(`Invalid matrixId: ${obj.matrixId} in liquidity balance adjustment.`);
+                } else if (!obj.participantId) {
+                    throw new Error(`Invalid participantId: ${obj.participantId} in liquidity balance adjustment.`);
+                } else if (!obj.bankBalance) {
+                    throw new Error(`Invalid bankbalance: ${obj.bankBalance} in liquidity balance adjustment.`);
+                } else if (!obj.currencyCode) {
+                    throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
+                }
+                const checkParticipant = allParticipants.find(item => item.id === obj.participantId);
+                if (!checkParticipant) {
+                    throw new ParticipantNotFoundError(
+                        `Participant with ID: '${obj.participantId}' not found.`
+                    );
+                }
+                if (!checkParticipant.isActive) {
+                    throw new InvalidParticipantStatusError(
+                        `Participant with ID: '${obj.participantId}' is not active.`
+                    );
+                }
+
+                obj.participantName = checkParticipant.name;
+
+                const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
+                    return fundMov.extReference?.trim() === obj.matrixId.trim();
+                });
+
+                if (checkExistingFundMov.length > 0) {
+                    obj.isDuplicate = true;
+                } else {
+                    obj.isDuplicate = false;
+                }
+
+                const settlementAccount = checkParticipant.participantAccounts.find(
+                    (value: IParticipantAccount) =>
+                        value.currencyCode === obj.currencyCode &&
+                        value.type === "SETTLEMENT"
                 );
+                if (!settlementAccount) {
+                    throw new AccountNotFoundError(
+                        `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+                    );
+                }
+
+                obj.settlementAccountId = settlementAccount.id;
             }
 
-            const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
-            obj.updateAmount = Math.abs(amount).toString();
-            if (amount > 0) {
-                obj.direction = ParticipantFundsMovementDirections.FUNDS_DEPOSIT;
-            } else {
-                obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
+            // get balances we've checked settlementAccountId above
+            const accountIds = liquidityBalanceAdjustments.map(value => value.settlementAccountId!);
+
+            let accounts: AccountsAndBalancesAccount[] = [];
+            try {
+                accounts = await this._accBal.getAccounts(accountIds);
+            } catch (err) {
+                throw new Error("Could not get account balances in liquidity balance adjustment");
             }
+
+            for (const obj of liquidityBalanceAdjustments) {
+                const settlementAccount = accounts.find(value => value.id === obj.settlementAccountId);
+                if (!settlementAccount || settlementAccount.balance == null || settlementAccount.balance == undefined) {
+                    throw new AccountNotFoundError(
+                        `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
+                    );
+                }
+
+                const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
+                obj.updateAmount = Math.abs(amount).toString();
+                if (amount > 0) {
+                    obj.direction = ParticipantFundsMovementDirections.FUNDS_DEPOSIT;
+                } else {
+                    obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
+                }
+            }
+
+
+            await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED,
+                true,
+                this._getAuditSecCtx(secCtx),
+                []
+            );
+
+            return liquidityBalanceAdjustments;
+        } catch (err: any) {
+            throw new Error(err.message);
         }
-
-
-        await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED,
-            true,
-            this._getAuditSecCtx(secCtx),
-            []
-        );
-
-        return liquidityBalanceAdjustments;
     }
 
     async createLiquidityCheckRequestAdjustment(
@@ -3008,4 +3016,301 @@ export class ParticipantAggregate {
 
         return;
     }
+
+    async getPendingApprovalSummary(secCtx: CallSecurityContext): Promise<IParticipantPendingApprovalSummary> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_ALL_PENDING_APPROVALS);
+
+        try {
+            const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
+
+            let participants: IParticipant[] | null = await this._repo.fetchAll();
+            participants = participants.filter(p => p.id !== HUB_PARTICIPANT_ID);
+
+            let totalCount = 0;
+            let accountsChangeRequest = 0;
+            let fundsMovementRequest = 0;
+            let ndcChangeRequests = 0;
+            let ipChangeRequests = 0;
+            let contactInfoChangeRequests = 0;
+            let statusChangeRequests = 0;
+
+            accountsChangeRequest = participants
+                .map(value => {
+                    if (value.participantAccountsChangeRequest) {
+                        return value.participantAccountsChangeRequest.filter(
+                            accountsChange => accountsChange.approved === false
+                        ).length;
+                    } else {
+                        return 0;
+                    }
+                }).reduce((acc, count) => acc + count, 0);
+
+            fundsMovementRequest = participants.map(value => {
+                if (value.fundsMovements) {
+                    return value.fundsMovements.filter(
+                        (movement: { approved: boolean; }) => movement.approved === false
+                    ).length;
+                } else {
+                    return 0;
+                }
+            }).reduce((acc, count) => acc + count, 0);
+
+            ndcChangeRequests = participants.map(value => {
+                if (value.netDebitCapChangeRequests) {
+                    return value.netDebitCapChangeRequests.filter(
+                        (ndcChange: { approved: boolean; }) => ndcChange.approved === false
+                    ).length;
+                } else {
+                    return 0;
+                }
+            }).reduce((acc, count) => acc + count, 0);
+
+            ipChangeRequests = participants.map(value => {
+                if (value.participantSourceIpChangeRequests) {
+                    return value.participantSourceIpChangeRequests.filter(
+                        (ipChange: { approved: boolean; }) => ipChange.approved === false
+                    ).length;
+                } else {
+                    return 0;
+                }
+            }).reduce((acc, count) => acc + count, 0);
+
+            contactInfoChangeRequests = participants.map(value => {
+                if (value.participantContactInfoChangeRequests) {
+                    return value.participantContactInfoChangeRequests.filter(
+                        (contactInfoChange: { approved: boolean; }) => contactInfoChange.approved === false
+                    ).length;
+                } else {
+                    return 0;
+                }
+            }).reduce((acc, count) => acc + count, 0);
+
+            statusChangeRequests = participants.map(value => {
+                if (value.participantStatusChangeRequests) {
+                    return value.participantStatusChangeRequests.filter(
+                        (statusChange: { approved: boolean; }) => statusChange.approved === false
+                    ).length;
+                } else {
+                    return 0;
+                }
+            }).reduce((acc, count) => acc + count, 0);
+
+            totalCount = accountsChangeRequest + fundsMovementRequest + ndcChangeRequests + ipChangeRequests + contactInfoChangeRequests + statusChangeRequests;
+
+            const pendingApprovalCountByType: IParticipantPendingApprovalCountByType[] = [];
+            pendingApprovalCountByType.push({ type: "accountsChangeRequest", count: accountsChangeRequest });
+            pendingApprovalCountByType.push({ type: "fundsMovementRequest", count: fundsMovementRequest });
+            pendingApprovalCountByType.push({ type: "ndcChangeRequests", count: ndcChangeRequests });
+            pendingApprovalCountByType.push({ type: "ipChangeRequests", count: ipChangeRequests });
+            pendingApprovalCountByType.push({ type: "contactInfoChangeRequests", count: contactInfoChangeRequests });
+            pendingApprovalCountByType.push({ type: "statusChangeRequests", count: statusChangeRequests });
+
+            const pendingApprovalSummary: IParticipantPendingApprovalSummary = {
+                totalCount: totalCount,
+                countByType: pendingApprovalCountByType
+
+            };
+            timerEndFn({ success: "true" });
+            return pendingApprovalSummary;
+        } catch (err: any) {
+            throw new Error(err.message);
+        }
+    }
+
+    async getAllPendingApprovals(secCtx: CallSecurityContext): Promise<IParticipantPendingApproval> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_ALL_PENDING_APPROVALS);
+
+        try {
+            const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
+
+            let participants: IParticipant[] | null = await this._repo.fetchAll();
+            participants = participants.filter(p => p.id !== HUB_PARTICIPANT_ID);
+
+            const accountsChangeRequest = participants
+                .flatMap(({ id: participantId, name: participantName, ...value }) => {
+                    if (value.participantAccountsChangeRequest) {
+                        return value.participantAccountsChangeRequest.filter(
+                            accountsChange => accountsChange.approved === false
+                        ).map(data => ({ ...data, participantId, participantName }));
+                    } else {
+                        return [];
+                    }
+                });
+
+            const fundsMovementRequest = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
+                if (value.fundsMovements) {
+                    return value.fundsMovements.filter(
+                        (movement: { approved: boolean; }) => movement.approved === false
+                    ).map(data => ({ ...data, participantId, participantName }));
+                } else {
+                    return [];
+                }
+            });
+
+            const ndcChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
+                if (value.netDebitCapChangeRequests) {
+                    return value.netDebitCapChangeRequests.filter(
+                        (ndcChange: { approved: boolean; }) => ndcChange.approved === false
+                    ).map(data => ({ ...data, participantId, participantName }));
+                } else {
+                    return [];
+                }
+            });
+
+            const ipChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
+                if (value.participantSourceIpChangeRequests) {
+                    return value.participantSourceIpChangeRequests.filter(
+                        (ipChange: { approved: boolean; }) => ipChange.approved === false
+                    ).map(data => ({ ...data, participantId, participantName }));
+                } else {
+                    return [];
+                }
+            });
+
+            const contactInfoChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
+                if (value.participantContactInfoChangeRequests) {
+                    return value.participantContactInfoChangeRequests.filter(
+                        (contactInfoChange: { approved: boolean; }) => contactInfoChange.approved === false
+                    ).map(data => ({ ...data, participantId, participantName }));
+                } else {
+                    return [];
+                }
+            });
+
+            const statusChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
+                if (value.participantStatusChangeRequests) {
+                    return value.participantStatusChangeRequests.filter(
+                        (statusChange: { approved: boolean; }) => statusChange.approved === false
+                    ).map(data => ({ ...data, participantId, participantName }));
+                } else {
+                    return [];
+                }
+            });
+
+            const pendingApprovals: IParticipantPendingApproval = {
+                accountsChangeRequest: accountsChangeRequest,
+                fundsMovementRequest: fundsMovementRequest,
+                ndcChangeRequests: ndcChangeRequests,
+                ipChangeRequests: ipChangeRequests,
+                contactInfoChangeRequests: contactInfoChangeRequests,
+                statusChangeRequests: statusChangeRequests
+            };
+
+            timerEndFn({ success: "true" });
+            return pendingApprovals;
+        } catch (err: any) {
+            throw new Error(err.message);
+        }
+
+    }
+
+    async approveBulkPendingApprovalRequests(secCtx: CallSecurityContext, pendingApprovals: IParticipantPendingApproval): Promise<string[]> {
+        try {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PENDING_APPROVAL_BULK_REQUEST);
+
+            const messages: string[] = [];
+
+            const accountsChangeRequest = pendingApprovals.accountsChangeRequest;
+            if (accountsChangeRequest) {
+                for (const acChange of accountsChangeRequest) {
+                    let message = "";
+                    try {
+                        if (acChange.approved === true) {
+                            message = `accountsChangeRequest approve participantId: ${acChange.participantId}, accountChangeId: ${acChange.id}`;
+                            await this.approveParticipantAccountChangeRequest(secCtx, acChange.participantId, acChange.id);
+                        } // else will do reject process
+                    } catch (err: any) {
+                        this._logger.error((err as Error).message);
+                        messages.push(message + ` error: ${err.message}`);
+                    }
+                }
+            }
+
+            const fundsMovementRequest = pendingApprovals.fundsMovementRequest;
+            if (fundsMovementRequest) {
+                for (const funMove of fundsMovementRequest) {
+                    let message = "";
+                    try {
+                        if (funMove.approved === true) {
+                            message = `fundsMovementRequest approve participantId: ${funMove.participantId}, funMovementId: ${funMove.id}`;
+                            await this.approveFundsMovement(secCtx, funMove.participantId, funMove.id);
+                        } // else will do reject process
+                    } catch (err: any) {
+                        this._logger.error((err as Error).message);
+                        messages.push(message + ` error: ${err.message}`);
+                    }
+                }
+            }
+
+            const ndcChangeRequests = pendingApprovals.ndcChangeRequests;
+            if (ndcChangeRequests) {
+                for (const ndcChange of ndcChangeRequests) {
+                    let message = "";
+                    try {
+                        if (ndcChange.approved === true) {
+                            message = `ndcChangeRequests approve participantId: ${ndcChange.participantId}, ndcChangeId: ${ndcChange.id}`;
+                            await this.approveParticipantNetDebitCap(secCtx, ndcChange.participantId, ndcChange.id);
+                        } // else will do reject process
+                    } catch (err: any) {
+                        this._logger.error((err as Error).message);
+                        messages.push(message + ` error: ${err.message}`);
+                    }
+                }
+            }
+
+            const ipChangeRequests = pendingApprovals.ipChangeRequests;
+            if (ipChangeRequests) {
+                for (const ipChange of ipChangeRequests) {
+                    let message = "";
+                    try {
+                        if (ipChange.approved === true) {
+                            message = `ipChangeRequests approve participantId: ${ipChange.participantId}, ipChangeId: ${ipChange.id}`;
+                            await this.approveParticipantSourceIpChangeRequest(secCtx, ipChange.participantId, ipChange.id);
+                        } // else will do reject process
+                    } catch (err: any) {
+                        this._logger.error((err as Error).message);
+                        messages.push(message + ` error: ${err.message}`);
+                    }
+                }
+            }
+
+            const contactInfoChangeRequests = pendingApprovals.contactInfoChangeRequests;
+            if (contactInfoChangeRequests) {
+                for (const contactChange of contactInfoChangeRequests) {
+                    let message = "";
+                    try {
+                        if (contactChange.approved === true) {
+                            message = `contactInfoChangeRequests approve participantId: ${contactChange.participantId}, contactChangeId: ${contactChange.id}`;
+                            await this.approveParticipantContactInfoChangeRequest(secCtx, contactChange.participantId, contactChange.id);
+                        } // else will do reject process
+                    } catch (err: any) {
+                        this._logger.error((err as Error).message);
+                        messages.push(message + ` error: ${err.message}`);
+                    }
+                }
+            }
+
+            const statusChangeRequests = pendingApprovals.statusChangeRequests;
+            if (statusChangeRequests) {
+                for (const statusChange of statusChangeRequests) {
+                    let message = "";
+                    try {
+                        if (statusChange.approved === true) {
+                            message = `statusChangeRequests approve participantId: ${statusChange.participantId}, statusChangeId: ${statusChange.id}`;
+                            await this.approveParticipantStatusChangeRequest(secCtx, statusChange.participantId, statusChange.id);
+                        } // else will do reject process
+
+                    } catch (err: any) {
+                        this._logger.error((err as Error).message);
+                        messages.push(message + ` error: ${err.message}`);
+                    }
+                }
+            }
+
+            return messages;
+        } catch (err: any) {
+            throw new Error(err.message);
+        }
+    }
+
 }

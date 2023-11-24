@@ -137,4 +137,14 @@ export const AppPrivilegesDefinition = [
         labelName: "Checks and creates a request for bulk Participant liquidity adjustment",
         description: "Checks and creates a request for bulk Participant liquidity adjustment"
     },
+    {
+        privId: ParticipantPrivilegeNames.VIEW_ALL_PENDING_APPROVALS,
+        labelName: "View all participant pending approvals",
+        description: "View all participant pending approvals"
+    },
+    {
+        privId: ParticipantPrivilegeNames.APPROVE_PENDING_APPROVAL_BULK_REQUEST,
+        labelName: "Approve bulk participant pending approval requests",
+        description: "Approve bulk participant pending approval requests"
+    }
 ];
