@@ -88,7 +88,7 @@ import {
     CannotAddDuplicateSourceIpError,
     ContactInfoChangeRequestAlreadyApproved,
     ContactInfoChangeRequestNotFound,
-    CouldNotStoreParticipant,
+    CouldNotStoreParticipant, DuplicateRequestFoundError,
     EndpointNotFoundError,
     InvalidAccountError,
     InvalidNdcChangeRequest,
@@ -1795,9 +1795,10 @@ export class ParticipantAggregate {
         if(existing.participantAccountsChangeRequest.find(
             (value: IParticipantAccountChangeRequest) =>
                 value.type === accountChangeRequest.type &&
-                value.currencyCode === accountChangeRequest.currencyCode
+                value.currencyCode === accountChangeRequest.currencyCode &&
+                value.approved != true // TODO this should change to a 3 state field
         )){
-            throw new CannotAddDuplicateAccountError(
+            throw new DuplicateRequestFoundError(
                 "Account create request with the same information exists already"
             );
         }

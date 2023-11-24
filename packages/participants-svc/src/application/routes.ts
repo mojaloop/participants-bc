@@ -48,6 +48,7 @@ import {
 import { ParticipantAggregate } from "../domain/participant_agg";
 
 import {
+    DuplicateRequestFoundError,
     InvalidParticipantError,
     NoAccountsError,
     NoEndpointsError,
@@ -100,13 +101,13 @@ export class ExpressRoutes {
         // inject authentication - all request below this require a valid token
         this._mainRouter.use(this._authenticationMiddleware.bind(this));
 
-        
+
         // participant's bulk approval
         this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalSummary.bind(this));
         this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
         this._mainRouter.post("/participants/pendingApprovals", this._participantApprovePendingApprovals.bind(this));
 
-        
+
         // participant
         this._mainRouter.get("/participants", this._getAllParticipants.bind(this));
         this._mainRouter.get(
@@ -740,6 +741,11 @@ export class ExpressRoutes {
 
             if (err instanceof ParticipantNotActive) {
                 res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else if (err instanceof DuplicateRequestFoundError) {
+                res.status(409).json({
                     status: "error",
                     msg: err.message,
                 });
