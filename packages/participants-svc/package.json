@@ -33,7 +33,7 @@
     "standard": "npm run lint",
     "lint": "eslint ./src",
     "lint:fix": "eslint ./src --fix",
-    "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts'",
+    "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts' --runInBand",
     "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
     "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
     "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
@@ -62,6 +62,7 @@
     "mongodb": "~5.5.0"
   },
   "devDependencies": {
-    "@mojaloop/participant-bc-public-types-lib": "*"
+    "@mojaloop/participant-bc-public-types-lib": "*",
+    "@mojaloop/participants-bc-shared-mocks-lib": "*"
   }
 }

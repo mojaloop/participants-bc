@@ -147,7 +147,8 @@ describe("participant - integration tests", () => {
 
     // Get participant by id (non-existing):
     test("get all participants", async () => {
-        participants =await participantsHttpClient.getAllParticipants();
+        const result =await participantsHttpClient.getAllParticipants();
+        participants = result.items;
         expect(participants).toBeDefined();
         expect(participants.length).toBeGreaterThanOrEqual(1);
     });

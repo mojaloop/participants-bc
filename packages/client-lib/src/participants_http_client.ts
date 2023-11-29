@@ -36,6 +36,7 @@ import {
     UnableToGetParticipantsError,
 } from "./errors";
 import {IAuthenticatedHttpRequester} from "@mojaloop/security-bc-public-types-lib";
+import { ParticipantSearchResults } from "@mojaloop/participants-bc-participants-svc/src/domain/server_types";
 
 // default 1 minute cache
 const DEFAULT_CACHE_TIMEOUT_MS = 1*60*1000;
@@ -87,7 +88,7 @@ export class ParticipantsHttpClient {
         return null;
     }
 
-    async getAllParticipants(): Promise<IParticipant[]> {
+    async getAllParticipants(): Promise<ParticipantSearchResults> {
         // not cacheable
         try {
             const url = new URL("/participants", this._baseUrlHttpService).toString();
@@ -100,7 +101,12 @@ export class ParticipantsHttpClient {
             }
 
             if (resp.status == 404) {
-                return [];
+                return {
+                    pageIndex: 0,
+                    pageSize: 0,
+                    totalPages: 0,
+                    items: []
+                };
             }
 
             throw new UnableToGetParticipantsError();
