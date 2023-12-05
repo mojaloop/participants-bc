@@ -1,67 +1,70 @@
 {
-  "name": "@mojaloop/participants-bc-participants-svc",
-  "version": "0.3.14",
-  "description": "mojaloop participants  service",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/mojaloop/participants-bc/",
-  "private": true,
-  "mojaloop": {
-    "publish_to_dockerhub": true
-  },
-  "bugs": {
-    "url": "https://github.com/mojaloop/participants-bc/issues#readme"
-  },
-  "contributors": [
-    "Jason Bruwer <jason.bruwer@coil.com>",
-    "Pedro Sousa Barreto <pedrob@crosslaketech.com>"
-  ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "/dist"
-  ],
-  "scripts": {
-    "start": "npm run service",
-    "start:dev": "npm run build && PLATFORM_CONFIG_BASE_SVC_URL=http://localhost:3100 AUDIT_KEY_FILE_PATH=./dist/tmp_key_file npm start",
-    "service": "node dist/application/index.js",
-    "build": "tsc",
-    "watch": "tsc -w",
-    "clean": "npm run clean:npm; npm run clean:dist",
-    "clean:dist": "rm -rf dist",
-    "clean:npm": "rm -rf node_modules",
-    "pretest": "npm run build",
-    "standard": "npm run lint",
-    "lint": "eslint ./src",
-    "lint:fix": "eslint ./src --fix",
-    "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts'",
-    "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
-    "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
-    "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
-    "audit:check": "npm audit",
-    "dep:check": "ncu -e 2",
-    "dep:update": "ncu -e2 -u"
-  },
-  "dependencies": {
-    "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.3.4",
-    "@mojaloop/accounts-and-balances-bc-public-types-lib": "~0.3.2",
-    "@mojaloop/auditing-bc-client-lib": "~0.0.15",
-    "@mojaloop/auditing-bc-public-types-lib": "~0.0.17",
-    "@mojaloop/logging-bc-client-lib": "~0.1.29",
-    "@mojaloop/logging-bc-public-types-lib": "~0.1.22",
-    "@mojaloop/platform-configuration-bc-client-lib": "~0.3.9",
-    "@mojaloop/platform-configuration-bc-public-types-lib": "~0.3.5",
-    "@mojaloop/platform-shared-lib-messaging-types-lib": "~0.2.103",
-    "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib": "~0.3.71",
-    "@mojaloop/platform-shared-lib-observability-client-lib": "~0.1.10",
-    "@mojaloop/platform-shared-lib-observability-types-lib": "~0.1.9",
-    "@mojaloop/platform-shared-lib-public-messages-lib": "~0.1.163",
-    "@mojaloop/security-bc-client-lib": "~0.3.9",
-    "@mojaloop/security-bc-public-types-lib": "~0.3.6",
-    "exceljs": "~4.4.0",
-    "express": "~4.18.2",
-    "mongodb": "~5.5.0"
-  },
-  "devDependencies": {
-    "@mojaloop/participant-bc-public-types-lib": "*"
-  }
+    "name": "@mojaloop/participants-bc-participants-svc",
+    "version": "0.5.0",
+    "description": "mojaloop participants  service",
+    "license": "Apache-2.0",
+    "homepage": "https://github.com/mojaloop/participants-bc/",
+    "private": true,
+    "mojaloop": {
+        "publish_to_dockerhub": true
+    },
+    "bugs": {
+        "url": "https://github.com/mojaloop/participants-bc/issues#readme"
+    },
+    "contributors": [
+        "Jason Bruwer <jason.bruwer@coil.com>",
+        "Pedro Sousa Barreto <pedrob@crosslaketech.com>"
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "/dist"
+    ],
+    "scripts": {
+        "start": "npm run service",
+        "start:dev": "npm run build && PLATFORM_CONFIG_BASE_SVC_URL=http://localhost:3100 AUDIT_KEY_FILE_PATH=./dist/tmp_key_file npm start",
+        "service": "node dist/application/index.js",
+        "build": "tsc",
+        "watch": "tsc -w",
+        "clean": "npm run clean:npm; npm run clean:dist",
+        "clean:dist": "rm -rf dist",
+        "clean:npm": "rm -rf node_modules",
+        "pretest": "npm run build",
+        "standard": "npm run lint",
+        "lint": "eslint ./src",
+        "lint:fix": "eslint ./src --fix",
+        "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts'",
+        "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
+        "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
+        "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
+        "audit:check": "npm audit",
+        "dep:check": "ncu -e 2",
+        "dep:update": "ncu -e2 -u"
+    },
+    "dependencies": {
+        "@mojaloop/accounts-and-balances-bc-grpc-client-lib": "~0.3.4",
+        "@mojaloop/accounts-and-balances-bc-public-types-lib": "~0.3.2",
+        "@mojaloop/auditing-bc-client-lib": "~0.0.15",
+        "@mojaloop/auditing-bc-public-types-lib": "~0.0.17",
+        "@mojaloop/logging-bc-client-lib": "~0.1.29",
+        "@mojaloop/logging-bc-public-types-lib": "~0.1.22",
+        "@mojaloop/platform-configuration-bc-client-lib": "~0.3.9",
+        "@mojaloop/platform-configuration-bc-public-types-lib": "~0.3.5",
+        "@mojaloop/platform-shared-lib-messaging-types-lib": "~0.2.103",
+        "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib": "~0.3.71",
+        "@mojaloop/platform-shared-lib-observability-client-lib": "~0.1.10",
+        "@mojaloop/platform-shared-lib-observability-types-lib": "~0.1.9",
+        "@mojaloop/platform-shared-lib-public-messages-lib": "~0.1.163",
+        "@mojaloop/security-bc-client-lib": "~0.3.9",
+        "@mojaloop/security-bc-public-types-lib": "~0.3.6",
+        "exceljs": "~4.4.0",
+        "express": "~4.18.2",
+        "mongodb": "~5.5.0"
+    },
+    "devDependencies": {
+        "@mojaloop/participant-bc-public-types-lib": "*"
+    },
+    "engines": {
+        "node": ">=20.10.0"
+    }
 }

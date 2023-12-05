@@ -27,7 +27,7 @@ executors:
   default-docker:
     working_directory: &workingDirVar /home/circleci/project
     docker:
-      - image: mojaloop/node-18-builder:0.0.3
+      - image: mojaloop/node-20.10.0-builder:0.0.2
   default-machine:
     machine:
       image: ubuntu-2204:2023.04.2

@@ -1,53 +1,56 @@
 {
-  "name": "@mojaloop/participants-bc-client-lib",
-  "version": "0.3.4",
-  "description": "Participants BC - Client",
-  "license": "Apache-2.0",
-  "homepage": "https://github.com/mojaloop/participants-bc/tree/main/modules/client",
-  "bugs": {
-    "url": "https://github.com/mojaloop/participants-bc/issues#readme"
-  },
-  "keywords": [
-    "mojaloop",
-    "vnext"
-  ],
-  "contributors": [
-    "Jason Bruwer <jason.bruwer@coil.com>",
-    "Pedro Sousa Barreto <pedrob@crosslaketech.com>"
-  ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "/dist"
-  ],
-  "scripts": {
-    "start": "node dist/application/index.js",
-    "build": "tsc",
-    "watch": "tsc -w",
-    "clean": "npm run clean:npm; npm run clean:dist",
-    "clean:dist": "rm -rf dist",
-    "clean:npm": "rm -rf node_modules",
-    "prestart": "npm run build",
-    "pretest": "npm run build",
-    "standard": "npm run lint",
-    "lint": "npx eslint ./src",
-    "lint:fix": "eslint ./src --fix",
-    "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts'",
-    "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
-    "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
-    "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
-    "audit:check": "npm npm audit",
-    "dep:check": "ncu -e 2",
-    "dep:update": "ncu -u",
-    "TEST_prepack": "node -p \"require('./package.json').bundledDependencies.join('\\n')\" | xargs -t -I  %  sh -c 'mkdir -p node_modules/%; cp -r $(npm root)/%/* node_modules/%'",
-    "TEST_postpack": "rm -Rf node_modules"
-  },
-  "devDependencies": {
-    "nock": "^13.3.8"
-  },
-  "dependencies": {
-    "@mojaloop/logging-bc-public-types-lib": "~0.1.22",
-    "@mojaloop/participant-bc-public-types-lib": "~0.0.20",
-    "@mojaloop/security-bc-public-types-lib": "~0.3.6"
-  }
+    "name": "@mojaloop/participants-bc-client-lib",
+    "version": "0.3.4",
+    "description": "Participants BC - Client",
+    "license": "Apache-2.0",
+    "homepage": "https://github.com/mojaloop/participants-bc/tree/main/modules/client",
+    "bugs": {
+        "url": "https://github.com/mojaloop/participants-bc/issues#readme"
+    },
+    "keywords": [
+        "mojaloop",
+        "vnext"
+    ],
+    "contributors": [
+        "Jason Bruwer <jason.bruwer@coil.com>",
+        "Pedro Sousa Barreto <pedrob@crosslaketech.com>"
+    ],
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "/dist"
+    ],
+    "scripts": {
+        "start": "node dist/application/index.js",
+        "build": "tsc",
+        "watch": "tsc -w",
+        "clean": "npm run clean:npm; npm run clean:dist",
+        "clean:dist": "rm -rf dist",
+        "clean:npm": "rm -rf node_modules",
+        "prestart": "npm run build",
+        "pretest": "npm run build",
+        "standard": "npm run lint",
+        "lint": "npx eslint ./src",
+        "lint:fix": "eslint ./src --fix",
+        "test:unit": "jest --passWithNoTests --testMatch '**/test/unit/**/*.test.ts'",
+        "test:integration": "jest --passWithNoTests --testMatch '**/test/integration/**/*.test.ts'",
+        "test:coverage": "jest --passWithNoTests --coverage --coverageThreshold='{}' --testMatch '**/test/unit/**/*.test.ts'",
+        "test:coverage-check": "jest --coverage --testMatch '**/test/unit/**/*.test.ts'",
+        "audit:check": "npm npm audit",
+        "dep:check": "ncu -e 2",
+        "dep:update": "ncu -u",
+        "TEST_prepack": "node -p \"require('./package.json').bundledDependencies.join('\\n')\" | xargs -t -I  %  sh -c 'mkdir -p node_modules/%; cp -r $(npm root)/%/* node_modules/%'",
+        "TEST_postpack": "rm -Rf node_modules"
+    },
+    "devDependencies": {
+        "nock": "^13.3.8"
+    },
+    "dependencies": {
+        "@mojaloop/logging-bc-public-types-lib": "~0.1.22",
+        "@mojaloop/participant-bc-public-types-lib": "~0.0.20",
+        "@mojaloop/security-bc-public-types-lib": "~0.3.6"
+    },
+    "engines": {
+        "node": ">=20.10.0"
+    }
 }
