@@ -30,7 +30,7 @@
     "posttest": "npm run coverage:merge && npm run coverage:gen-report",
     "coverage:merge": "nyc merge ./coverage/ ./coverage/coverage.json",
     "coverage:gen-report": "nyc report --reporter=lcov --reporter=text --temp-dir=./coverage",
-    "test:integration": "jest",
+    "test:integration": "jest --runInBand",
     "start": "node ./packages/participants-svc/dist/application/index.js"
   },
   "devDependencies": {
