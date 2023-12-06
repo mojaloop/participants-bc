@@ -34,7 +34,7 @@
     "start": "node ./packages/participants-svc/dist/application/index.js"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.8",
+    "@types/jest": "^29.5.11",
     "@types/node": "^20.3.3",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
@@ -52,7 +52,7 @@
     "packages/*"
   ],
   "dependencies": {
-    "@types/multer": "^1.4.10",
+    "@types/multer": "^1.4.11",
     "multer": "^1.4.5-lts.1"
   },
   "engines": {

@@ -1,6 +1,6 @@
 {
     "name": "@mojaloop/participants-bc-client-lib",
-    "version": "0.3.5",
+    "version": "0.5.0",
     "description": "Participants BC - Client",
     "license": "Apache-2.0",
     "homepage": "https://github.com/mojaloop/participants-bc/tree/main/modules/client",
@@ -46,9 +46,9 @@
         "nock": "^13.3.8"
     },
     "dependencies": {
-        "@mojaloop/logging-bc-public-types-lib": "~0.1.22",
-        "@mojaloop/participant-bc-public-types-lib": "~0.0.20",
-        "@mojaloop/security-bc-public-types-lib": "~0.3.6"
+        "@mojaloop/logging-bc-public-types-lib": "~0.5.2",
+        "@mojaloop/participant-bc-public-types-lib": "~0.5.0",
+        "@mojaloop/security-bc-public-types-lib": "~0.5.3"
     },
     "engines": {
         "node": ">=20.10.0"
