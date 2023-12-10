@@ -435,13 +435,8 @@ export class ExpressRoutes {
             );
             res.send(fetched);
         } catch (err: any) {
-            if (this._handleUnauthorizedError(err, res)) return;
-
-            if (err instanceof NoAccountsError) {
-                res.status(404).json({
-                    status: "error",
-                    msg: err.message,
-                });
+            if (this._handleUnauthorizedError(err, res)) {
+                return;
             } else {
                 this._logger.error(err);
                 res.status(500).json({
@@ -540,13 +535,8 @@ export class ExpressRoutes {
                 id: createdId,
             });
         } catch (err: any) {
-            if (this._handleUnauthorizedError(err, res)) return;
-
-            if (err instanceof ParticipantNotActive) {
-                res.status(422).json({
-                    status: "error",
-                    msg: err.message,
-                });
+            if (this._handleUnauthorizedError(err, res)) {
+                return;
             } else {
                 this._logger.error(err);
                 res.status(500).json({
@@ -572,13 +562,8 @@ export class ExpressRoutes {
             );
             res.send();
         } catch (err: any) {
-            if (this._handleUnauthorizedError(err, res)) return;
-
-            if (err instanceof ParticipantNotActive) {
-                res.status(422).json({
-                    status: "error",
-                    msg: err.message,
-                });
+            if (this._handleUnauthorizedError(err, res)) {
+                return;
             } else {
                 this._logger.error(err);
                 res.status(500).json({

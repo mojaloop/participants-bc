@@ -99,6 +99,7 @@ import {
     NoAccountsError,
     ParticipantAlreadyApproved,
     ParticipantCreateValidationError,
+    ParticipantNotActive,
     ParticipantNotFoundError,
     ParticipantStatusChangeRequestAlreadyApproved,
     ParticipantStatusChangeRequestNotFound,
@@ -1069,7 +1070,7 @@ export class ParticipantAggregate {
             );
         }
         if (!existing.isActive) {
-            throw new InvalidParticipantStatusError(
+            throw new ParticipantNotActive(
                 `Participant with ID: '${participantId}' is not active.`
             );
         }
@@ -1142,7 +1143,7 @@ export class ParticipantAggregate {
             );
         }
         if (!existing.isActive) {
-            throw new InvalidParticipantStatusError(
+            throw new ParticipantNotActive(
                 `Participant with ID: '${participantId}' is not active.`
             );
         }
@@ -1860,7 +1861,7 @@ export class ParticipantAggregate {
             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
         }
         if (!existing.isActive) {
-            throw new InvalidParticipantStatusError(
+            throw new ParticipantNotActive(
                 `Participant with ID: '${participantId}' is not active.`
             );
         }
@@ -1869,12 +1870,8 @@ export class ParticipantAggregate {
             (value: IParticipantAccountChangeRequest) => value.id === accountChangeRequestId
         );
         if (!accountChangeRequest) {
-            throw new AccountChangeRequestNotFound(
-                `Cannot find a participant's account change request with id: ${accountChangeRequestId}`
-            );
+            throw new AccountChangeRequestNotFound(`Cannot find a participant's account change request with id: ${accountChangeRequestId}`);
         }
-
-
 
         if (accountChangeRequest.approved) {
             throw new AccountChangeRequestAlreadyApproved(

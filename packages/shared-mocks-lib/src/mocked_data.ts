@@ -226,3 +226,43 @@ export const mockedParticipant2: IParticipant = {
 
     participantStatusChangeRequests: [],
 };
+
+export const mockedInactiveParticipant: IParticipant = {
+    id: "participant3",
+    name: "Participant 3",
+    type: ParticipantTypes.DFSP,
+    isActive: false,
+    description: "Desc for participant 3",
+    createdBy: "user",
+    createdDate: 1689145137678,
+    approved: false,
+    approvedBy: null,
+    approvedDate: 1689145259976,
+    lastUpdated: 1689145259976,
+
+    participantAllowedSourceIps: [
+        {
+            id: "1",
+            cidr: "127.0.0.1/8",
+            portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+            ports: undefined,
+            portRange: undefined,
+        }
+    ],
+    participantSourceIpChangeRequests: [],
+
+    participantEndpoints: [],
+    participantAccounts: [],
+    participantAccountsChangeRequest: [],
+
+    fundsMovements: [],
+    changeLog: [],
+
+    netDebitCaps: [],
+    netDebitCapChangeRequests: [],
+
+    participantContacts: [],
+    participantContactInfoChangeRequests: [],
+
+    participantStatusChangeRequests: [],
+};
