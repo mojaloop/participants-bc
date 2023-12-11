@@ -52,7 +52,7 @@ import {
     mockedInactiveParticipant,
 } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-lib";
-import { HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfo, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantEndpointProtocols, ParticipantEndpointTypes } from "@mojaloop/participant-bc-public-types-lib";
+import { HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfo, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes } from "@mojaloop/participant-bc-public-types-lib";
 import { Server } from "http";
 const packageJSON = require("../../package.json");
 
@@ -1201,4 +1201,132 @@ describe("Participants Service - Unit Test", () => {
     });
 
     /**Source IP */
+
+    test("GET /participants/:id/sourceIps - Should return an array of the participant's source IPs", async () => {
+        // Arrange
+        const participantId = mockedParticipant1.id;
+
+        // Act
+        const response = await request(server)
+            .get(`/participants/${participantId}/sourceIps`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(200);
+        expect(Array.isArray(response.body)).toBe(true);
+    });
+    
+
+    test("GET /participants/:id/sourceIps - Should handle unauthorize error", async () => {
+        // Arrange
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        const participantId = mockedParticipant1.id;
+
+        // Act
+        const response = await request(server)
+            .get(`/participants/${participantId}/sourceIps`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+
+    test("POST /participants/:id/sourceIpChangeRequests - Should create a participant sourceIP change request", async () => {
+        // Arrange
+        const now = Date.now();
+        const participantId = mockedParticipant1.id;
+        const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
+            id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+            allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+            cidr: "192.168.20.10/32",
+            portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+            ports: [3000, 4000],
+            portRange: {rangeFirst: 0, rangeLast: 0},
+            createdBy: "admin",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: "ADD_SOURCE_IP"
+        }
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participantId}/sourceIpChangeRequests`)
+            .set("authorization", AUTH_TOKEN)
+            .send(sourceIPChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("id");
+    });
+
+    test("POST /participants/:id/sourceIpChangeRequests - Should handle unauthorized error", async () => {
+        // Arrange
+        const now = Date.now();
+        const participantId = mockedParticipant1.id;
+        const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
+            id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+            allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+            cidr: "192.168.20.10/32",
+            portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+            ports: [3000, 4000],
+            portRange: {rangeFirst: 0, rangeLast: 0},
+            createdBy: "admin",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: "ADD_SOURCE_IP"
+        }
+
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participantId}/sourceIpChangeRequests`)
+            .set("authorization", AUTH_TOKEN).send(sourceIPChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("POST /participants/:id/sourceIpChangeRequests - Should not perform on the hub participant", async () => {
+        // Arrange
+        const participant = {
+            ...mockedParticipant1,
+            id: HUB_PARTICIPANT_ID,
+            isActive: false
+        };
+
+        repoPartMock.store(participant);
+
+        const now = Date.now();
+
+        const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
+            id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+            allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+            cidr: "192.168.20.10/32",
+            portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+            ports: [3000, 4000],
+            portRange: {rangeFirst: 0, rangeLast: 0},
+            createdBy: "admin",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: "ADD_SOURCE_IP"
+        }
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/sourceIpChangeRequests`)
+            .set("authorization", AUTH_TOKEN)
+            .send(sourceIPChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(500);
+    });
+
 });
