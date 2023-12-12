@@ -356,8 +356,8 @@ export class ParticipantAggregate {
     }
 
     private _enforcePrivilege(secCtx: CallSecurityContext, privName: string): void {
-        for (const roleId of secCtx.platformRoleIds) {
-            if (this._authorizationClient.roleHasPrivilege(roleId, privName)) return;
+        if(this._authorizationClient.rolesHavePrivilege(secCtx.platformRoleIds, privName)) {
+            return;
         }
         throw new ForbiddenError(
             `Required privilege "${privName}" not held by caller`
