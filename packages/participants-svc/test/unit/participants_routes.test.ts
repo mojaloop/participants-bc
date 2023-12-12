@@ -52,8 +52,10 @@ import {
     mockedInactiveParticipant,
 } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-lib";
-import { HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfo, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes } from "@mojaloop/participant-bc-public-types-lib";
+import { HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfo, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
 import { Server } from "http";
+import ExcelJS from "exceljs";
+
 const packageJSON = require("../../package.json");
 
 
@@ -171,6 +173,7 @@ describe("Participants Service - Unit Test", () => {
         expect(response.body.items.length).toBe(1);
     });
 
+    /** Participants */
     test("GET /participants - Should throw an error if cannot fetch participants", async () => {
         // Arrange
         jest.spyOn(repoPartMock, "searchParticipants").mockRejectedValueOnce(new Error("Error fetching participants"));
@@ -404,18 +407,50 @@ describe("Participants Service - Unit Test", () => {
         expect(response.body.length).toBe(1);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should update a participant endpoints and return status to be 200", async () => {
+    test("GET /participants/:id/endpoints -Should handle unauthorized error", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .get(`/participants/${participantId}/endpoints`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("GET /participants/:id/endpoints - Should return 404 if the participant is not found", async () => {
+        // Arrange
+        const nonExistingParticipant= "none";
+
+        // Act
+        const response = await request(server)
+            .get(`/participants/${nonExistingParticipant}/endpoints`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(404);
+    });
+
+    test("PUT /participants/:id/endpoints/:endpointId - Should update a participant endpoints and return status to be 200", async () => {
+        // Arrange
+
+        const participant:IParticipant = {
+            ...mockedParticipant1
+        }
         const endpointId = mockedParticipant1.participantEndpoints[0].id;
         const modifiedParticipantEndpointData: IParticipantEndpoint = {
             ...mockedParticipant1.participantEndpoints[0],
             value: 'http://56.45.45.162:4041'
         }
 
+        repoPartMock.store(participant);
+
         // Act
         const response = await request(server)
-            .put(`/participants/${participantId}/endpoints/${endpointId}`)
+            .put(`/participants/${participant.id}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
             .send(modifiedParticipantEndpointData);
 
@@ -818,7 +853,6 @@ describe("Participants Service - Unit Test", () => {
         expect(Array.isArray(response.body)).toBe(true);
     });
     
-
     test("GET /participants/:id/contactInfo - Should handle unauthorize error", async () => {
         // Arrange
         jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
@@ -1071,6 +1105,7 @@ describe("Participants Service - Unit Test", () => {
             requestType: "CHANGE_PARTICIPANT_STATUS"
         }
 
+
         // Act
         const response = await request(server)
             .post(`/participants/${participantId}/statusChangeRequests`)
@@ -1110,13 +1145,13 @@ describe("Participants Service - Unit Test", () => {
 
     test("POST /participants/:id/statusChangeRequests - Should not perform on the hub participant", async () => {
         // Arrange
-        const inactiveParticipant = {
-            ...mockedParticipant1,
+        const participant = {
+            ...mockedParticipantHub,
             id: HUB_PARTICIPANT_ID,
             isActive: false
         };
 
-        repoPartMock.store(inactiveParticipant);
+        repoPartMock.store(participant);
 
         const now = Date.now();
 
@@ -1133,14 +1168,13 @@ describe("Participants Service - Unit Test", () => {
 
         // Act
         const response = await request(server)
-            .post(`/participants/${inactiveParticipant.id}/statusChangeRequests`)
+            .post(`/participants/${participant.id}/statusChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(statusChangeRequest);
 
         // Assert
         expect(response.status).toBe(500);
     });
-
 
     test("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should be able to approve the participant status change request", async () => {
         // Arrange
@@ -1215,7 +1249,6 @@ describe("Participants Service - Unit Test", () => {
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
     });
-    
 
     test("GET /participants/:id/sourceIps - Should handle unauthorize error", async () => {
         // Arrange
@@ -1230,7 +1263,6 @@ describe("Participants Service - Unit Test", () => {
         // Assert
         expect(response.status).toBe(403);
     });
-
 
     test("POST /participants/:id/sourceIpChangeRequests - Should create a participant sourceIP change request", async () => {
         // Arrange
@@ -1295,9 +1327,9 @@ describe("Participants Service - Unit Test", () => {
     test("POST /participants/:id/sourceIpChangeRequests - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = {
-            ...mockedParticipant1,
+            ...mockedParticipantHub,
             id: HUB_PARTICIPANT_ID,
-            isActive: false
+            isActive: true
         };
 
         repoPartMock.store(participant);
@@ -1329,4 +1361,767 @@ describe("Participants Service - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
+    test("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should be able to approve a participant sourceIP change request", async () => {
+        // Arrange
+        jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
+            username: "user",
+			clientId: "user",
+			platformRoleIds: ["user"],
+			accessToken: "mock-token",
+        });
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant2,
+            isActive: true,
+            participantSourceIpChangeRequests: [{
+                id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+                allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+                cidr: "192.168.20.10/32",
+                portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+                ports: [3000, 4000],
+                portRange: { rangeFirst: 0, rangeLast: 0 },
+                createdBy: "admin",
+                createdDate: now,
+                approved: false,
+                approvedBy: null,
+                approvedDate: null,
+                requestType: "ADD_SOURCE_IP"
+
+            }]
+        }
+
+        repoPartMock.store(participant);
+        
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/SourceIpChangeRequests/908144a9-2505-4787-b39e-60e8f9fe9b99/approve`)
+            .set("authorization", AUTH_TOKEN);
+            
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    test("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
+        // Arrange
+        const now = Date.now();
+        const participantId = mockedParticipant1.id;
+        const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
+            id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+            allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+            cidr: "192.168.20.10/32",
+            portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+            ports: [3000, 4000],
+            portRange: {rangeFirst: 0, rangeLast: 0},
+            createdBy: "admin",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: "ADD_SOURCE_IP"
+        }
+
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participantId}/SourceIpChangeRequests/908144a9-2505-4787-b39e-60e8f9fe9b99/approve`)
+            .set("authorization", AUTH_TOKEN).send(sourceIPChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should not perform on the hub participant", async () => {
+        // Arrange
+        const participant = {
+            ...mockedParticipantHub,
+            id: HUB_PARTICIPANT_ID,
+            isActive: false
+        };
+
+        repoPartMock.store(participant);
+
+        const now = Date.now();
+
+        const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
+            id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+            allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+            cidr: "192.168.20.10/32",
+            portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+            ports: [3000, 4000],
+            portRange: {rangeFirst: 0, rangeLast: 0},
+            createdBy: "admin",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            requestType: "ADD_SOURCE_IP"
+        }
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/SourceIpChangeRequests/908144a9-2505-4787-b39e-60e8f9fe9b99/approve`)
+            .set("authorization", AUTH_TOKEN)
+            .send(sourceIPChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(500);
+    });
+
+    /**Fund Movement */
+
+    test("POST /participants/:id/funds - Should create a participant fund movement record", async () => {
+        // Arrange
+        const now = Date.now();
+        const participantId = mockedParticipant2.id;
+        const fundMovement: IParticipantFundsMovement = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            currencyCode: "USD",
+            amount: "15000",
+            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            extReference: null,
+            note: null
+        }
+
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participantId}/funds`)
+            .set("authorization", AUTH_TOKEN)
+            .send(fundMovement);
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    test("POST /participants/:id/funds - Should handle unauthorized error", async () => {
+        // Arrange
+        const now = Date.now();
+        const participantId = mockedParticipant1.id;
+        const fundMovement: IParticipantFundsMovement = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            currencyCode: "USD",
+            amount: "15000",
+            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            extReference: null,
+            note: null
+        }
+
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participantId}/funds`)
+            .set("authorization", AUTH_TOKEN).send(fundMovement);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("POST /participants/:id/funds - Should not perform on the hub participant", async () => {
+        // Arrange
+        const participant = {
+            ...mockedParticipantHub,
+            id: HUB_PARTICIPANT_ID,
+            isActive: true
+        };
+
+        repoPartMock.store(participant);
+
+        const now = Date.now();
+
+        const fundMovement: IParticipantFundsMovement = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            currencyCode: "USD",
+            amount: "15000",
+            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            extReference: null,
+            note: null
+        }
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/funds`)
+            .set("authorization", AUTH_TOKEN)
+            .send(fundMovement);
+
+        // Assert
+        expect(response.status).toBe(500);
+    });
+
+    test("POST /participants/:id/funds/:fundsMovId/approve - Should be able to approve a participant fund movement request", async () => {
+        // Arrange
+        jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
+            username: "user",
+			clientId: "user",
+			platformRoleIds: ["user"],
+			accessToken: "mock-token",
+        });
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant2,
+            isActive: true,
+            fundsMovements: [{
+                id: "1",
+                createdBy: "admin",
+                createdDate: now,
+                approved: false,
+                approvedBy: null,
+                approvedDate: null,
+                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                currencyCode: "USD",
+                amount: "15000",
+                transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                extReference: null,
+                note: null
+            }]
+        }
+
+        repoPartMock.store(participant);
+        
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/funds/1/approve`)
+            .set("authorization", AUTH_TOKEN);
+            
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    test("POST /participants/:id/funds/:fundsMovId/approve - Should handle unauthorized error", async () => {
+        // Arrange
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant2,
+            isActive: true,
+            fundsMovements: [
+                {
+                    id: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    approved: false,
+                    approvedBy: null,
+                    approvedDate: null,
+                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    currencyCode: "USD",
+                    amount: "15000",
+                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    extReference: null,
+                    note: null
+                }
+            ]
+        }
+
+        repoPartMock.store(participant);
+
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/funds/1/approve`)
+            .set("authorization", AUTH_TOKEN).send(participant.fundsMovements[0]);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("POST /participants/:id/funds/:fundsMovId/approve - Should not perform on the hub participant", async () => {
+        // Arrange
+        const participant = {
+            ...mockedParticipantHub,
+            id: HUB_PARTICIPANT_ID,
+            isActive: true
+        };
+
+        repoPartMock.store(participant);
+
+        const now = Date.now();
+
+        const fundMovement: IParticipantFundsMovement = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            currencyCode: "USD",
+            amount: "15000",
+            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            extReference: null,
+            note: null
+        }
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/funds/1/approve`)
+            .set("authorization", AUTH_TOKEN)
+            .send(fundMovement);
+
+        // Assert
+        expect(response.status).toBe(500);
+    });
+
+
+    /**Net Debit Cap */
+
+    test("POST /participants/:id/ndcChangeRequests - Should create a participant NDC change request", async () => {
+        // Arrange
+        const now = Date.now();
+        const participantId = mockedParticipant2.id;
+        const ndcChangeRequest: IParticipantNetDebitCapChangeRequest = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            currencyCode: "USD",
+            type: ParticipantNetDebitCapTypes.ABSOLUTE,
+            percentage: null,
+            fixedValue: 1000000,
+            extReference: null,
+            note: null
+        }
+
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participantId}/ndcChangeRequests`)
+            .set("authorization", AUTH_TOKEN)
+            .send(ndcChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+   test("POST /participants/:id/ndcChangeRequests - Should handle unauthorized error", async () => {
+        // Arrange
+        const now = Date.now();
+        const participantId = mockedParticipant2.id;
+        const ndcChangeRequest: IParticipantNetDebitCapChangeRequest = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            currencyCode: "USD",
+            type: ParticipantNetDebitCapTypes.ABSOLUTE,
+            percentage: null,
+            fixedValue: 1000000,
+            extReference: null,
+            note: null
+        }
+
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participantId}/ndcChangeRequests`)
+            .set("authorization", AUTH_TOKEN).send(ndcChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+     
+    test("POST /participants/:id/ndcChangeRequests - Should not perform on the hub participant", async () => {
+        // Arrange
+        const participant = {
+            ...mockedParticipantHub,
+            id: HUB_PARTICIPANT_ID,
+            isActive: true
+        };
+
+        repoPartMock.store(participant);
+
+        const now = Date.now();
+
+        const ndcChangeRequest: IParticipantNetDebitCapChangeRequest = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            currencyCode: "USD",
+            type: ParticipantNetDebitCapTypes.ABSOLUTE,
+            percentage: null,
+            fixedValue: 1000000,
+            extReference: null,
+            note: null
+        }
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/ndcChangeRequests`)
+            .set("authorization", AUTH_TOKEN)
+            .send(ndcChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(500);
+    });
+
+    test("POST /participants/:id/ndcChangeRequests - Should be able to approve the NDC change request", async () => {
+        // Arrange
+        jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
+            username: "user",
+			clientId: "user",
+			platformRoleIds: ["user"],
+			accessToken: "mock-token",
+        });
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant2,
+            isActive: true,
+            netDebitCapChangeRequests: [{
+                id: "1",
+                createdBy: "admin",
+                createdDate: now,
+                approved: false,
+                approvedBy: null,
+                approvedDate: null,
+                currencyCode: "USD",
+                type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                percentage: null,
+                fixedValue: 1000000,
+                extReference: null,
+                note: null
+            }]
+        }
+
+        repoPartMock.store(participant);
+        const accBalSettlementAcc = await accAndBalAdapterMock.createAccount("1",participant.id,"SETTLEMENT","USD");
+        const accBalPositionAcc = await accAndBalAdapterMock.createAccount("2",participant.id,"POSITION","USD");
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/ndcchangerequests/1/approve`)
+            .set("authorization", AUTH_TOKEN);
+            
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    test("POST /participants/:id/ndcChangeRequests - Should handle unauthorized error", async () => {
+        // Arrange
+        jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
+            username: "user",
+			clientId: "user",
+			platformRoleIds: ["user"],
+			accessToken: "mock-token",
+        });
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant2,
+            isActive: true,
+            netDebitCapChangeRequests: [{
+                id: "1",
+                createdBy: "admin",
+                createdDate: now,
+                approved: false,
+                approvedBy: null,
+                approvedDate: null,
+                currencyCode: "USD",
+                type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                percentage: null,
+                fixedValue: 1000000,
+                extReference: null,
+                note: null
+            }]
+        }
+
+        repoPartMock.store(participant);
+        const accBalSettlementAcc = await accAndBalAdapterMock.createAccount("1",participant.id,"SETTLEMENT","USD");
+        const accBalPositionAcc = await accAndBalAdapterMock.createAccount("2",participant.id,"POSITION","USD");
+
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/ndcchangerequests/1/approve`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("POST /participants/:id/ndcChangeRequests - Should not perform on the hub participant", async () => {
+        // Arrange
+        const participant = mockedParticipantHub;
+        const now = Date.now();
+
+        const ndcChangeRequest: IParticipantNetDebitCapChangeRequest = {
+            id: "1",
+            createdBy: "admin",
+            createdDate: now,
+            approved: false,
+            approvedBy: null,
+            approvedDate: null,
+            currencyCode: "USD",
+            type: ParticipantNetDebitCapTypes.ABSOLUTE,
+            percentage: null,
+            fixedValue: 1000000,
+            extReference: null,
+            note: null
+        }
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/funds/1/approve`)
+            .set("authorization", AUTH_TOKEN)
+            .send(ndcChangeRequest);
+
+        // Assert
+        expect(response.status).toBe(500);
+    });
+
+    test("POST /participants/:id/ndcChangeRequests - Should return status 422 when the participant is not active", async () => {
+        // Arrange
+        const now = Date.now();
+        const participant:IParticipant = {
+            ...mockedParticipant1,
+            isActive:false,
+            netDebitCapChangeRequests: [
+                {
+                    id: "1",
+                    createdBy: "admin",
+                    createdDate: now,
+                    approved: false,
+                    approvedBy: null,
+                    approvedDate: null,
+                    currencyCode: "USD",
+                    type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                    percentage: null,
+                    fixedValue: 1000000,
+                    extReference: null,
+                    note: null
+                }
+            ]
+        };
+
+        repoPartMock.store(participant);
+
+        // Act
+        const response = await request(server)
+            .post(`/participants/${participant.id}/ndcChangeRequests/1/approve`)
+            .set("authorization", AUTH_TOKEN)
+            .send(participant.netDebitCapChangeRequests);
+
+        // Assert
+        expect(response.status).toBe(422);
+    });
+
+    /**Liquidity Check */
+
+    test("POST /participants/liquidityCheckValidate - Should handle the case when no file is uploaded", async () => {
+        // Arrange
+
+        //Act
+        await request(server)
+            .post('/participants/liquidityCheckValidate')
+            .set("authorization", AUTH_TOKEN)
+            .expect(400)
+            .expect('Content-Type', /json/)
+            .then((response) => {
+                expect(response.body).toEqual({ error: 'No file uploaded' });
+            });
+
+    });
+
+    test("POST /participants/liquidityCheckValidate - Should return error for invalid excel file", async () => {
+        // Arrange
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Sheet1');
+        worksheet.addRow(['Header1', 'Header2']);
+        worksheet.addRow(['Value1', 'Value2']);
+
+        // Save the workbook to a buffer
+        const excelBuffer = await workbook.xlsx.writeBuffer();
+
+        //Act
+        const response = await request(server)
+            .post('/participants/liquidityCheckValidate')
+            .set("authorization", AUTH_TOKEN)
+            .attach('settlementInitiation', Buffer.from(excelBuffer), { filename: 'example.xlsx' }) // Attach the dynamically created Excel file
+        
+        //Assert
+
+        expect(response.status).toBe(500);
+
+    });
+
+    test("POST /participants/liquidityCheckRequestAdjustment - Should make adjustment successfully", async () => {
+       
+        //Arrange
+
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            isActive:true
+        };
+
+        const liquidityBalanceAdjustment: IParticipantLiquidityBalanceAdjustment[] = [
+            {
+                matrixId: "001",
+                isDuplicate: false,
+                participantId: "participant1",
+                participantName: "Participant 1",
+                participantBankAccountInfo: "",
+                bankBalance: "5000000",
+                settledTransferAmount: "100000",
+                currencyCode: "USD",
+                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                updateAmount: "110000",
+                settlementAccountId: "1"
+            }
+        ];
+
+        repoPartMock.store(participant);
+
+        //Act
+        const response = await request(server)
+            .post('/participants/liquidityCheckRequestAdjustment')
+            .query({ ignoreDuplicate: "false" })
+            .set("authorization", AUTH_TOKEN)
+            .send(liquidityBalanceAdjustment);
+
+        //Assert
+
+        expect(response.status).toBe(200);
+
+    });
+
+    test("POST /participants/liquidityCheckRequestAdjustment - Should return 422 when the participant is not active", async () => {
+       
+        //Arrange
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            isActive:false
+        };
+
+        const liquidityBalanceAdjustment: IParticipantLiquidityBalanceAdjustment[] = [
+            {
+                matrixId: "001",
+                isDuplicate: false,
+                participantId: "participant1",
+                participantName: "Participant 1",
+                participantBankAccountInfo: "",
+                bankBalance: "5000000",
+                settledTransferAmount: "100000",
+                currencyCode: "USD",
+                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                updateAmount: "110000",
+                settlementAccountId: "1"
+            }
+        ];
+
+        repoPartMock.store(participant);
+
+        //Act
+        const response = await request(server)
+            .post('/participants/liquidityCheckRequestAdjustment')
+            .query({ ignoreDuplicate: "false" })
+            .set("authorization", AUTH_TOKEN)
+            .send(liquidityBalanceAdjustment);
+
+        //Assert
+
+        expect(response.status).toBe(422);
+
+    });
+
+    test("POST /participants/liquidityCheckRequestAdjustment - Should return 404 if the participant is not found", async () => {
+       
+        //Arrange
+        const liquidityBalanceAdjustment: IParticipantLiquidityBalanceAdjustment[] = [
+            {
+                matrixId: "001",
+                isDuplicate: false,
+                participantId: "none_existing_participant",
+                participantName: "Non existing participant",
+                participantBankAccountInfo: "",
+                bankBalance: "5000000",
+                settledTransferAmount: "100000",
+                currencyCode: "USD",
+                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                updateAmount: "110000",
+                settlementAccountId: "1"
+            }
+        ];
+
+        //Act
+        const response = await request(server)
+            .post('/participants/liquidityCheckRequestAdjustment')
+            .query({ ignoreDuplicate: "false" })
+            .set("authorization", AUTH_TOKEN)
+            .send(liquidityBalanceAdjustment);
+
+        //Assert
+
+        expect(response.status).toBe(404);
+
+    });
+
+    test("POST /participants/liquidityCheckRequestAdjustment - Should return 500 when the participant's account not found", async () => {
+       
+        //Arrange
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            isActive:true
+        };
+
+        const liquidityBalanceAdjustment: IParticipantLiquidityBalanceAdjustment[] = [
+            {
+                matrixId: "001",
+                isDuplicate: false,
+                participantId: "participant1",
+                participantName: "Participant 1",
+                participantBankAccountInfo: "",
+                bankBalance: "5000000",
+                settledTransferAmount: "100000",
+                currencyCode: "EUR",
+                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                updateAmount: "110000",
+                settlementAccountId: "1"
+            }
+        ];
+
+        repoPartMock.store(participant);
+
+        //Act
+        const response = await request(server)
+            .post('/participants/liquidityCheckRequestAdjustment')
+            .query({ ignoreDuplicate: "false" })
+            .set("authorization", AUTH_TOKEN)
+            .send(liquidityBalanceAdjustment);
+
+        //Assert
+
+        expect(response.status).toBe(500);
+
+    });
 });

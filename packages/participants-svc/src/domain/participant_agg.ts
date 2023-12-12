@@ -2236,7 +2236,7 @@ export class ParticipantAggregate {
 
         // inactive participants can only deposit funds, not withdrawal
         if (!participant.isActive && fundsMov.direction === "FUNDS_WITHDRAWAL") {
-            throw new InvalidParticipantStatusError(
+            throw new ParticipantNotActive(
                 `Participant with ID: '${participantId}' is not active, cannot withdrawal funds.`
             );
         }
@@ -2493,7 +2493,7 @@ export class ParticipantAggregate {
         }
 
         if (!participant.isActive) {
-            throw new InvalidParticipantStatusError(
+            throw new ParticipantNotActive(
                 `Participant with ID: '${participantId}' is not active.`
             );
         }
@@ -2941,7 +2941,7 @@ export class ParticipantAggregate {
                 );
             }
             if (!checkParticipant.isActive) {
-                throw new InvalidParticipantStatusError(
+                throw new ParticipantNotActive(
                     `Participant with ID: '${obj.participantId}' is not active.`
                 );
             }
