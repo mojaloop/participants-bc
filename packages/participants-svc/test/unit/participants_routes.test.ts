@@ -52,7 +52,7 @@ import {
     mockedInactiveParticipant,
 } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-lib";
-import { HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfo, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
+import { HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfo, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantPendingApproval, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
 import { Server } from "http";
 import ExcelJS from "exceljs";
 
@@ -2124,4 +2124,72 @@ describe("Participants Service - Unit Test", () => {
         expect(response.status).toBe(500);
 
     });
+
+    /**Participant Pending Approval */
+
+    test("GET /participants/pendingApprovalsSummary - Should return participant's pending approval summary", async () => {
+        // Act
+        const response = await request(server)
+            .get(`/participants/pendingApprovalsSummary`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    test("GET /participants/pendingApprovalsSummary - Should handle unauthorized error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        
+        // Act
+        const response = await request(server)
+            .get(`/participants/pendingApprovalsSummary`)
+            .set("authorization", AUTH_TOKEN);
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("GET /participants/pendingApprovals - Should return participant's pending approvals", async () => {
+        // Act
+        const response = await request(server)
+            .get(`/participants/pendingApprovals`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    test("GET /participants/pendingApprovals - Should handle unauthorized error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        
+        // Act
+        const response = await request(server)
+            .get(`/participants/pendingApprovals`)
+            .set("authorization", AUTH_TOKEN);
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    test("POST /participants/pendingApprovals - Should handle the route successfully", async () => {
+        //Arrange
+        const pendingApprovals:IParticipantPendingApproval = {
+            accountsChangeRequest: [],
+            fundsMovementRequest: [] ,
+            ndcChangeRequests:[],
+            ipChangeRequests: [],
+            contactInfoChangeRequests: [],
+            statusChangeRequests: [],
+        }
+        
+        // Act
+        const response = await request(server)
+            .post(`/participants/pendingApprovals`)
+            .set("authorization", AUTH_TOKEN)
+            .send(pendingApprovals);
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
 });
