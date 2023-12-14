@@ -122,7 +122,7 @@ export const mockedParticipant1: IParticipant = {
             id: "1",
             type: ParticipantEndpointTypes.FSPIOP,
             protocol: ParticipantEndpointProtocols["HTTPs/REST"],
-            value: 'http://172.31.88.169:4040'
+            value: "http://172.31.88.169:4040"
         }
     ],
     participantAccounts: [
@@ -189,7 +189,7 @@ export const mockedParticipant2: IParticipant = {
             id: "1",
             type: ParticipantEndpointTypes.FSPIOP,
             protocol: ParticipantEndpointProtocols["HTTPs/REST"],
-            value: 'http://172.31.88.169:4040'
+            value: "http://172.31.88.169:4040"
         }
     ],
     participantAccounts: [

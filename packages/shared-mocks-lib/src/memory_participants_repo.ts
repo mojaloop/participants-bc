@@ -136,7 +136,7 @@ export class ParticipantsRepoMock implements IParticipantsRepository {
 			pageSize: pageSize,
 			totalPages: 0,
 			items: []
-		}
+		};
 
 		if (returnVal.length > 0) {
 			const paginatedVal = returnVal.slice(index, total);
@@ -148,7 +148,7 @@ export class ParticipantsRepoMock implements IParticipantsRepository {
     }
 
     getSearchKeywords(): Promise<{ fieldName: string; distinctTerms: string[]; }[]> {
-        let result:{ fieldName: string; distinctTerms: string[]; }[]= [
+        const result:{ fieldName: string; distinctTerms: string[]; }[]= [
             {
                 fieldName: "payerIdType",
                 distinctTerms: ["MSISDN","ACCOUNTID"]

@@ -196,14 +196,14 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 			type: toConvert.type,
 			currencyCode: toConvert.currencyCode,
 			postedDebitBalance: toConvert.postedDebitBal === undefined ?
-				'0' : bigintToString(toConvert.postedDebitBal, 2),
+				"0" : bigintToString(toConvert.postedDebitBal, 2),
 			pendingDebitBalance: toConvert.pendingDebitBal === undefined ?
-				'0' : bigintToString(toConvert.pendingDebitBal, 2),
+				"0" : bigintToString(toConvert.pendingDebitBal, 2),
 			postedCreditBalance: toConvert.postedCreditBal === undefined ?
-				'0' : bigintToString(toConvert.postedCreditBal, 2),
+				"0" : bigintToString(toConvert.postedCreditBal, 2),
 			pendingCreditBalance: toConvert.pendingCreditBal === undefined ?
-				'0' : bigintToString(toConvert.pendingCreditBal, 2),
-			balance: '0',
+				"0" : bigintToString(toConvert.pendingCreditBal, 2),
+			balance: "0",
 			timestampLastJournalEntry: Date.now()
 		};
 		return returnVal;

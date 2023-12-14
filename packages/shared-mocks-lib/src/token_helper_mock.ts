@@ -62,7 +62,8 @@ export class TokenHelperMock implements ITokenHelper {
 			clientId: "admin",
 			platformRoleIds: ["admin"],
 			accessToken: "mock-token",
-		}
+		};
+		
 		return Promise.resolve(secCtx);
 	}
 }
