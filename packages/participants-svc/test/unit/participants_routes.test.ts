@@ -80,7 +80,7 @@ const metricsMock = new MetricsMock();
 const tokenHelperMock = new TokenHelperMock(logger);
 
 
-describe("Participants Service - Unit Test", () => {
+describe("Participants Routes - Unit Test", () => {
     let app: Express;
     let expressServer: Server;
     let participantAgg;
@@ -639,6 +639,20 @@ describe("Participants Service - Unit Test", () => {
         // Assert
         expect(response.status).toBe(200);
         expect(Array.isArray(response.body)).toBe(true);
+    });
+
+    test("GET /participants/:id/accounts - Should handle unauthorized error", async () => {
+        // Arrange
+        const participantId = mockedParticipant1.id;
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .get(`/participants/${participantId}/accounts`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
     });
 
     test("POST /participants/:id/accountChangeRequest - Should be able to create a participant account change request", async () => {
@@ -2190,6 +2204,55 @@ describe("Participants Service - Unit Test", () => {
 
         // Assert
         expect(response.status).toBe(200);
+    });
+
+    test("POST /participants/pendingApprovals - Should handle unauthorized error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        const pendingApprovals:IParticipantPendingApproval = {
+            accountsChangeRequest: [],
+            fundsMovementRequest: [] ,
+            ndcChangeRequests:[],
+            ipChangeRequests: [],
+            contactInfoChangeRequests: [],
+            statusChangeRequests: [],
+        }
+        
+        // Act
+        const response = await request(server)
+            .post(`/participants/pendingApprovals`)
+            .set("authorization", AUTH_TOKEN)
+            .send(pendingApprovals);
+
+        // Assert
+        expect(response.status).toBe(500);
+    });
+
+    test("GET /searchKeywords/ - Should handle the route successfully", async () => {
+        //Arrange
+        
+        // Act
+        const response = await request(server)
+            .get(`/searchKeywords/`)
+            .set("authorization", AUTH_TOKEN)
+
+        // Assert
+        expect(response.status).toBe(200);
+        expect(Array.isArray(response.body)).toBe(true);
+    });
+
+    test("GET /searchKeywords/ - Should handle unauthorized error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+
+        // Act
+        const response = await request(server)
+            .get(`/searchKeywords/`)
+            .set("authorization", AUTH_TOKEN)
+
+        // Assert
+        expect(response.status).toBe(403);
     });
 
 });

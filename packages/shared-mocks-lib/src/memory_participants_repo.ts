@@ -148,6 +148,17 @@ export class ParticipantsRepoMock implements IParticipantsRepository {
     }
 
     getSearchKeywords(): Promise<{ fieldName: string; distinctTerms: string[]; }[]> {
-        throw new Error("Method not implemented.");
+        let result:{ fieldName: string; distinctTerms: string[]; }[]= [
+            {
+                fieldName: "payerIdType",
+                distinctTerms: ["MSISDN","ACCOUNTID"]
+            },
+            {
+                fieldName: "payeeIdType",
+                distinctTerms: ["MSISDN","ACCOUNTID"]
+            }
+        ];
+
+        return Promise.resolve(result);
     }
 }
