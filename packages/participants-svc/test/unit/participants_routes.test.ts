@@ -138,7 +138,7 @@ describe("Participants Routes - Unit Test", () => {
     test("Return error when invalid access token", async () => {
         // Arrange
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce(null);
-
+        
         // Act 
         const response = await request(server)
             .get(`/participants`)
@@ -150,7 +150,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("Return error when no necessary privilege", async () => {
         // Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -410,7 +410,7 @@ describe("Participants Routes - Unit Test", () => {
     test("GET /participants/:id/endpoints -Should handle unauthorized error", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -644,7 +644,7 @@ describe("Participants Routes - Unit Test", () => {
     test("GET /participants/:id/accounts - Should handle unauthorized error", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -869,7 +869,7 @@ describe("Participants Routes - Unit Test", () => {
     
     test("GET /participants/:id/contactInfo - Should handle unauthorize error", async () => {
         // Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         const participantId = mockedParticipant1.id;
 
         // Act
@@ -914,7 +914,7 @@ describe("Participants Routes - Unit Test", () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         const contactInfo: IParticipantContactInfoChangeRequest = {
             id: "1",
@@ -1042,7 +1042,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
         // Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -1146,7 +1146,7 @@ describe("Participants Routes - Unit Test", () => {
             requestType: "CHANGE_PARTICIPANT_STATUS"
         }
 
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -1224,7 +1224,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
         // Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         
         // Act
         const response = await request(server)
@@ -1266,7 +1266,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("GET /participants/:id/sourceIps - Should handle unauthorize error", async () => {
         // Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         const participantId = mockedParticipant1.id;
 
         // Act
@@ -1327,7 +1327,7 @@ describe("Participants Routes - Unit Test", () => {
             requestType: "ADD_SOURCE_IP"
         }
 
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -1436,7 +1436,7 @@ describe("Participants Routes - Unit Test", () => {
             requestType: "ADD_SOURCE_IP"
         }
 
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -1535,7 +1535,7 @@ describe("Participants Routes - Unit Test", () => {
             note: null
         }
 
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -1650,7 +1650,7 @@ describe("Participants Routes - Unit Test", () => {
 
         repoPartMock.store(participant);
 
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -1750,7 +1750,7 @@ describe("Participants Routes - Unit Test", () => {
             note: null
         }
 
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -1874,7 +1874,7 @@ describe("Participants Routes - Unit Test", () => {
         const accBalSettlementAcc = await accAndBalAdapterMock.createAccount("1",participant.id,"SETTLEMENT","USD");
         const accBalPositionAcc = await accAndBalAdapterMock.createAccount("2",participant.id,"POSITION","USD");
 
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
@@ -2153,7 +2153,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("GET /participants/pendingApprovalsSummary - Should handle unauthorized error", async () => {
         //Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         
         // Act
         const response = await request(server)
@@ -2175,7 +2175,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("GET /participants/pendingApprovals - Should handle unauthorized error", async () => {
         //Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         
         // Act
         const response = await request(server)
@@ -2208,7 +2208,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("POST /participants/pendingApprovals - Should handle unauthorized error", async () => {
         //Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         const pendingApprovals:IParticipantPendingApproval = {
             accountsChangeRequest: [],
@@ -2244,7 +2244,7 @@ describe("Participants Routes - Unit Test", () => {
 
     test("GET /searchKeywords/ - Should handle unauthorized error", async () => {
         //Arrange
-        jest.spyOn(authZClientMock, "roleHasPrivilege").mockReturnValue(false);
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
         const response = await request(server)
