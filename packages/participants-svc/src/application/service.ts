@@ -359,7 +359,7 @@ export class Service {
 
     static async stop() {
         if (this.expressServer){
-            const closeExpress = util.promisify(this.expressServer.close);
+            const closeExpress = util.promisify(this.expressServer.close.bind(this.expressServer));
             await closeExpress();
         }
         if (this.messageProducer) await this.messageProducer.destroy();
