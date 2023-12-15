@@ -333,9 +333,4 @@ describe('Participant Class', () => {
     });
 
 
-
-
-
-
-
 });

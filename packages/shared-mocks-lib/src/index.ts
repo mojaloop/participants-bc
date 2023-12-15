@@ -40,5 +40,6 @@ export * from "./adapter/accounts_balances_adapter_mock";
 export * from "./memory_participants_repo";
 export * from "./token_helper_mock";
 export * from "./mocked_data";
+export * from "./memory_auth_requester";
 
 
