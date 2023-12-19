@@ -25,7 +25,7 @@
     "clean-and-build": "npm run clean && npm run build",
     "dep:check": "ncu -e 2; npm -ws run dep:check",
     "dep:update": "ncu -e 2 -u; npm -ws run dep:update",
-    "test": "npm run test:unit",
+    "test": "npm run test:unit --detectOpenHandles",
     "test:unit": "npm -ws --if-present run test:unit",
     "posttest": "npm run coverage:merge && npm run coverage:gen-report",
     "coverage:merge": "nyc merge ./coverage/ ./coverage/coverage.json",
