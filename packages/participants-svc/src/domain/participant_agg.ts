@@ -3208,7 +3208,7 @@ export class ParticipantAggregate {
                             messages.push({
                                 reqId: acChange.id,
                                 status: "success",
-                                message: `Approval successful for participantId: ${acChange.participantId}, accountChangeId: ${acChange.id}`,
+                                message: `Successful ${message}`,
                             });
                         } // else will do reject process
                     } catch (err: any) {
@@ -3233,7 +3233,7 @@ export class ParticipantAggregate {
                             messages.push({
                                 reqId: funMove.id,
                                 status: "success",
-                                message: `Approval successful for participantId: ${funMove.participantId}, fundsMovementId: ${funMove.id}`,
+                                message: `Successful ${message}`,
                             });
                         } // else will do reject process
                     } catch (err: any) {
@@ -3258,7 +3258,7 @@ export class ParticipantAggregate {
                             messages.push({
                                 reqId: ndcChange.id,
                                 status: "success",
-                                message: `Approval successful for participantId: ${ndcChange.participantId}, ndcChangeId: ${ndcChange.id}`,
+                                message: `Successful ${message}`,
                             });
                         } // else will do reject process
                     } catch (err: any) {
@@ -3283,7 +3283,7 @@ export class ParticipantAggregate {
                             messages.push({
                                 reqId: ipChange.id,
                                 status: "success",
-                                message: `Approval successful for participantId: ${ipChange.participantId}, ipChangeId: ${ipChange.id}`,
+                                message: `Successful ${message}`,
                             });
                         } // else will do reject process
                     } catch (err: any) {
@@ -3308,7 +3308,7 @@ export class ParticipantAggregate {
                             messages.push({
                                 reqId: contactChange.id,
                                 status: "success",
-                                message: `Approval successful for participantId: ${contactChange.participantId}, contactChangeId: ${contactChange.id}`,
+                                message: `Successful ${message}`,
                             });
                         } // else will do reject process
                     } catch (err: any) {
@@ -3333,7 +3333,7 @@ export class ParticipantAggregate {
                             messages.push({
                                 reqId: statusChange.id,
                                 status: "success",
-                                message: `Approval successful for participantId: ${statusChange.participantId}, statusChangeId: ${statusChange.id}`,
+                                message: `Successful ${message}`,
                             });
                         } // else will do reject process
 
