@@ -39,3 +39,9 @@ export declare type ParticipantSearchResults = {
   pageIndex: number;
   items: IParticipant[];
 }
+
+export declare type BulkApprovalRequestResults = {
+  reqId: string;
+  status: "success" | "error";
+  message: string;
+}
