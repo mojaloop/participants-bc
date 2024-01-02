@@ -31,7 +31,7 @@ import { ILogger, LogLevel } from "@mojaloop/logging-bc-public-types-lib";
 import {
   ParticipantsHttpClient,
 } from "../../packages/client-lib/src";
-import { IParticipant as Participant } from "../../packages/public-types-lib/src";
+import { IParticipant as Participant } from "@mojaloop/participant-bc-public-types-lib/src";
 import { AuthenticatedHttpRequester } from "@mojaloop/security-bc-client-lib";
 import { ConsoleLogger } from "@mojaloop/logging-bc-public-types-lib";
 

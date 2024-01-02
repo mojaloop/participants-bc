@@ -127,11 +127,13 @@ describe("Participants Routes - Unit Test", () => {
     afterAll(async () => {
         jest.clearAllMocks();
 
-        return new Promise<void>(resolve => {
-            expressServer.close(() => {
-                resolve();
+        if (expressServer){
+            await new Promise((resolve) => {
+                expressServer.close(() => {
+                    resolve(true);
+                });
             });
-        });
+        }
     });
 
     

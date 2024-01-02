@@ -357,19 +357,27 @@ export class Service {
         });
     }
 
-    static async stop() {
-        if (this.expressServer){
-            const closeExpress = util.promisify(this.expressServer.close.bind(this.expressServer));
-            await closeExpress();
-        }
-        if (this.messageProducer) await this.messageProducer.destroy();
-        if (this.auditClient) await this.auditClient.destroy();
-        if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
-        if (this.repoPart) await this.repoPart.destroy();
-        if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
+    static async stop():Promise<void> {
+        try {
+            if (this.expressServer) {
+                this.expressServer.close();
+            }
 
-        if (this.logger && this.logger instanceof KafkaLogger) await this.logger.destroy();
+            if (this.messageProducer) await this.messageProducer.destroy();
+            if (this.auditClient) await this.auditClient.destroy();
+            if (this.accountsBalancesAdapter) await this.accountsBalancesAdapter.destroy();
+            if (this.repoPart) await this.repoPart.destroy();
+            if (this.messageConsumer) await this.messageConsumer.destroy(true);
+            if (this.eventHandler) await this.eventHandler.stop();
+            if (this.configClient) await this.configClient.destroy();
+            if (this.logger && this.logger instanceof KafkaLogger) await this.logger.destroy();
+
+        } catch (error) {
+            this.logger.error(error);
+        }
     }
+      
+    
 }
 
 

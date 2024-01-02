@@ -107,7 +107,34 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	}
 
 	createJournalEntries(entries: { requestedId: string; ownerId: string; currencyCode: string; amount: string; pending: boolean; debitedAccountId: string; creditedAccountId: string; }[]): Promise<string[]> {
-		return Promise.resolve([]);
+		const result:string []= [];
+		
+		for(const entry of entries){
+			const amntAsBigInt = stringToBigint(entry.amount, 2);
+			this.abJournals.push(new ABJournal(
+				entry.requestedId,
+				entry.ownerId,
+				entry.currencyCode,
+				entry.amount,
+				false,
+				entry.debitedAccountId,
+				entry.creditedAccountId)
+			);
+
+			for (const acc of this.abAccounts) {
+				if (acc.postedDebitBal === undefined) acc.postedDebitBal = 0n;
+				if (acc.postedCreditBal === undefined) acc.postedCreditBal = 0n;
+	
+				if (acc.requestedId === entry.debitedAccountId) {
+					acc.postedDebitBal += BigInt(amntAsBigInt);
+				} else if (acc.requestedId === entry.creditedAccountId) {
+					acc.postedCreditBal += BigInt(amntAsBigInt);
+				}
+			}
+			result.push(entry.requestedId);
+		}
+
+		return Promise.resolve(result);
 	}
 
 	async createAccount(requestedId: string, ownerId: string, type: AccountsAndBalancesAccountType, currencyCode: string): Promise<string> {
