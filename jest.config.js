@@ -17,6 +17,5 @@ module.exports = {
             "lines": 90,
             "statements": -10
         }
-    },
-    testTimeout: 20000,
+    }
 }
