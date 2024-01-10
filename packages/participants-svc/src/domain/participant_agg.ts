@@ -60,7 +60,8 @@ import {
     IParticipantLiquidityBalanceAdjustment,
     IParticipantPendingApprovalSummary,
     IParticipantPendingApproval,
-    IParticipantPendingApprovalCountByType
+    IParticipantPendingApprovalCountByType,
+    ApprovalRequestState
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
     SettlementMatrixSettledEvt,
@@ -125,8 +126,10 @@ enum AuditedActionNames {
     PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED = "PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED",
     PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED",
     PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED",
     PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED",
     PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED",
     PARTICIPANT_ACCOUNT_REMOVED = "PARTICIPANT_ACCOUNT_REMOVED",
     PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED",
     PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED",
@@ -1796,7 +1799,7 @@ export class ParticipantAggregate {
             (value: IParticipantAccountChangeRequest) =>
                 value.type === accountChangeRequest.type &&
                 value.currencyCode === accountChangeRequest.currencyCode &&
-                value.approved != true // TODO this should change to a 3 state field
+                value.requestState === accountChangeRequest.requestState // TODO this should change to a 3 state field
         )){
             throw new DuplicateRequestFoundError(
                 "Account create request with the same information exists already"
@@ -1812,9 +1815,11 @@ export class ParticipantAggregate {
             externalBankAccountName: accountChangeRequest.externalBankAccountName,
             createdBy: secCtx.username!,
             createdDate: Date.now(),
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: accountChangeRequest.requestType
         });
         existing.changeLog.push({
@@ -1848,6 +1853,149 @@ export class ParticipantAggregate {
         return accountChangeRequest.id;
     }
 
+    async rejectParticipantAccountChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        accountChangeRequestId: string
+    ): Promise<void> {
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
+
+        const accountChangeRequest = existing.participantAccountsChangeRequest.find(
+            (value: IParticipantAccountChangeRequest) => value.id === accountChangeRequestId
+        );
+        if (!accountChangeRequest) {
+            throw new AccountChangeRequestNotFound(
+                `Cannot find a participant's account change request with id: ${accountChangeRequestId}`
+            );
+        }
+
+        if (accountChangeRequest.requestState === ApprovalRequestState.APPROVED) {
+            throw new AccountChangeRequestAlreadyApproved(
+                `Participant's account change request with id: ${accountChangeRequestId} is already approved`
+            );
+        }
+
+        if (accountChangeRequest.requestState === ApprovalRequestState.REJECTED) {
+            throw new AccountChangeRequestAlreadyApproved(
+                `Participant's account change request with id: ${accountChangeRequestId} is already rejected`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_CREATION_REQUEST);
+        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST);
+        }else{
+            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+            this._logger.error(err);
+            throw err;
+        }
+
+        if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                    AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED),
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and approve participant account change request"
+            );
+        }
+
+        if (!existing.participantAccounts) {
+            existing.participantAccounts = [];
+        } else {
+            if (accountChangeRequest.accountId == null &&
+                existing.participantAccounts.find(
+                    (value: IParticipantAccount) =>
+                        value.type === accountChangeRequest.type &&
+                        value.currencyCode === accountChangeRequest.currencyCode
+                )
+            ) {
+                throw new CannotAddDuplicateAccountError(
+                    "An account with that id, or the same type and currency exists already"
+                );
+            }
+        }
+
+        if (
+            (accountChangeRequest.type === "HUB_MULTILATERAL_SETTLEMENT" ||
+                accountChangeRequest.type === "HUB_RECONCILIATION") &&
+            participantId !== HUB_PARTICIPANT_ID
+        ) {
+            this._logger.warn(
+                "Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION"
+            );
+            throw new InvalidAccountError(
+                "Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION"
+            );
+        }
+
+
+        const now = Date.now();
+
+        accountChangeRequest.requestState = ApprovalRequestState.REJECTED;
+        accountChangeRequest.rejectedBy = secCtx.username;
+        accountChangeRequest.rejectedDate = now;
+
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_REJECTED,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            },{
+                changeType: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                    ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
+        );
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on addParticipantAccount"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+
+        await this._auditClient.audit(
+            (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED),
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+     
+        //create event for Participant account change request approved - we don't need both, just the reason for the actual change
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED : AuditedActionNames.PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED)
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
+    }
+
     async approveParticipantAccountChangeRequest(
         secCtx: CallSecurityContext,
         participantId: string,
@@ -1876,7 +2024,7 @@ export class ParticipantAggregate {
 
 
 
-        if (accountChangeRequest.approved) {
+        if (accountChangeRequest.requestState === ApprovalRequestState.APPROVED) {
             throw new AccountChangeRequestAlreadyApproved(
                 `Participant's account change request with id: ${accountChangeRequestId} is already approved`
             );
@@ -1980,7 +2128,7 @@ export class ParticipantAggregate {
 
         const now = Date.now();
 
-        accountChangeRequest.approved = true;
+        accountChangeRequest.requestState = ApprovalRequestState.APPROVED;
         accountChangeRequest.approvedBy = secCtx.username;
         accountChangeRequest.approvedDate = now;
 
@@ -3025,7 +3173,7 @@ export class ParticipantAggregate {
                 .map(value => {
                     if (value.participantAccountsChangeRequest) {
                         return value.participantAccountsChangeRequest.filter(
-                            accountsChange => accountsChange.approved === false
+                            accountsChange => accountsChange.requestState === ApprovalRequestState.CREATED
                         ).length;
                     } else {
                         return 0;
@@ -3117,7 +3265,7 @@ export class ParticipantAggregate {
                 .flatMap(({ id: participantId, name: participantName, ...value }) => {
                     if (value.participantAccountsChangeRequest) {
                         return value.participantAccountsChangeRequest.filter(
-                            accountsChange => accountsChange.approved === false
+                            accountsChange => accountsChange.requestState === ApprovalRequestState.REJECTED
                         ).map(data => ({ ...data, participantId, participantName }));
                     } else {
                         return [];
@@ -3202,7 +3350,7 @@ export class ParticipantAggregate {
                 for (const acChange of accountsChangeRequest) {
                     let message = "";
                     try {
-                        if (acChange.approved === true) {
+                        if (acChange.requestState === ApprovalRequestState.APPROVED) {
                             message = `accountsChangeRequest approve participantId: ${acChange.participantId}, accountChangeId: ${acChange.id}`;
                             await this.approveParticipantAccountChangeRequest(secCtx, acChange.participantId, acChange.id);
                         } // else will do reject process

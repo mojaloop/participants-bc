@@ -36,6 +36,7 @@
 // If changes are made in the master participant entities and enums, these should be updated
 
 import {
+  ApprovalRequestState,
   ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes,
   ParticipantChangeTypes,
   ParticipantEndpointProtocols,
@@ -170,9 +171,11 @@ export declare interface IParticipantAccountChangeRequest {
   externalBankAccountName: string | null;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
+  rejectedBy: string | null;
+  rejectedDate: number | null;
   requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
 }
 

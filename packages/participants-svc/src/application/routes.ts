@@ -128,6 +128,7 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id/accounts", this._accountsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/accountChangeRequest", this._participantAccountCreateChangeRequest.bind(this));
         this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/approve", this._participantAccountApproveChangeRequest.bind(this));
+        this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/reject", this._participantAccountRejectChangeRequest.bind(this));
         // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
 
         // funds management
@@ -769,6 +770,39 @@ export class ExpressRoutes {
 
         try {
             await this._participantsAgg.approveParticipantAccountChangeRequest(
+                req.securityContext!,
+                id,
+                accountChangeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantAccountRejectChangeRequest(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const accountChangeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject account change request for participant with ID: ${id} and accountChangeRequestId: ${accountChangeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantAccountChangeRequest(
                 req.securityContext!,
                 id,
                 accountChangeRequestId
