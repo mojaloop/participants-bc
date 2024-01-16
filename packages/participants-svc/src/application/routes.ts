@@ -133,17 +133,13 @@ export class ExpressRoutes {
 
         // funds management
         this._mainRouter.post("/participants/:id/funds", this._participantFundsMovCreate.bind(this));
-        this._mainRouter.post(
-            "/participants/:id/funds/:fundsMovId/approve",
-            this._participantFundsMovApprove.bind(this)
-        );
+        this._mainRouter.post("/participants/:id/funds/:fundsMovId/approve", this._participantFundsMovApprove.bind(this));
+        this._mainRouter.post("/participants/:id/funds/:fundsMovId/reject", this._participantFundsMovReject.bind(this));
 
         // net debit cap management
         this._mainRouter.post("/participants/:id/ndcChangeRequests", this._participantNetDebitCapCreate.bind(this));
-        this._mainRouter.post(
-            "/participants/:id/ndcchangerequests/:ndcReqId/approve",
-            this._participantNetDebitCapApprove.bind(this)
-        );
+        this._mainRouter.post("/participants/:id/ndcchangerequests/:ndcReqId/approve",this._participantNetDebitCapApprove.bind(this));
+        this._mainRouter.post("/participants/:id/ndcchangerequests/:ndcReqId/reject",this._participantNetDebitCapReject.bind(this));
 
         // particpant's sourceIPs
         this._mainRouter.get("/participants/:id/sourceIps", this._sourceIpsByParticipantId.bind(this));
@@ -154,6 +150,7 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id/contactInfo", this._contactInfoByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/contactInfoChangeRequests", this._participantContactInfoChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/approve", this._participantContactInfoChangeRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/reject", this._participantContactInfoChangeRequestReject.bind(this));
 
         // participant's status (isActive)
         this._mainRouter.post("/participants/:id/statusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
@@ -488,6 +485,39 @@ export class ExpressRoutes {
     }
 
     private async _participantContactInfoChangeRequestApprove(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to approve contact info change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.approveParticipantContactInfoChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantContactInfoChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const changeRequestId = req.params["changereqid"] ?? null;
 
@@ -1060,6 +1090,39 @@ export class ExpressRoutes {
         }
     }
 
+    private async _participantFundsMovReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const fundsMovId = req.params["fundsMovId"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject a funds movement for participant with ID: ${id} and fundsMovId: ${fundsMovId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectFundsMovement(
+                req.securityContext!,
+                id,
+                fundsMovId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
     private async _participantNetDebitCapCreate(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const netDebitCapChangeRequest: IParticipantNetDebitCapChangeRequest = req.body;
@@ -1105,6 +1168,39 @@ export class ExpressRoutes {
 
         try {
             await this._participantsAgg.approveParticipantNetDebitCap(
+                req.securityContext!,
+                id,
+                ndcReqId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantNetDebitCapReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const ndcReqId = req.params["ndcReqId"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject an NDC change request for participant with ID: ${id} and ndcReqId: ${ndcReqId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantNetDebitCap(
                 req.securityContext!,
                 id,
                 ndcReqId

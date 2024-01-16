@@ -74,9 +74,17 @@ export const AppPrivilegesDefinition = [
         labelName: "Approve Participant Accounts Creation Request",
         description: "Approves an existing participant's accounts creation request"
     }, {
+        privId: ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_CREATION_REQUEST,
+        labelName: "Rejects Participant Accounts Creation Request",
+        description: "Rejects an existing participant's accounts creation request"
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST,
         labelName: "Approve Participant Accounts Bank Details Change Request",
         description: "Approves an existing participant's accounts bank details change request"
+    }, {
+        privId: ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST,
+        labelName: "Rejects Participant Accounts Bank Details Change Request",
+        description: "Rejects an existing participant's accounts bank details change request"
     }, {
         privId: ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT,
         labelName: "Create deposit funds movement",
@@ -94,6 +102,14 @@ export const AppPrivilegesDefinition = [
         labelName: "Approves an existing withdrawal funds movement",
         description: "Approves an existing withdrawal funds movement record in the participant"
     }, {
+        privId: ParticipantPrivilegeNames.REJECT_FUNDS_DEPOSIT,
+        labelName: "Rejects an existing deposit funds movement",
+        description: "Rejects an existing deposit funds movement record in the participant"
+    }, {
+        privId: ParticipantPrivilegeNames.REJECT_FUNDS_WITHDRAWAL,
+        labelName: "Rejects an existing withdrawal funds movement",
+        description: "Rejects an existing withdrawal funds movement record in the participant"
+    }, {
         privId: ParticipantPrivilegeNames.CREATE_NDC_CHANGE_REQUEST,
         labelName: "Create NDC options",
         description: "Create NDC change record in the participant"
@@ -101,26 +117,34 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST,
         labelName: "Approves an existing NDC",
         description: "Approves an existing NDC change record in the participant"
-    },
-    {
+    }, {
+        privId: ParticipantPrivilegeNames.REJECT_NDC_CHANGE_REQUEST,
+        labelName: "Rejects an existing NDC",
+        description: "Rejects an existing NDC change record in the participant"
+    }, {
         privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST,
         labelName: "Creates a SourceIP",
         description: "Creates a SourceIP information of current participant"
-    },
-    {
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST,
         labelName: "Approves a SourceIP change request",
         description: "Approves a SourceIP information change request"
-    },
-    {
+    }, {
+        privId: ParticipantPrivilegeNames.REJECT_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST,
+        labelName: "Rejects a SourceIP change request",
+        description: "Rejects a SourceIP information change request"
+    }, {
         privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST,
         labelName: "Creates a Contact Information change request",
         description: "Creates a Contact Information change request"
-    },
-    {
+    }, {
         privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST,
         labelName: "Approves a Contact Information change request",
         description: "Approves a Contact Information change request"
+    }, {
+        privId: ParticipantPrivilegeNames.REJECT_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST,
+        labelName: "Rejects a Contact Information change request",
+        description: "Rejects a Contact Information change request"
     },
     {
         privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_STATUS_CHANGE_REQUEST,
@@ -133,6 +157,10 @@ export const AppPrivilegesDefinition = [
         description: "Approves a change request for Participant Status"
     },
     {
+        privId: ParticipantPrivilegeNames.REJECT_PARTICIPANT_STATUS_CHANGE_REQUEST,
+        labelName: "Rejects a change request for Participant Status",
+        description: "Rejects a change request for Participant Status"
+    }, {
         privId: ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST,
         labelName: "Checks and creates a request for bulk Participant liquidity adjustment",
         description: "Checks and creates a request for bulk Participant liquidity adjustment"
