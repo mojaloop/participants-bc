@@ -216,9 +216,11 @@ export declare interface IParticipantStatusChangeRequest {
   isActive: boolean;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
+  rejectedBy: string | null;
+  rejectedDate: number | null;
   requestType: "CHANGE_PARTICIPANT_STATUS";
 }
 

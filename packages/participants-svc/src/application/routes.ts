@@ -145,6 +145,7 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id/sourceIps", this._sourceIpsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/sourceIpChangeRequests", this._participantSourceIpChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/approve", this._participantSourceIpChangeRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/reject", this._participantSourceIpChangeRequestReject.bind(this));
 
         // participant's contactInfo
         this._mainRouter.get("/participants/:id/contactInfo", this._contactInfoByParticipantId.bind(this));
@@ -692,6 +693,39 @@ export class ExpressRoutes {
 
         this._logger.debug(
             `Received request to approve sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.approveParticipantSourceIpChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantSourceIpChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
         );
 
         try {
