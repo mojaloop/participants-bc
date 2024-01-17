@@ -156,6 +156,7 @@ export class ExpressRoutes {
         // participant's status (isActive)
         this._mainRouter.post("/participants/:id/statusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/reject", this._participantStatusChangeRequestReject.bind(this));
 
         this._mainRouter.get("/searchKeywords/", this._getSearchKeywords.bind(this));
 
@@ -527,7 +528,7 @@ export class ExpressRoutes {
         );
 
         try {
-            await this._participantsAgg.approveParticipantContactInfoChangeRequest(
+            await this._participantsAgg.rejectParticipantContactInfoChangeRequest(
                 req.securityContext!,
                 id,
                 changeRequestId
@@ -593,11 +594,43 @@ export class ExpressRoutes {
         const id = req.params["id"] ?? null;
         const changeRequestId = req.params["changereqid"] ?? null;
         this._logger.debug(
-            `Received request to approve sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+            `Received request to approve status change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
         );
 
         try {
             await this._participantsAgg.approveParticipantStatusChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantStatusChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+        this._logger.debug(
+            `Received request to reject status change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantStatusChangeRequest(
                 req.securityContext!,
                 id,
                 changeRequestId
@@ -729,7 +762,7 @@ export class ExpressRoutes {
         );
 
         try {
-            await this._participantsAgg.approveParticipantSourceIpChangeRequest(
+            await this._participantsAgg.rejectParticipantSourceIpChangeRequest(
                 req.securityContext!,
                 id,
                 changeRequestId
