@@ -1356,8 +1356,8 @@ export class ParticipantAggregate {
         const now = Date.now();
 
         contactInfoChangeRequest.requestState = ApprovalRequestState.REJECTED;
-        contactInfoChangeRequest.approvedBy = secCtx.username;
-        contactInfoChangeRequest.approvedDate = Date.now();
+        contactInfoChangeRequest.rejectedBy = secCtx.username;
+        contactInfoChangeRequest.rejectedDate = Date.now();
 
         existing.changeLog.push(
             {
@@ -2858,9 +2858,9 @@ export class ParticipantAggregate {
 
         const now = Date.now();
 
-        fundsMov.requestState = ApprovalRequestState.REJECTED;
-        fundsMov.approvedBy = secCtx.username;
-        fundsMov.approvedDate = now;
+        fundsMov.requestState = ApprovalRequestState.REJECTED;      
+        fundsMov.rejectedBy = secCtx.username;
+        fundsMov.rejectedDate = now;
 
         const updateSuccess = await this._repo.store(participant);
         if (!updateSuccess) {
