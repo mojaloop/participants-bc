@@ -112,7 +112,7 @@ import {IAccountsBalancesAdapter} from "./iparticipant_account_balances_adapter"
 import {ParticipantPrivilegeNames} from "./privilege_names";
 import {IParticipantsRepository} from "./repo_interfaces";
 import {IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
-import { ParticipantSearchResults } from "./server_types";
+import { ParticipantSearchResults, BulkApprovalRequestResults } from "./server_types";
 
 enum AuditedActionNames {
     PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -3791,11 +3791,11 @@ export class ParticipantAggregate {
 
     }
 
-    async approveBulkPendingApprovalRequests(secCtx: CallSecurityContext, pendingApprovals: IParticipantPendingApproval): Promise<string[]> {
+    async approveBulkPendingApprovalRequests(secCtx: CallSecurityContext, pendingApprovals: IParticipantPendingApproval): Promise<BulkApprovalRequestResults[]> {
         try {
             this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PENDING_APPROVAL_BULK_REQUEST);
 
-            const messages: string[] = [];
+            const messages: BulkApprovalRequestResults[] = [];
 
             const accountsChangeRequest = pendingApprovals.accountsChangeRequest;
             if (accountsChangeRequest) {
@@ -3805,10 +3805,19 @@ export class ParticipantAggregate {
                         if (acChange.requestState === ApprovalRequestState.CREATED) {
                             message = `accountsChangeRequest approve participantId: ${acChange.participantId}, accountChangeId: ${acChange.id}`;
                             await this.approveParticipantAccountChangeRequest(secCtx, acChange.participantId, acChange.id);
+                            messages.push({
+                                reqId: acChange.id,
+                                status: "success",
+                                message: `Successful ${message}`,
+                            });
                         } // else will do reject process
                     } catch (err: any) {
                         this._logger.error((err as Error).message);
-                        messages.push(message + ` error: ${err.message}`);
+                        messages.push({
+                            reqId: acChange.id,
+                            status: "error",
+                            message: `${message} error: ${err.message}`,
+                        });
                     }
                 }
             }
@@ -3821,10 +3830,19 @@ export class ParticipantAggregate {
                         if (funMove.requestState === ApprovalRequestState.CREATED) {
                             message = `fundsMovementRequest approve participantId: ${funMove.participantId}, funMovementId: ${funMove.id}`;
                             await this.approveFundsMovement(secCtx, funMove.participantId, funMove.id);
+                            messages.push({
+                                reqId: funMove.id,
+                                status: "success",
+                                message: `Successful ${message}`,
+                            });
                         } // else will do reject process
                     } catch (err: any) {
                         this._logger.error((err as Error).message);
-                        messages.push(message + ` error: ${err.message}`);
+                        messages.push({
+                            reqId: funMove.id,
+                            status: "error",
+                            message: `${message} error: ${err.message}`,
+                        });
                     }
                 }
             }
@@ -3837,10 +3855,19 @@ export class ParticipantAggregate {
                         if (ndcChange.requestState === ApprovalRequestState.CREATED) {
                             message = `ndcChangeRequests approve participantId: ${ndcChange.participantId}, ndcChangeId: ${ndcChange.id}`;
                             await this.approveParticipantNetDebitCap(secCtx, ndcChange.participantId, ndcChange.id);
+                            messages.push({
+                                reqId: ndcChange.id,
+                                status: "success",
+                                message: `Successful ${message}`,
+                            });
                         } // else will do reject process
                     } catch (err: any) {
                         this._logger.error((err as Error).message);
-                        messages.push(message + ` error: ${err.message}`);
+                        messages.push({
+                            reqId: ndcChange.id,
+                            status: "error",
+                            message: `${message} error: ${err.message}`,
+                        });
                     }
                 }
             }
@@ -3853,10 +3880,19 @@ export class ParticipantAggregate {
                         if (ipChange.requestState === ApprovalRequestState.CREATED) {
                             message = `ipChangeRequests approve participantId: ${ipChange.participantId}, ipChangeId: ${ipChange.id}`;
                             await this.approveParticipantSourceIpChangeRequest(secCtx, ipChange.participantId, ipChange.id);
+                            messages.push({
+                                reqId: ipChange.id,
+                                status: "success",
+                                message: `Successful ${message}`,
+                            });
                         } // else will do reject process
                     } catch (err: any) {
                         this._logger.error((err as Error).message);
-                        messages.push(message + ` error: ${err.message}`);
+                        messages.push({
+                            reqId: ipChange.id,
+                            status: "error",
+                            message: `${message} error: ${err.message}`,
+                        });
                     }
                 }
             }
@@ -3869,10 +3905,19 @@ export class ParticipantAggregate {
                         if (contactChange.requestState === ApprovalRequestState.CREATED) {
                             message = `contactInfoChangeRequests approve participantId: ${contactChange.participantId}, contactChangeId: ${contactChange.id}`;
                             await this.approveParticipantContactInfoChangeRequest(secCtx, contactChange.participantId, contactChange.id);
+                            messages.push({
+                                reqId: contactChange.id,
+                                status: "success",
+                                message: `Successful ${message}`,
+                            });
                         } // else will do reject process
                     } catch (err: any) {
                         this._logger.error((err as Error).message);
-                        messages.push(message + ` error: ${err.message}`);
+                        messages.push({
+                            reqId: contactChange.id,
+                            status: "error",
+                            message: `${message} error: ${err.message}`,
+                        });
                     }
                 }
             }
@@ -3885,11 +3930,20 @@ export class ParticipantAggregate {
                         if (statusChange.requestState === ApprovalRequestState.CREATED) {
                             message = `statusChangeRequests approve participantId: ${statusChange.participantId}, statusChangeId: ${statusChange.id}`;
                             await this.approveParticipantStatusChangeRequest(secCtx, statusChange.participantId, statusChange.id);
+                            messages.push({
+                                reqId: statusChange.id,
+                                status: "success",
+                                message: `Successful ${message}`,
+                            });
                         } // else will do reject process
 
                     } catch (err: any) {
                         this._logger.error((err as Error).message);
-                        messages.push(message + ` error: ${err.message}`);
+                        messages.push({
+                            reqId: statusChange.id,
+                            status: "error",
+                            message: `${message} error: ${err.message}`,
+                        });
                     }
                 }
             }
