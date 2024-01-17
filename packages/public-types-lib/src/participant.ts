@@ -36,6 +36,7 @@
 // If changes are made in the master participant entities and enums, these should be updated
 
 import {
+  ApprovalRequestState,
   ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes,
   ParticipantChangeTypes,
   ParticipantEndpointProtocols,
@@ -91,9 +92,11 @@ export declare interface IParticipantNetDebitCapChangeRequest {
   id: string;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
+  rejectedBy: string | null;
+  rejectedDate: number | null;
 
   currencyCode: string;
   type: ParticipantNetDebitCapTypes;
@@ -111,14 +114,14 @@ export declare interface IParticipantFundsMovement {
   id: string;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
-
+  rejectedBy: string | null;
+  rejectedDate: number | null;
   direction: ParticipantFundsMovementDirections;
   currencyCode: string;
   amount: string;
-
   transferId: string | null;
   extReference: string | null;
   note: string | null;
@@ -136,9 +139,11 @@ export declare interface IParticipantSourceIpChangeRequest extends IParticipantA
   allowedSourceIpId: string | null;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
+  rejectedBy: string | null;
+  rejectedDate: number | null;
   requestType: "ADD_SOURCE_IP" | "CHANGE_SOURCE_IP"
 }
 
@@ -170,9 +175,11 @@ export declare interface IParticipantAccountChangeRequest {
   externalBankAccountName: string | null;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
+  rejectedBy: string | null;
+  rejectedDate: number | null;
   requestType: "ADD_ACCOUNT" | "CHANGE_ACCOUNT_BANK_DETAILS"
 }
 
@@ -196,9 +203,11 @@ export declare interface IParticipantContactInfoChangeRequest extends IParticipa
   contactInfoId: string | null;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
+  rejectedBy: string | null;
+  rejectedDate: number | null;
   requestType: "ADD_PARTICIPANT_CONTACT_INFO" | "CHANGE_PARTICIPANT_CONTACT_INFO";
 }
 
@@ -207,9 +216,11 @@ export declare interface IParticipantStatusChangeRequest {
   isActive: boolean;
   createdBy: string;
   createdDate: number;
-  approved: boolean;
+  requestState: ApprovalRequestState;
   approvedBy: string | null;
   approvedDate: number | null;
+  rejectedBy: string | null;
+  rejectedDate: number | null;
   requestType: "CHANGE_PARTICIPANT_STATUS";
 }
 

@@ -60,7 +60,8 @@ import {
     IParticipantLiquidityBalanceAdjustment,
     IParticipantPendingApprovalSummary,
     IParticipantPendingApproval,
-    IParticipantPendingApprovalCountByType
+    IParticipantPendingApprovalCountByType,
+    ApprovalRequestState
 } from "@mojaloop/participant-bc-public-types-lib";
 import {
     SettlementMatrixSettledEvt,
@@ -125,32 +126,40 @@ enum AuditedActionNames {
     PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED = "PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED",
     PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED",
     PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED = "PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED",
     PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED",
     PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED = "PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED",
     PARTICIPANT_ACCOUNT_REMOVED = "PARTICIPANT_ACCOUNT_REMOVED",
     PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED",
     PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_REJECTED = "PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_REJECTED",
     PARTICIPANT_SOURCE_IP_ADDED = "PARTICIPANT_SOURCE_IP_ADDED",
     PARTICIPANT_SOURCE_IP_CHANGED = "PARTICIPANT_SOURCE_IP_CHANGED",
     PARTICIPANT_SOURCE_IP_REMOVED = "PARTICIPANT_SOURCE_IP_REMOVED",
     PARTICIPANT_FUNDS_DEPOSIT_CREATED = "PARTICIPANT_FUNDS_DEPOSIT_CREATED",
     PARTICIPANT_FUNDS_DEPOSIT_APPROVED = "PARTICIPANT_FUNDS_DEPOSIT_APPROVED",
+    PARTICIPANT_FUNDS_DEPOSIT_REJECTED = "PARTICIPANT_FUNDS_DEPOSIT_REJECTED",
     PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED",
     PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CREATED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CREATED",
     PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED = "PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_APPROVED",
     PARTICIPANT_FUNDS_WITHDRAWAL_CREATED = "PARTICIPANT_FUNDS_WITHDRAWAL_CREATED",
     PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED = "PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED",
+    PARTICIPANT_FUNDS_WITHDRAWAL_REJECTED = "PARTICIPANT_FUNDS_WITHDRAWAL_REJECTED",
     PARTICIPANT_BULK_FUNDS_MOVEMENT_APPROVED = "PARTICIPANT_BULK_FUNDS_MOVEMENT_APPROVED",
     PARTICIPANT_NDC_CHANGE_REQUEST_CREATED = "PARTICIPANT_NDC_CHANGE_REQUEST_CREATED",
     PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED = "PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_NDC_CHANGE_REQUEST_REJECTED = "PARTICIPANT_NDC_CHANGE_REQUEST_REJECTED",
     PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT = "PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT",
     PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_CREATED = "PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_CREATED",
     PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED = "PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_REJECTED = "PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_REJECTED",
     PARTICIPANT_CONTACT_INFO_ADDED = "PARTICIPANT_CONTACT_INFO_ADDED",
     PARTICIPANT_CONTACT_INFO_CHANGED = "PARTICIPANT_CONTACT_INFO_CHANGED",
     PARTICIPANT_CONTACT_INFO_REMOVED = "PARTICIPANT_CONTACT_INFO_REMOVED",
     PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED = "PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED",
     PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED",
+    PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED = "PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED",
     PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED"
 }
 
@@ -1087,7 +1096,9 @@ export class ParticipantAggregate {
             role: contactInfoChangeRequest.role,
             createdBy: secCtx.username!,
             createdDate: Date.now(),
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
+            rejectedBy: null,
+            rejectedDate: null,
             approvedBy: null,
             approvedDate: null,
             requestType: contactInfoChangeRequest.requestType
@@ -1155,7 +1166,7 @@ export class ParticipantAggregate {
                 `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
             );
         }
-        if (contactInfoChangeRequest.approved) {
+        if (contactInfoChangeRequest.requestState == ApprovalRequestState.APPROVED) {
             throw new ContactInfoChangeRequestAlreadyApproved(
                 `Participant's contact info change request with id: ${contactInfoChangeRequestId} is already approved`
             );
@@ -1231,7 +1242,7 @@ export class ParticipantAggregate {
 
         const now = Date.now();
 
-        contactInfoChangeRequest.approved = true;
+        contactInfoChangeRequest.requestState = ApprovalRequestState.APPROVED;
         contactInfoChangeRequest.approvedBy = secCtx.username;
         contactInfoChangeRequest.approvedDate = Date.now();
 
@@ -1242,11 +1253,11 @@ export class ParticipantAggregate {
                 timestamp: now,
                 notes: null,
             }, {
-            changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
-            user: secCtx.username!,
-            timestamp: now + 1,
-            notes: null,
-        }
+                changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
+                user: secCtx.username!,
+                timestamp: now + 1,
+                notes: null,
+            }
         );
 
         const updateSuccess = await this._repo.store(existing);
@@ -1289,6 +1300,102 @@ export class ParticipantAggregate {
         return contactInfoChangeRequest.contactInfoId;
     }
 
+    async rejectParticipantContactInfoChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        contactInfoChangeRequestId: string
+    ): Promise<string | null> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
+
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
+
+        const contactInfoChangeRequest = existing.participantContactInfoChangeRequests.find(
+            (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
+        );
+        if (!contactInfoChangeRequest) {
+            throw new ContactInfoChangeRequestNotFound(
+                `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
+            );
+        }
+        if (contactInfoChangeRequest.requestState == ApprovalRequestState.REJECTED) {
+            throw new ContactInfoChangeRequestAlreadyApproved(
+                `Participant's contact info change request with id: ${contactInfoChangeRequestId} is already rejected`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+        if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                ParticipantChangeTypes.ADD_CONTACT_INFO,
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and reject participant contact info change request."
+            );
+        }
+
+        const now = Date.now();
+
+        contactInfoChangeRequest.requestState = ApprovalRequestState.REJECTED;
+        contactInfoChangeRequest.rejectedBy = secCtx.username;
+        contactInfoChangeRequest.rejectedDate = Date.now();
+
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.REJECT_SOURCE_IP_REQUEST,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            }, {
+            changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
+            user: secCtx.username!,
+            timestamp: now + 1,
+            notes: null,
+        }
+        );
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on rejecting participant's contact info."
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully rejected contact info change request with id: ${contactInfoChangeRequest.contactInfoId} to Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_REJECTED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        return contactInfoChangeRequest.contactInfoId;
+    }
+
     /*
      * Participant Status
      * */
@@ -1324,9 +1431,11 @@ export class ParticipantAggregate {
             isActive: participantStatusChangeRequest.isActive,
             createdBy: secCtx.username!,
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: participantStatusChangeRequest.requestType
         });
 
@@ -1386,7 +1495,7 @@ export class ParticipantAggregate {
                 `Cannot find a participant's status change request with id: ${changeRequestId}.`
             );
         }
-        if (statusChangeRequest.approved) {
+        if (statusChangeRequest.requestState === ApprovalRequestState.APPROVED) {
             throw new ParticipantStatusChangeRequestAlreadyApproved(
                 `Participant's status change request with id: ${changeRequestId} is already approved.`
             );
@@ -1417,7 +1526,7 @@ export class ParticipantAggregate {
 
         const now = Date.now();
 
-        statusChangeRequest.approved = true;
+        statusChangeRequest.requestState = ApprovalRequestState.APPROVED;
         statusChangeRequest.approvedBy = secCtx.username;
         statusChangeRequest.approvedDate = Date.now();
 
@@ -1472,6 +1581,101 @@ export class ParticipantAggregate {
 
         await this._messageProducer.send(event);
 
+        return statusChangeRequest.id;
+    }
+
+    async rejectParticipantStatusChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        changeRequestId: string,
+        note: string = ""
+    ): Promise<string | null> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_STATUS_CHANGE_REQUEST);
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError( `Participant with ID: '${participantId}' not found.`);
+        }
+
+        const statusChangeRequest = existing.participantStatusChangeRequests.find(
+            (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
+        );
+
+        if (!statusChangeRequest) {
+            throw new ParticipantStatusChangeRequestNotFound(
+                `Cannot find a participant's status change request with id: ${changeRequestId}.`
+            );
+        }
+
+        if (statusChangeRequest.requestState === ApprovalRequestState.APPROVED) {
+            throw new ParticipantStatusChangeRequestAlreadyApproved(
+                `Participant's status change request with id: ${changeRequestId} is already approved.`
+            );
+        }
+
+        if (statusChangeRequest.requestState == ApprovalRequestState.REJECTED) {
+            throw new ParticipantStatusChangeRequestAlreadyApproved(
+                `Participant's status change request with id: ${changeRequestId} is already rejected.`
+            );
+        }
+
+        if (secCtx && statusChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and reject participant status change request."
+            );
+        }
+
+        const now = Date.now();
+
+        statusChangeRequest.requestState = ApprovalRequestState.REJECTED;
+        statusChangeRequest.rejectedBy = secCtx.username;
+        statusChangeRequest.rejectedDate = Date.now();
+
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.REJECT_PARTICIPANT_STATUS_REQUEST,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            },{
+                changeType: (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
+        );
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not reject participant status change request."
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully rejected participant's status change request with id: ${statusChangeRequest.id} to Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+        
         return statusChangeRequest.id;
     }
 
@@ -1536,7 +1740,9 @@ export class ParticipantAggregate {
             portRange: sourceIpChangeRequest.portRange,
             createdBy: secCtx.username!,
             createdDate: Date.now(),
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
+            rejectedBy: null,
+            rejectedDate: null,
             approvedBy: null,
             approvedDate: null,
             requestType: sourceIpChangeRequest.requestType
@@ -1606,7 +1812,7 @@ export class ParticipantAggregate {
                 `Cannot find a participant's sourceIP change request with id: ${soureIPChangeRequest}`
             );
         }
-        if (soureIPChangeRequest.approved) {
+        if (soureIPChangeRequest.requestState === ApprovalRequestState.APPROVED) {
             throw new SourceIpChangeRequestAlreadyApproved(
                 `Participant's sourceIP change request with id: ${soureIPChangeRequest} is already approved`
             );
@@ -1672,7 +1878,7 @@ export class ParticipantAggregate {
 
         const now = Date.now();
 
-        soureIPChangeRequest.approved = true;
+        soureIPChangeRequest.requestState = ApprovalRequestState.APPROVED;
         soureIPChangeRequest.approvedBy = secCtx.username;
         soureIPChangeRequest.approvedDate = Date.now();
 
@@ -1682,10 +1888,10 @@ export class ParticipantAggregate {
                 user: secCtx.username!,
                 timestamp: now,
                 notes: null,
-            },{
-                changeType: (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
+            }, {
+                changeType: (soureIPChangeRequest.requestType === "ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
                 user: secCtx.username!,
-                timestamp: now+1,
+                timestamp: now + 1,
                 notes: null,
             }
         );
@@ -1693,7 +1899,7 @@ export class ParticipantAggregate {
         const updateSuccess = await this._repo.store(existing);
         if (!updateSuccess) {
             const err = new CouldNotStoreParticipant(
-                "Could not update participant on addParticipantSourceIP"
+                "Could not update participant on approveParticipantSourceIPChangeRequest"
             );
             this._logger.error(err);
             throw err;
@@ -1729,6 +1935,110 @@ export class ParticipantAggregate {
         return soureIPChangeRequest.allowedSourceIpId;
     }
 
+    async rejectParticipantSourceIpChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        sourceIpChangeRequestId: string
+    ): Promise<string | null> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+        if (!participantId)
+            throw new InvalidParticipantError("[id] cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        }
+
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
+
+        const soureIPChangeRequest = existing.participantSourceIpChangeRequests.find(
+            (value: IParticipantSourceIpChangeRequest) => value.id === sourceIpChangeRequestId
+        );
+        if (!soureIPChangeRequest) {
+            throw new SourceIpChangeRequestNotFound(
+                `Cannot find a participant's sourceIP change request with id: ${soureIPChangeRequest}`
+            );
+        }
+
+        if (soureIPChangeRequest.requestState === ApprovalRequestState.APPROVED) {
+            throw new SourceIpChangeRequestAlreadyApproved(
+                `Participant's sourceIP change request with id: ${soureIPChangeRequest} is already approved`
+            );
+        }
+
+        if (soureIPChangeRequest.requestState === ApprovalRequestState.REJECTED) {
+            throw new SourceIpChangeRequestAlreadyApproved(
+                `Participant's sourceIP change request with id: ${soureIPChangeRequest} is already rejected`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+        if (secCtx && soureIPChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                ParticipantChangeTypes.ADD_SOURCE_IP,
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and reject participant sourceIP change request"
+            );
+        }
+
+        const now = Date.now();
+
+        soureIPChangeRequest.requestState = ApprovalRequestState.REJECTED;
+        soureIPChangeRequest.rejectedBy = secCtx.username;
+        soureIPChangeRequest.rejectedDate = Date.now();
+
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.REJECT_SOURCE_IP_REQUEST,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            },{
+                changeType: (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
+        );
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on rejectParticipantSourceIPChangeRequest"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        this._logger.info(
+            `Successfully rejected sourceIP change request with id: ${soureIPChangeRequest.allowedSourceIpId} to Participant with ID: '${participantId}'`
+        );
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_REJECTED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+       
+        return soureIPChangeRequest.id;
+    }
+
     /*
      * Accounts
      * */
@@ -1753,7 +2063,6 @@ export class ParticipantAggregate {
             this._logger.error(err);
             throw err;
         }
-
 
         const existing: IParticipant | null = await this._repo.fetchWhereId(
             participantId
@@ -1796,7 +2105,7 @@ export class ParticipantAggregate {
             (value: IParticipantAccountChangeRequest) =>
                 value.type === accountChangeRequest.type &&
                 value.currencyCode === accountChangeRequest.currencyCode &&
-                value.approved != true // TODO this should change to a 3 state field
+                value.requestState === accountChangeRequest.requestState // TODO this should change to a 3 state field
         )){
             throw new DuplicateRequestFoundError(
                 "Account create request with the same information exists already"
@@ -1812,9 +2121,11 @@ export class ParticipantAggregate {
             externalBankAccountName: accountChangeRequest.externalBankAccountName,
             createdBy: secCtx.username!,
             createdDate: Date.now(),
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: accountChangeRequest.requestType
         });
         existing.changeLog.push({
@@ -1848,6 +2159,110 @@ export class ParticipantAggregate {
         return accountChangeRequest.id;
     }
 
+    async rejectParticipantAccountChangeRequest(
+        secCtx: CallSecurityContext,
+        participantId: string,
+        accountChangeRequestId: string
+    ): Promise<string | null> {
+        if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+        if (!existing) {
+            throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+        }
+        if (!existing.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
+
+        const accountChangeRequest = existing.participantAccountsChangeRequest.find(
+            (value: IParticipantAccountChangeRequest) => value.id === accountChangeRequestId
+        );
+        if (!accountChangeRequest) {
+            throw new AccountChangeRequestNotFound(
+                `Cannot find a participant's account change request with id: ${accountChangeRequestId}`
+            );
+        }
+
+        if (accountChangeRequest.requestState === ApprovalRequestState.APPROVED) {
+            throw new AccountChangeRequestAlreadyApproved(
+                `Participant's account change request with id: ${accountChangeRequestId} is already approved`
+            );
+        }
+
+        if (accountChangeRequest.requestState === ApprovalRequestState.REJECTED) {
+            throw new AccountChangeRequestAlreadyApproved(
+                `Participant's account change request with id: ${accountChangeRequestId} is already rejected`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_CREATION_REQUEST);
+        }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+            this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST);
+        }else{
+            const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+            this._logger.error(err);
+            throw err;
+        }
+
+        if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                    AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED),
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and reject participant account change request"
+            );
+        }
+
+        const now = Date.now();
+
+        accountChangeRequest.requestState = ApprovalRequestState.REJECTED;
+        accountChangeRequest.rejectedBy = secCtx.username;
+        accountChangeRequest.rejectedDate = now;
+
+        existing.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_REJECTED,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            },{
+                changeType: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                    ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
+                user: secCtx.username!,
+                timestamp: now+1,
+                notes: null,
+            }
+        );
+
+        const updateSuccess = await this._repo.store(existing);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on addParticipantAccount"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+
+        await this._auditClient.audit(
+            (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
+                AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED),
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+            
+        return accountChangeRequest.accountId;
+    }
+
     async approveParticipantAccountChangeRequest(
         secCtx: CallSecurityContext,
         participantId: string,
@@ -1876,7 +2291,7 @@ export class ParticipantAggregate {
 
 
 
-        if (accountChangeRequest.approved) {
+        if (accountChangeRequest.requestState === ApprovalRequestState.APPROVED) {
             throw new AccountChangeRequestAlreadyApproved(
                 `Participant's account change request with id: ${accountChangeRequestId} is already approved`
             );
@@ -1980,7 +2395,7 @@ export class ParticipantAggregate {
 
         const now = Date.now();
 
-        accountChangeRequest.approved = true;
+        accountChangeRequest.requestState = ApprovalRequestState.APPROVED;
         accountChangeRequest.approvedBy = secCtx.username;
         accountChangeRequest.approvedDate = now;
 
@@ -2174,7 +2589,9 @@ export class ParticipantAggregate {
             currencyCode: fundsMov.currencyCode,
             note: fundsMov.note,
             extReference: fundsMov.extReference,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
+            rejectedBy:null,
+            rejectedDate: null,
             approvedBy: null,
             approvedDate: null,
             transferId: null,
@@ -2223,7 +2640,7 @@ export class ParticipantAggregate {
                 `Cannot find a participant's funds movement with id: ${fundsMovId}`
             );
         }
-        if (fundsMov.approved) {
+        if (fundsMov.requestState == ApprovalRequestState.APPROVED) {
             throw new AccountNotFoundError(
                 `Participant's funds movement with id: ${fundsMovId} is already approved`
             );
@@ -2331,7 +2748,7 @@ export class ParticipantAggregate {
             throw error;
         });
 
-        fundsMov.approved = true;
+        fundsMov.requestState = ApprovalRequestState.APPROVED;
         fundsMov.approvedBy = secCtx.username;
         fundsMov.approvedDate = now;
 
@@ -2377,6 +2794,94 @@ export class ParticipantAggregate {
         const event = new ParticipantChangedEvt(payload);
 
         await this._messageProducer.send(event);
+
+        return;
+    }
+
+    async rejectFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string): Promise<void> {
+        if (!participantId)
+            throw new ParticipantNotFoundError("participantId cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+        const participant: IParticipant | null = await this._repo.fetchWhereId(
+            participantId
+        );
+        if (!participant) {
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        }
+
+        const fundsMov = participant.fundsMovements.find(
+            (value: IParticipantFundsMovement) => value.id === fundsMovId
+        );
+        if (!fundsMov) {
+            throw new AccountNotFoundError(
+                `Cannot find a participant's funds movement with id: ${fundsMovId}`
+            );
+        }
+        if (fundsMov.requestState == ApprovalRequestState.APPROVED) {
+            throw new AccountNotFoundError(
+                `Participant's funds movement with id: ${fundsMovId} is already approved`
+            );
+        }
+
+        if (fundsMov.requestState == ApprovalRequestState.REJECTED) {
+            throw new AccountNotFoundError(
+                `Participant's funds movement with id: ${fundsMovId} is already rejected`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        this._enforcePrivilege(
+            secCtx,
+            fundsMov.direction === "FUNDS_DEPOSIT"
+                ? ParticipantPrivilegeNames.REJECT_FUNDS_DEPOSIT
+                : ParticipantPrivilegeNames.REJECT_FUNDS_WITHDRAWAL
+        );
+
+
+        if (secCtx && fundsMov.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                fundsMov.direction === "FUNDS_DEPOSIT"
+                    ? "FUNDS_DEPOSIT"
+                    : "FUNDS_WITHDRAWAL",
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and reject participant a funds movement"
+            );
+        }
+
+        const now = Date.now();
+
+        fundsMov.requestState = ApprovalRequestState.REJECTED;      
+        fundsMov.rejectedBy = secCtx.username;
+        fundsMov.rejectedDate = now;
+
+        const updateSuccess = await this._repo.store(participant);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on rejectFundsMovement"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+        await this._auditClient.audit(
+            fundsMov.direction === "FUNDS_DEPOSIT"
+                ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_REJECTED
+                : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_REJECTED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+
+        /* const actionName = fundsMov.direction === "FUNDS_DEPOSIT" ? "Deposit" : "Withdrawal";
+        await this._updateNdcForParticipants([participant], `Funds movement rejected (${actionName})`); */
 
         return;
     }
@@ -2441,7 +2946,9 @@ export class ParticipantAggregate {
             currencyCode: netDebitCapChangeRequest.currencyCode,
             note: netDebitCapChangeRequest.note,
             extReference: netDebitCapChangeRequest.extReference,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
+            rejectedBy: null,
+            rejectedDate: null,
             approvedBy: null,
             approvedDate: null
         });
@@ -2464,7 +2971,6 @@ export class ParticipantAggregate {
 
         return;
     }
-
 
     private _calculateParticipantPercentageNetDebitCap(ndcFixed: number, ndcPercentage: number | null, liqAccBalance: number, type: "ABSOLUTE" | "PERCENTAGE"): number {
         let finalNDCAmount: number;
@@ -2509,7 +3015,7 @@ export class ParticipantAggregate {
                 `Cannot find a participant's NDC change request with id: ${ndcReqId}`
             );
         }
-        if (netDebitCapChange.approved) {
+        if (netDebitCapChange.requestState == ApprovalRequestState.APPROVED) {
             throw new NdcChangeRequestAlreadyApproved(
                 `Participant's NDC change request with id: ${ndcReqId} is already approved`
             );
@@ -2584,7 +3090,7 @@ export class ParticipantAggregate {
             found.currentValue = finalNDCAmount;
         }
 
-        netDebitCapChange.approved = true;
+        netDebitCapChange.requestState = ApprovalRequestState.APPROVED;
         netDebitCapChange.approvedBy = secCtx.username;
         netDebitCapChange.approvedDate = now;
 
@@ -2620,6 +3126,98 @@ export class ParticipantAggregate {
         const event = new ParticipantChangedEvt(payload);
 
         await this._messageProducer.send(event);
+
+        return;
+    }
+
+    async rejectParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
+        if (!participantId)
+            throw new ParticipantNotFoundError("participantId cannot be empty");
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+        const participant: IParticipant | null = await this._repo.fetchWhereId(
+            participantId
+        );
+        if (!participant) {
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+        }
+
+        if (!participant.isActive) {
+            throw new InvalidParticipantStatusError(
+                `Participant with ID: '${participantId}' is not active.`
+            );
+        }
+
+        const netDebitCapChange = participant.netDebitCapChangeRequests.find(
+            (value: IParticipantNetDebitCapChangeRequest) => value.id === ndcReqId
+        );
+        if (!netDebitCapChange) {
+            throw new NdcChangeRequestNotFound(
+                `Cannot find a participant's NDC change request with id: ${ndcReqId}`
+            );
+        }
+
+        if (netDebitCapChange.requestState == ApprovalRequestState.APPROVED) {
+            throw new NdcChangeRequestAlreadyApproved(
+                `Participant's NDC change request with id: ${ndcReqId} is already approved`
+            );
+        }
+
+        if (netDebitCapChange.requestState == ApprovalRequestState.REJECTED) {
+            throw new NdcChangeRequestAlreadyApproved(
+                `Participant's NDC change request with id: ${ndcReqId} is already rejected`
+            );
+        }
+
+        // now we can enforce the correct privilege
+        this._enforcePrivilege(
+            secCtx,
+            ParticipantPrivilegeNames.REJECT_NDC_CHANGE_REQUEST
+        );
+
+        if (secCtx && netDebitCapChange.createdBy === secCtx.username) {
+            await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_REJECTED,
+                false,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and approve participant a NDC change request"
+            );
+        }
+
+        const now = Date.now();
+
+        netDebitCapChange.requestState = ApprovalRequestState.REJECTED;
+        netDebitCapChange.rejectedBy = secCtx.username;
+        netDebitCapChange.rejectedDate = now;
+
+        /* participant.changeLog.push({
+            changeType: ParticipantChangeTypes.NDC_CHANGE,
+            user: secCtx.username!,
+            timestamp: now,
+            notes: "rejected NDC change",
+        }); */
+
+        const updateSuccess = await this._repo.store(participant);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on rejectParticipantNetDebitCap"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_REJECTED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
 
         return;
     }
@@ -2980,7 +3578,9 @@ export class ParticipantAggregate {
                     id: randomUUID(),
                     createdBy: secCtx.username!,
                     createdDate: Date.now(),
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     approvedBy: null,
                     approvedDate: null,
                     direction: obj.direction as ParticipantFundsMovementDirections,
@@ -3025,7 +3625,7 @@ export class ParticipantAggregate {
                 .map(value => {
                     if (value.participantAccountsChangeRequest) {
                         return value.participantAccountsChangeRequest.filter(
-                            accountsChange => accountsChange.approved === false
+                            accountsChange => accountsChange.requestState === ApprovalRequestState.CREATED
                         ).length;
                     } else {
                         return 0;
@@ -3035,7 +3635,7 @@ export class ParticipantAggregate {
             fundsMovementRequest = participants.map(value => {
                 if (value.fundsMovements) {
                     return value.fundsMovements.filter(
-                        (movement: { approved: boolean; }) => movement.approved === false
+                        (movement: { requestState: ApprovalRequestState; }) => movement.requestState === ApprovalRequestState.CREATED
                     ).length;
                 } else {
                     return 0;
@@ -3045,7 +3645,7 @@ export class ParticipantAggregate {
             ndcChangeRequests = participants.map(value => {
                 if (value.netDebitCapChangeRequests) {
                     return value.netDebitCapChangeRequests.filter(
-                        (ndcChange: { approved: boolean; }) => ndcChange.approved === false
+                        (ndcChange: { requestState: ApprovalRequestState; }) => ndcChange.requestState === ApprovalRequestState.CREATED
                     ).length;
                 } else {
                     return 0;
@@ -3055,7 +3655,7 @@ export class ParticipantAggregate {
             ipChangeRequests = participants.map(value => {
                 if (value.participantSourceIpChangeRequests) {
                     return value.participantSourceIpChangeRequests.filter(
-                        (ipChange: { approved: boolean; }) => ipChange.approved === false
+                        (ipChange: { requestState: ApprovalRequestState; }) => ipChange.requestState === ApprovalRequestState.CREATED
                     ).length;
                 } else {
                     return 0;
@@ -3065,7 +3665,7 @@ export class ParticipantAggregate {
             contactInfoChangeRequests = participants.map(value => {
                 if (value.participantContactInfoChangeRequests) {
                     return value.participantContactInfoChangeRequests.filter(
-                        (contactInfoChange: { approved: boolean; }) => contactInfoChange.approved === false
+                        (contactInfoChange: { requestState: ApprovalRequestState; }) => contactInfoChange.requestState === ApprovalRequestState.CREATED
                     ).length;
                 } else {
                     return 0;
@@ -3075,7 +3675,7 @@ export class ParticipantAggregate {
             statusChangeRequests = participants.map(value => {
                 if (value.participantStatusChangeRequests) {
                     return value.participantStatusChangeRequests.filter(
-                        (statusChange: { approved: boolean; }) => statusChange.approved === false
+                        (statusChange: { requestState: ApprovalRequestState; }) => statusChange.requestState === ApprovalRequestState.CREATED
                     ).length;
                 } else {
                     return 0;
@@ -3117,7 +3717,7 @@ export class ParticipantAggregate {
                 .flatMap(({ id: participantId, name: participantName, ...value }) => {
                     if (value.participantAccountsChangeRequest) {
                         return value.participantAccountsChangeRequest.filter(
-                            accountsChange => accountsChange.approved === false
+                            accountsChange => accountsChange.requestState === ApprovalRequestState.REJECTED
                         ).map(data => ({ ...data, participantId, participantName }));
                     } else {
                         return [];
@@ -3127,7 +3727,7 @@ export class ParticipantAggregate {
             const fundsMovementRequest = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                 if (value.fundsMovements) {
                     return value.fundsMovements.filter(
-                        (movement: { approved: boolean; }) => movement.approved === false
+                        (movement: { requestState: ApprovalRequestState; }) => movement.requestState === ApprovalRequestState.CREATED
                     ).map(data => ({ ...data, participantId, participantName }));
                 } else {
                     return [];
@@ -3137,7 +3737,7 @@ export class ParticipantAggregate {
             const ndcChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                 if (value.netDebitCapChangeRequests) {
                     return value.netDebitCapChangeRequests.filter(
-                        (ndcChange: { approved: boolean; }) => ndcChange.approved === false
+                        (ndcChange: { requestState: ApprovalRequestState; }) => ndcChange.requestState === ApprovalRequestState.CREATED
                     ).map(data => ({ ...data, participantId, participantName }));
                 } else {
                     return [];
@@ -3147,7 +3747,7 @@ export class ParticipantAggregate {
             const ipChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                 if (value.participantSourceIpChangeRequests) {
                     return value.participantSourceIpChangeRequests.filter(
-                        (ipChange: { approved: boolean; }) => ipChange.approved === false
+                        (ipChange: { requestState: ApprovalRequestState; }) => ipChange.requestState === ApprovalRequestState.CREATED
                     ).map(data => ({ ...data, participantId, participantName }));
                 } else {
                     return [];
@@ -3157,7 +3757,7 @@ export class ParticipantAggregate {
             const contactInfoChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                 if (value.participantContactInfoChangeRequests) {
                     return value.participantContactInfoChangeRequests.filter(
-                        (contactInfoChange: { approved: boolean; }) => contactInfoChange.approved === false
+                        (contactInfoChange: { requestState: ApprovalRequestState; }) => contactInfoChange.requestState === ApprovalRequestState.CREATED
                     ).map(data => ({ ...data, participantId, participantName }));
                 } else {
                     return [];
@@ -3167,7 +3767,7 @@ export class ParticipantAggregate {
             const statusChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                 if (value.participantStatusChangeRequests) {
                     return value.participantStatusChangeRequests.filter(
-                        (statusChange: { approved: boolean; }) => statusChange.approved === false
+                        (statusChange: { requestState: ApprovalRequestState; }) => statusChange.requestState === ApprovalRequestState.CREATED
                     ).map(data => ({ ...data, participantId, participantName }));
                 } else {
                     return [];
@@ -3202,7 +3802,7 @@ export class ParticipantAggregate {
                 for (const acChange of accountsChangeRequest) {
                     let message = "";
                     try {
-                        if (acChange.approved === true) {
+                        if (acChange.requestState === ApprovalRequestState.CREATED) {
                             message = `accountsChangeRequest approve participantId: ${acChange.participantId}, accountChangeId: ${acChange.id}`;
                             await this.approveParticipantAccountChangeRequest(secCtx, acChange.participantId, acChange.id);
                             messages.push({
@@ -3227,8 +3827,8 @@ export class ParticipantAggregate {
                 for (const funMove of fundsMovementRequest) {
                     let message = "";
                     try {
-                        if (funMove.approved === true) {
-                            message = `fundsMovementRequest approve participantId: ${funMove.participantId}, fundsMovementId: ${funMove.id}`;
+                        if (funMove.requestState === ApprovalRequestState.CREATED) {
+                            message = `fundsMovementRequest approve participantId: ${funMove.participantId}, funMovementId: ${funMove.id}`;
                             await this.approveFundsMovement(secCtx, funMove.participantId, funMove.id);
                             messages.push({
                                 reqId: funMove.id,
@@ -3252,7 +3852,7 @@ export class ParticipantAggregate {
                 for (const ndcChange of ndcChangeRequests) {
                     let message = "";
                     try {
-                        if (ndcChange.approved === true) {
+                        if (ndcChange.requestState === ApprovalRequestState.CREATED) {
                             message = `ndcChangeRequests approve participantId: ${ndcChange.participantId}, ndcChangeId: ${ndcChange.id}`;
                             await this.approveParticipantNetDebitCap(secCtx, ndcChange.participantId, ndcChange.id);
                             messages.push({
@@ -3277,7 +3877,7 @@ export class ParticipantAggregate {
                 for (const ipChange of ipChangeRequests) {
                     let message = "";
                     try {
-                        if (ipChange.approved === true) {
+                        if (ipChange.requestState === ApprovalRequestState.CREATED) {
                             message = `ipChangeRequests approve participantId: ${ipChange.participantId}, ipChangeId: ${ipChange.id}`;
                             await this.approveParticipantSourceIpChangeRequest(secCtx, ipChange.participantId, ipChange.id);
                             messages.push({
@@ -3302,7 +3902,7 @@ export class ParticipantAggregate {
                 for (const contactChange of contactInfoChangeRequests) {
                     let message = "";
                     try {
-                        if (contactChange.approved === true) {
+                        if (contactChange.requestState === ApprovalRequestState.CREATED) {
                             message = `contactInfoChangeRequests approve participantId: ${contactChange.participantId}, contactChangeId: ${contactChange.id}`;
                             await this.approveParticipantContactInfoChangeRequest(secCtx, contactChange.participantId, contactChange.id);
                             messages.push({
@@ -3327,7 +3927,7 @@ export class ParticipantAggregate {
                 for (const statusChange of statusChangeRequests) {
                     let message = "";
                     try {
-                        if (statusChange.approved === true) {
+                        if (statusChange.requestState === ApprovalRequestState.CREATED) {
                             message = `statusChangeRequests approve participantId: ${statusChange.participantId}, statusChangeId: ${statusChange.id}`;
                             await this.approveParticipantStatusChangeRequest(secCtx, statusChange.participantId, statusChange.id);
                             messages.push({

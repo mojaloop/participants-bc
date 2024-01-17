@@ -128,35 +128,35 @@ export class ExpressRoutes {
         this._mainRouter.get("/participants/:id/accounts", this._accountsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/accountChangeRequest", this._participantAccountCreateChangeRequest.bind(this));
         this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/approve", this._participantAccountApproveChangeRequest.bind(this));
+        this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/reject", this._participantAccountRejectChangeRequest.bind(this));
         // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
 
         // funds management
         this._mainRouter.post("/participants/:id/funds", this._participantFundsMovCreate.bind(this));
-        this._mainRouter.post(
-            "/participants/:id/funds/:fundsMovId/approve",
-            this._participantFundsMovApprove.bind(this)
-        );
+        this._mainRouter.post("/participants/:id/funds/:fundsMovId/approve", this._participantFundsMovApprove.bind(this));
+        this._mainRouter.post("/participants/:id/funds/:fundsMovId/reject", this._participantFundsMovReject.bind(this));
 
         // net debit cap management
         this._mainRouter.post("/participants/:id/ndcChangeRequests", this._participantNetDebitCapCreate.bind(this));
-        this._mainRouter.post(
-            "/participants/:id/ndcchangerequests/:ndcReqId/approve",
-            this._participantNetDebitCapApprove.bind(this)
-        );
+        this._mainRouter.post("/participants/:id/ndcchangerequests/:ndcReqId/approve",this._participantNetDebitCapApprove.bind(this));
+        this._mainRouter.post("/participants/:id/ndcchangerequests/:ndcReqId/reject",this._participantNetDebitCapReject.bind(this));
 
         // particpant's sourceIPs
         this._mainRouter.get("/participants/:id/sourceIps", this._sourceIpsByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/sourceIpChangeRequests", this._participantSourceIpChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/approve", this._participantSourceIpChangeRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/reject", this._participantSourceIpChangeRequestReject.bind(this));
 
         // participant's contactInfo
         this._mainRouter.get("/participants/:id/contactInfo", this._contactInfoByParticipantId.bind(this));
         this._mainRouter.post("/participants/:id/contactInfoChangeRequests", this._participantContactInfoChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/approve", this._participantContactInfoChangeRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/reject", this._participantContactInfoChangeRequestReject.bind(this));
 
         // participant's status (isActive)
         this._mainRouter.post("/participants/:id/statusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/reject", this._participantStatusChangeRequestReject.bind(this));
 
         this._mainRouter.get("/searchKeywords/", this._getSearchKeywords.bind(this));
 
@@ -519,6 +519,39 @@ export class ExpressRoutes {
         }
     }
 
+    private async _participantContactInfoChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to approve contact info change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantContactInfoChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
     /*
      * Participant Status
      * */
@@ -561,11 +594,43 @@ export class ExpressRoutes {
         const id = req.params["id"] ?? null;
         const changeRequestId = req.params["changereqid"] ?? null;
         this._logger.debug(
-            `Received request to approve sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+            `Received request to approve status change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
         );
 
         try {
             await this._participantsAgg.approveParticipantStatusChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantStatusChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+        this._logger.debug(
+            `Received request to reject status change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantStatusChangeRequest(
                 req.securityContext!,
                 id,
                 changeRequestId
@@ -688,6 +753,39 @@ export class ExpressRoutes {
         }
     }
 
+    private async _participantSourceIpChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const changeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantSourceIpChangeRequest(
+                req.securityContext!,
+                id,
+                changeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
     /*
      * Accounts
      * */
@@ -769,6 +867,39 @@ export class ExpressRoutes {
 
         try {
             await this._participantsAgg.approveParticipantAccountChangeRequest(
+                req.securityContext!,
+                id,
+                accountChangeRequestId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantAccountRejectChangeRequest(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const accountChangeRequestId = req.params["changereqid"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject account change request for participant with ID: ${id} and accountChangeRequestId: ${accountChangeRequestId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantAccountChangeRequest(
                 req.securityContext!,
                 id,
                 accountChangeRequestId
@@ -1026,6 +1157,39 @@ export class ExpressRoutes {
         }
     }
 
+    private async _participantFundsMovReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const fundsMovId = req.params["fundsMovId"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject a funds movement for participant with ID: ${id} and fundsMovId: ${fundsMovId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectFundsMovement(
+                req.securityContext!,
+                id,
+                fundsMovId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
     private async _participantNetDebitCapCreate(req: express.Request, res: express.Response): Promise<void> {
         const id = req.params["id"] ?? null;
         const netDebitCapChangeRequest: IParticipantNetDebitCapChangeRequest = req.body;
@@ -1071,6 +1235,39 @@ export class ExpressRoutes {
 
         try {
             await this._participantsAgg.approveParticipantNetDebitCap(
+                req.securityContext!,
+                id,
+                ndcReqId
+            );
+            res.send();
+        } catch (err: any) {
+            if (this._handleUnauthorizedError(err, res)) return;
+
+            if (err instanceof ParticipantNotActive) {
+                res.status(422).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            } else {
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
+        }
+    }
+
+    private async _participantNetDebitCapReject(req: express.Request, res: express.Response): Promise<void> {
+        const id = req.params["id"] ?? null;
+        const ndcReqId = req.params["ndcReqId"] ?? null;
+
+        this._logger.debug(
+            `Received request to reject an NDC change request for participant with ID: ${id} and ndcReqId: ${ndcReqId}`
+        );
+
+        try {
+            await this._participantsAgg.rejectParticipantNetDebitCap(
                 req.securityContext!,
                 id,
                 ndcReqId
