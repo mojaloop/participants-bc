@@ -3808,8 +3808,7 @@
                                  status: "success",
                                  message: `Successfully approved request id: ${changeReq.id} of ${changeReq.participantId}`,
                              });
-                         }
-                         catch(err: any){
+                         }catch(err: any){
                              this._logger.error((err as Error).message);
                              messages.push({
                                  reqId: changeReq.id,
@@ -3928,8 +3927,7 @@
                                  status: "success",
                                  message: `Successfully rejected request id: ${changeReq.id} of ${changeReq.participantId}`,
                              });
-                         }
-                         catch(err: any){
+                         }catch(err: any){
                              this._logger.error((err as Error).message);
                              messages.push({
                                  reqId: changeReq.id,
