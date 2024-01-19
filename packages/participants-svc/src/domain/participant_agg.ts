@@ -3063,7 +3063,7 @@ export class ParticipantAggregate {
         const ndcFixedValue = netDebitCapChange.fixedValue || 0;
         if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && ndcFixedValue > currentBalance) {
             throw new InvalidNdcChangeRequest(
-                `The NDC amount should not be greater than the account's balance.`
+                "The NDC amount should not be greater than the account's balance."
             );
         }
 
