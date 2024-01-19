@@ -3060,6 +3060,13 @@ export class ParticipantAggregate {
 
         const currentBalance: number = Number(account.balance || 0);
 
+        const ndcFixedValue = netDebitCapChange.fixedValue || 0;
+        if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && ndcFixedValue > currentBalance) {
+            throw new InvalidNdcChangeRequest(
+                `The NDC amount should not be greater than the account's balance.`
+            );
+        }
+
         const finalNDCAmount = this._calculateParticipantPercentageNetDebitCap(
             netDebitCapChange.fixedValue || 0,
             netDebitCapChange.percentage || 0,
