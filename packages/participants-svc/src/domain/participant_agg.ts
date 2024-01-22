@@ -2892,12 +2892,12 @@
          netDebitCapChangeRequest: IParticipantNetDebitCapChangeRequest
      ) {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_NDC_CHANGE_REQUEST);
- 
+
          if (!participantId)
              throw new ParticipantNotFoundError("participantId cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
+         if (participantId === HUB_PARTICIPANT_ID)
              throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+
          if (!netDebitCapChangeRequest.currencyCode) throw new Error("currencyCode cannot be empty");
          if (netDebitCapChangeRequest.type === "PERCENTAGE" &&
              !(typeof netDebitCapChangeRequest.percentage === "number" && netDebitCapChangeRequest.percentage >= 0 && netDebitCapChangeRequest.percentage <= 100)) {
@@ -2907,7 +2907,7 @@
              && (netDebitCapChangeRequest.fixedValue === null || netDebitCapChangeRequest.fixedValue == undefined)) {
              throw new Error("Invalid fixed value");
          }
- 
+
          const participant: IParticipant | null = await this._repo.fetchWhereId(
              participantId
          );
@@ -2916,13 +2916,13 @@
                  `Participant with ID: '${participantId}' not found.`
              );
          }
- 
+
          if (!participant.isActive) {
              throw new InvalidParticipantStatusError(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
- 
+
          const settlementAccount = participant.participantAccounts.find(
              (value: IParticipantAccount) =>
                  value.currencyCode === netDebitCapChangeRequest.currencyCode &&
@@ -2933,7 +2933,7 @@
                  `Cannot find a participant's settlement account for currency: ${netDebitCapChangeRequest.currencyCode}`
              );
          }
- 
+
          const now = Date.now();
          if (!participant.netDebitCapChangeRequests) participant.netDebitCapChangeRequests = [];
          participant.netDebitCapChangeRequests.push({
@@ -2952,7 +2952,7 @@
              approvedBy: null,
              approvedDate: null
          });
- 
+
          const updateSuccess = await this._repo.store(participant);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -2961,17 +2961,17 @@
              this._logger.error(err);
              throw err;
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_CREATED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          return;
      }
- 
+
      private _calculateParticipantPercentageNetDebitCap(ndcFixed: number, ndcPercentage: number | null, liqAccBalance: number, type: "ABSOLUTE" | "PERCENTAGE"): number {
          let finalNDCAmount: number;
          if (type === ParticipantNetDebitCapTypes.ABSOLUTE && ndcFixed !== null) {
@@ -2982,16 +2982,16 @@
          } else {
              throw new InvalidNdcChangeRequest("Invalid participant's NDC definition");
          }
- 
+
          return Math.max(Math.min(finalNDCAmount, liqAccBalance), 0);
      }
- 
+
      async approveParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
          if (!participantId)
              throw new ParticipantNotFoundError("participantId cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
+         if (participantId === HUB_PARTICIPANT_ID)
              throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+
          const participant: IParticipant | null = await this._repo.fetchWhereId(
              participantId
          );
@@ -3000,13 +3000,13 @@
                  `Participant with ID: '${participantId}' not found.`
              );
          }
- 
+
          if (!participant.isActive) {
              throw new InvalidParticipantStatusError(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
- 
+
          const netDebitCapChange = participant.netDebitCapChangeRequests.find(
              (value: IParticipantNetDebitCapChangeRequest) => value.id === ndcReqId
          );
@@ -3020,13 +3020,13 @@
                  `Participant's NDC change request with id: ${ndcReqId} is already approved`
              );
          }
- 
+
          // now we can enforce the correct privilege
          this._enforcePrivilege(
              secCtx,
              ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST
          );
- 
+
          if (secCtx && netDebitCapChange.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED,
@@ -3038,69 +3038,99 @@
                  "Maker check violation - Same user cannot create and approve participant a NDC change request"
              );
          }
- 
-         // find accounts
-         const settlementAccount = participant.participantAccounts.find(
-             (value: IParticipantAccount) =>
-                 value.currencyCode === netDebitCapChange.currencyCode &&
-                 value.type === "SETTLEMENT"
-         );
+
+         const findParticipantAccount = (type: string) => {
+             return participant.participantAccounts.find(
+                 (value: IParticipantAccount) =>
+                     value.currencyCode === netDebitCapChange.currencyCode && value.type === type
+
+             );
+         };
+
+         const settlementAccount = findParticipantAccount("SETTLEMENT");
+         const positionAccount = findParticipantAccount("POSITION");
+
          if (!settlementAccount) {
-             throw new AccountNotFoundError(
-                 `Cannot find a participant's settlement account for currency: ${netDebitCapChange.currencyCode}`
-             );
+             throw new AccountNotFoundError(`Cannot find a participant's settlement account for currency: ${netDebitCapChange.currencyCode}`);
+
+
          }
- 
-         const account = await this._accBal.getAccount(settlementAccount.id);
-         if (!account) {
-             throw new AccountNotFoundError(
-                 `Could not get participant's settlement account with id: ${settlementAccount.id} from accounts and balances`
-             );
+
+         const getAccountBalance = async (account: IParticipantAccount) => {
+             const accBalAccount = await this._accBal.getAccount(account.id);
+             if (!accBalAccount) {
+                 throw new AccountNotFoundError(`Could not get participant's ${account.type} account with id: ${account.id} from accounts and balances`);
+
+
+             }
+             return Number(accBalAccount.balance);
+         };
+
+         const accBalSettlementAccountBalance = await getAccountBalance(settlementAccount);
+         const accBalPositionAccountBalance = positionAccount ? await getAccountBalance(positionAccount) : undefined;
+
+         const currentBalance: number = accBalSettlementAccountBalance;
+
+         // Check if requested ndc fixed or percentage value is more than balance
+         const maxBalance = accBalPositionAccountBalance !== undefined && accBalPositionAccountBalance < 0
+             ? accBalSettlementAccountBalance + accBalPositionAccountBalance
+             : accBalSettlementAccountBalance;
+
+         const checkNdcValue = (ndcValue: number, errorMessage: string) => {
+             if (maxBalance <= ndcValue) {
+                 throw new InvalidNdcChangeRequest(errorMessage);
+             }
+         };
+
+         if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE) {
+             const ndcFixedValue = netDebitCapChange.fixedValue || 0;
+             checkNdcValue(ndcFixedValue, "The NDC amount should not be greater than or same as the account's balance.");
+         } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE) {
+             const ndcPercentageValue = (Number(netDebitCapChange.percentage) / 100) * maxBalance;
+             checkNdcValue(ndcPercentageValue, "The NDC percentage should not be greater than or same as the account's balance.");
          }
- 
-         const currentBalance: number = Number(account.balance || 0);
- 
+
          const finalNDCAmount = this._calculateParticipantPercentageNetDebitCap(
              netDebitCapChange.fixedValue || 0,
              netDebitCapChange.percentage || 0,
              currentBalance,
              netDebitCapChange.type
          );
- 
+
          const now = Date.now();
- 
+
          if (!participant.netDebitCaps) participant.netDebitCaps = [];
- 
+
          const found = participant.netDebitCaps.find(
              (value) =>
                  value.currencyCode === netDebitCapChange.currencyCode
          );
- 
+
          if (!found) {
              participant.netDebitCaps.push({
                  currencyCode: netDebitCapChange.currencyCode,
                  type: netDebitCapChange.type as ParticipantNetDebitCapTypes,
-                 percentage: netDebitCapChange.percentage,
-                 currentValue: finalNDCAmount
+                 percentage: netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE ? netDebitCapChange.percentage : 0,
+                 currentValue: netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE ? finalNDCAmount : 0
              });
          } else {
              found.currencyCode = netDebitCapChange.currencyCode;
              found.type = netDebitCapChange.type as ParticipantNetDebitCapTypes;
-             found.percentage = netDebitCapChange.percentage;
-             found.currentValue = finalNDCAmount;
+             found.percentage = netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE ? netDebitCapChange.percentage : 0;
+             found.currentValue = netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE ? finalNDCAmount : 0;
          }
- 
+
          netDebitCapChange.requestState = ApprovalRequestState.APPROVED;
          netDebitCapChange.approvedBy = secCtx.username;
          netDebitCapChange.approvedDate = now;
- 
+
          participant.changeLog.push({
              changeType: ParticipantChangeTypes.NDC_CHANGE,
              user: secCtx.username!,
              timestamp: now,
              notes: "approved NDC change",
          });
- 
+
          const updateSuccess = await this._repo.store(participant);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -3109,33 +3139,33 @@
              this._logger.error(err);
              throw err;
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for NDC change
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName: AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_APPROVED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
          return;
      }
- 
+
      async rejectParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
          if (!participantId)
              throw new ParticipantNotFoundError("participantId cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
+         if (participantId === HUB_PARTICIPANT_ID)
              throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+
          const participant: IParticipant | null = await this._repo.fetchWhereId(
              participantId
          );
@@ -3144,13 +3174,13 @@
                  `Participant with ID: '${participantId}' not found.`
              );
          }
- 
+
          if (!participant.isActive) {
              throw new InvalidParticipantStatusError(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
- 
+
          const netDebitCapChange = participant.netDebitCapChangeRequests.find(
              (value: IParticipantNetDebitCapChangeRequest) => value.id === ndcReqId
          );
@@ -3159,25 +3189,25 @@
                  `Cannot find a participant's NDC change request with id: ${ndcReqId}`
              );
          }
- 
+
          if (netDebitCapChange.requestState == ApprovalRequestState.APPROVED) {
              throw new NdcChangeRequestAlreadyApproved(
                  `Participant's NDC change request with id: ${ndcReqId} is already approved`
              );
          }
- 
+
          if (netDebitCapChange.requestState == ApprovalRequestState.REJECTED) {
              throw new NdcChangeRequestAlreadyApproved(
                  `Participant's NDC change request with id: ${ndcReqId} is already rejected`
              );
          }
- 
+
          // now we can enforce the correct privilege
          this._enforcePrivilege(
              secCtx,
              ParticipantPrivilegeNames.REJECT_NDC_CHANGE_REQUEST
          );
- 
+
          if (secCtx && netDebitCapChange.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_REJECTED,
@@ -3186,23 +3216,23 @@
                  [{ key: "participantId", value: participantId }]
              );
              throw new MakerCheckerViolationError(
-                 "Maker check violation - Same user cannot create and approve participant a NDC change request"
+                 "Maker check violation - Same user cannot create and reject participant a NDC change request"
              );
          }
- 
+
          const now = Date.now();
- 
+
          netDebitCapChange.requestState = ApprovalRequestState.REJECTED;
          netDebitCapChange.rejectedBy = secCtx.username;
          netDebitCapChange.rejectedDate = now;
- 
+
          /* participant.changeLog.push({
              changeType: ParticipantChangeTypes.NDC_CHANGE,
              user: secCtx.username!,
              timestamp: now,
              notes: "rejected NDC change",
          }); */
- 
+
          const updateSuccess = await this._repo.store(participant);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -3211,14 +3241,14 @@
              this._logger.error(err);
              throw err;
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_NDC_CHANGE_REQUEST_REJECTED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          return;
      }
  
