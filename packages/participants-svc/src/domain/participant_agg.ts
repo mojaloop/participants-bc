@@ -3039,32 +3039,50 @@ export class ParticipantAggregate {
             );
         }
 
-        // find accounts
-        const settlementAccount = participant.participantAccounts.find(
-            (value: IParticipantAccount) =>
-                value.currencyCode === netDebitCapChange.currencyCode &&
-                value.type === "SETTLEMENT"
-        );
+        const findParticipantAccount = (type: string) => {
+            return participant.participantAccounts.find(
+                (value: IParticipantAccount) =>
+                    value.currencyCode === netDebitCapChange.currencyCode && value.type === type
+            );
+        };
+        
+        const settlementAccount = findParticipantAccount("SETTLEMENT");
+        const positionAccount = findParticipantAccount("POSITION");
+        
         if (!settlementAccount) {
-            throw new AccountNotFoundError(
-                `Cannot find a participant's settlement account for currency: ${netDebitCapChange.currencyCode}`
-            );
+            throw new AccountNotFoundError(`Cannot find a participant's settlement account for currency: ${netDebitCapChange.currencyCode}`);
         }
-
-        const account = await this._accBal.getAccount(settlementAccount.id);
-        if (!account) {
-            throw new AccountNotFoundError(
-                `Could not get participant's settlement account with id: ${settlementAccount.id} from accounts and balances`
-            );
-        }
-
-        const currentBalance: number = Number(account.balance || 0);
-
-        const ndcFixedValue = netDebitCapChange.fixedValue || 0;
-        if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE && ndcFixedValue > currentBalance) {
-            throw new InvalidNdcChangeRequest(
-                "The NDC amount should not be greater than the account's balance."
-            );
+        
+        const getAccountBalance = async (account: IParticipantAccount) => {
+            const accBalAccount = await this._accBal.getAccount(account.id);
+            if (!accBalAccount) {
+                throw new AccountNotFoundError(`Could not get participant's ${account.type} account with id: ${account.id} from accounts and balances`);
+            }
+            return Number(accBalAccount.balance);
+        };
+        
+        const accBalSettlementAccountBalance = await getAccountBalance(settlementAccount);
+        const accBalPositionAccountBalance = positionAccount ? await getAccountBalance(positionAccount) : undefined;
+        
+        const currentBalance: number = accBalSettlementAccountBalance;
+        
+        // Check if requested ndc fixed or percentage value is more than balance
+        const maxBalance = accBalPositionAccountBalance !== undefined && accBalPositionAccountBalance < 0
+            ? accBalSettlementAccountBalance + accBalPositionAccountBalance
+            : accBalSettlementAccountBalance;
+        
+        const checkNdcValue = (ndcValue: number, errorMessage: string) => {
+            if (maxBalance <= ndcValue) {
+                throw new InvalidNdcChangeRequest(errorMessage);
+            }
+        };
+        
+        if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE) {
+            const ndcFixedValue = netDebitCapChange.fixedValue || 0;
+            checkNdcValue(ndcFixedValue, "The NDC amount should not be greater than or same as the account's balance.");
+        } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE) {
+            const ndcPercentageValue = (Number(netDebitCapChange.percentage) / 100) * maxBalance;
+            checkNdcValue(ndcPercentageValue, "The NDC percentage should not be greater than or same as the account's balance.");
         }
 
         const finalNDCAmount = this._calculateParticipantPercentageNetDebitCap(
@@ -3087,14 +3105,14 @@ export class ParticipantAggregate {
             participant.netDebitCaps.push({
                 currencyCode: netDebitCapChange.currencyCode,
                 type: netDebitCapChange.type as ParticipantNetDebitCapTypes,
-                percentage: netDebitCapChange.percentage,
-                currentValue: finalNDCAmount
+                percentage: netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE? netDebitCapChange.percentage: 0,
+                currentValue: netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE? finalNDCAmount: 0
             });
         } else {
             found.currencyCode = netDebitCapChange.currencyCode;
             found.type = netDebitCapChange.type as ParticipantNetDebitCapTypes;
-            found.percentage = netDebitCapChange.percentage;
-            found.currentValue = finalNDCAmount;
+            found.percentage = netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE? netDebitCapChange.percentage: 0;
+            found.currentValue = netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE? finalNDCAmount: 0;
         }
 
         netDebitCapChange.requestState = ApprovalRequestState.APPROVED;
@@ -3193,7 +3211,7 @@ export class ParticipantAggregate {
                 [{ key: "participantId", value: participantId }]
             );
             throw new MakerCheckerViolationError(
-                "Maker check violation - Same user cannot create and approve participant a NDC change request"
+                "Maker check violation - Same user cannot create and reject participant a NDC change request"
             );
         }
 
