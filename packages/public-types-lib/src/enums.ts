@@ -32,9 +32,15 @@
 
 
 //NOTE: reflect any changes to this enum in public-types-lib IParticipant
-export enum ParticipantTypes{
+export enum ParticipantTypes {
 	"HUB"= "HUB",
-	"DFSP" = "DFSP"
+	"DFSP" = "DFSP",
+    "MFI" = "MFI",
+    "FXP" = "FXP",
+    "BANK" = "BANK",
+    "NBANK" = "NBANK",
+    "CBANK" = "CBANK",
+    "FINT" = "FINT"
 }
 
 //NOTE: reflect any changes to this enum in public-types-lib IParticipantFundsMovement
