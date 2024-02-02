@@ -35,12 +35,7 @@
 export enum ParticipantTypes {
 	"HUB"= "HUB",
 	"DFSP" = "DFSP",
-    "MFI" = "MFI",
-    "FXP" = "FXP",
-    "BANK" = "BANK",
-    "NBANK" = "NBANK",
-    "CBANK" = "CBANK",
-    "FINT" = "FINT"
+    "FXP" = "FXP"
 }
 
 //NOTE: reflect any changes to this enum in public-types-lib IParticipantFundsMovement
@@ -131,5 +126,5 @@ export enum ParticipantChangeTypes {
 export enum ApprovalRequestState {
 	CREATED = "CREATED",
     APPROVED = "APPROVED",
-    REJECTED = "REJECTED" 
+    REJECTED = "REJECTED"
 }
