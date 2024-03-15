@@ -38,6 +38,7 @@ import { ExpressRoutes } from "../../src/application/routes";
 import { ConsoleLogger, ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import { ParticipantAggregate } from "../../src/domain/participant_agg";
 import request from "supertest";
+
 import {
     MemoryConfigClientMock,
     ParticipantsRepoMock,
@@ -52,7 +53,7 @@ import {
     mockedInactiveParticipant,
 } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-lib";
-import { HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfo, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantPendingApproval, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
+import { ApprovalRequestState, HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantPendingApproval, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
 import { Server } from "http";
 import ExcelJS from "exceljs";
 
@@ -66,7 +67,7 @@ const AUTH_TOKEN = "bearer: MOCKTOKEN";
 const authTokenUrl = "mocked_auth_url";
 const hasPrivilege = true;
 
-const server = process.env["PARTICIPANTS_SVC_URL"] || `http://localhost:${SVC_DEFAULT_HTTP_PORT}`;
+const participantSvcUrl = process.env["PARTICIPANTS_SVC_URL"] || `http://localhost:${SVC_DEFAULT_HTTP_PORT}`;
 
 // Create necessary mocks
 const logger: ILogger = new ConsoleLogger();
@@ -89,6 +90,10 @@ describe("Participants Routes - Unit Test", () => {
         app = express();
         app.use(express.json()); // for parsing application/json
         app.use(express.urlencoded({extended: true})); // for parsing application/x-www-form-urlencoded
+
+        //Create mock anb accounts
+        await accAndBalAdapterMock.createAccount("1","1234","POSITION","USD");
+        await accAndBalAdapterMock.createAccount("2","1234", "SETTLEMENT","USD");
 
         participantAgg = new ParticipantAggregate(
             configClientMock,
@@ -137,12 +142,12 @@ describe("Participants Routes - Unit Test", () => {
     });
 
     
-    test("Return error when invalid access token", async () => {
+    it("Return error when invalid access token", async () => {
         // Arrange
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce(null);
         
         // Act 
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants`)
             .set("authorization", AUTH_TOKEN);
 
@@ -150,12 +155,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(401);
     });
 
-    test("Return error when no necessary privilege", async () => {
+    it("Return error when no necessary privilege", async () => {
         // Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants`)
             .set("authorization", AUTH_TOKEN);
 
@@ -163,9 +168,9 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("GET /participants - Should return an array of participants", async () => {
+    it("GET /participants - Should return an array of participants", async () => {
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants`)
             .set("authorization", AUTH_TOKEN);
 
@@ -176,12 +181,12 @@ describe("Participants Routes - Unit Test", () => {
     });
 
     /** Participants */
-    test("GET /participants - Should throw an error if cannot fetch participants", async () => {
+    it("GET /participants - Should throw an error if cannot fetch participants", async () => {
         // Arrange
         jest.spyOn(repoPartMock, "searchParticipants").mockRejectedValueOnce(new Error("Error fetching participants"));
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants`)
             .set("authorization", AUTH_TOKEN);
 
@@ -189,12 +194,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("GET /participants/:ids/multi - Should fetch an array of participants by their ids", async () => {
+    it("GET /participants/:ids/multi - Should fetch an array of participants by their ids", async () => {
         // Arrange
         const participantIds = `${mockedParticipantHub.id},${mockedParticipant1}`;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantIds}/multi`)
             .set("authorization", AUTH_TOKEN);
 
@@ -204,13 +209,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.body.length).toBe(1);
     });
 
-    test("GET /participants/:ids/multi - Should throw an error if cannot fetch participants by their ids", async () => {
+    it("GET /participants/:ids/multi - Should throw an error if cannot fetch participants by their ids", async () => {
         // Arrange
         const participantIds = `${mockedParticipantHub.id},${mockedParticipant1}`;
         jest.spyOn(repoPartMock, "fetchWhereIds").mockRejectedValueOnce(new Error("Error fetching participants with ids"));
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantIds}/multi`)
             .set("authorization", AUTH_TOKEN);
 
@@ -218,12 +223,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("GET /participants/:id - Should fetch a participants by id", async () => {
+    it("GET /participants/:id - Should fetch a participants by id", async () => {
         // Arrange
         const participantId = mockedParticipantHub.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}`)
             .set("authorization", AUTH_TOKEN);
 
@@ -232,13 +237,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.body.id).toEqual(participantId);
     });
 
-    test("GET /participants/:id - Should throw an error if cannot fetch participant by id", async () => {
+    it("GET /participants/:id - Should throw an error if cannot fetch participant by id", async () => {
         // Arrange
         const participantId = mockedParticipantHub.id;
         jest.spyOn(repoPartMock, "fetchWhereId").mockRejectedValueOnce(new Error("Error fetching participant with id"));
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}`)
             .set("authorization", AUTH_TOKEN);
 
@@ -246,12 +251,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants - Should be able to create a participant", async () => {
+    it("POST /participants - Should be able to create a participant", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants`)
             .send(participant1)
             .set("authorization", AUTH_TOKEN);
@@ -260,13 +265,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants - Should return error if name is empty", async () => {
+    it("POST /participants - Should throw ParticipantCreateValidationError if name is empty", async () => {
         // Arrange
         const participant1 = { ...mockedParticipant1 };
         participant1.name = "";
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants`)
             .send(participant1)
             .set("authorization", AUTH_TOKEN);
@@ -275,12 +280,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(400);
     });
 
-    test("POST /participants - Should return error if type is HUB", async () => {
+    it("POST /participants - Should return error if type is HUB", async () => {
         // Arrange
         const participantHub = { ...mockedParticipantHub };
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants`)
             .send(participantHub)
             .set("authorization", AUTH_TOKEN);
@@ -289,12 +294,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(400);
     });
 
-    test("POST /participants - Should return error if try to create with duplicate name", async () => {
+    it("POST /participants - Should return error if try to create with duplicate name", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants`)
             .send(participant1)
             .set("authorization", AUTH_TOKEN);
@@ -303,13 +308,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(400);
     });
 
-    test("POST /participants - Should return error if id is the same as Hub's id", async () => {
+    it("POST /participants - Should return error if id is the same as Hub's id", async () => {
         // Arrange
         const participant2 = { ...mockedParticipant2 };
         participant2.id = HUB_PARTICIPANT_ID;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants`)
             .send(participant2)
             .set("authorization", AUTH_TOKEN);
@@ -318,13 +323,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(400);
     });
 
-    test("POST /participants - Should return error if try to create with duplicate id", async () => {
+    it("POST /participants - Should return error if try to create with duplicate id", async () => {
         // Arrange
         const participant2 = { ...mockedParticipant2 };
         participant2.id = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants`)
             .send(participant2)
             .set("authorization", AUTH_TOKEN);
@@ -333,12 +338,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(400);
     });
 
-    test("PUT /participants/:id/approve - Should return error if try to approve with same user", async () => {
+    it("PUT /participants/:id/approve - Should return error if try to approve with same user", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${participantId}/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -346,12 +351,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("PUT /participants/:id/approve - Should return error if try to approve a hub participant", async () => {
+    it("PUT /participants/:id/approve - Should return error if try to approve a hub participant", async () => {
         // Arrange
         const participantId = "hub";
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${participantId}/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -359,7 +364,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("PUT /participants/:id/approve - Should be able to approve a participant", async () => {
+    it("PUT /participants/:id/approve - Should be able to approve a participant", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
@@ -370,7 +375,7 @@ describe("Participants Routes - Unit Test", () => {
         });
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${participantId}/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -378,12 +383,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/:id/endpoints - Should add an endpoint to the participant", async () => {
+    it("POST /participants/:id/endpoints - Should add an endpoint to the participant", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant1.id}/endpoints`)
             .send(participant1.participantEndpoints[0])
             .set("authorization", AUTH_TOKEN);
@@ -394,12 +399,12 @@ describe("Participants Routes - Unit Test", () => {
 
     //**Participant's Endpoint */
 
-    test("GET /participants/:id/endpoints - Should return an array of participant endpoints", async () => {
+    it("GET /participants/:id/endpoints - Should return an array of participant endpoints", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/endpoints`)
             .set("authorization", AUTH_TOKEN);
 
@@ -409,13 +414,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.body.length).toBe(1);
     });
 
-    test("GET /participants/:id/endpoints -Should handle unauthorized error", async () => {
+    it("GET /participants/:id/endpoints -Should handle unauthorized error", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/endpoints`)
             .set("authorization", AUTH_TOKEN);
 
@@ -423,12 +428,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("GET /participants/:id/endpoints - Should return 404 if the participant is not found", async () => {
+    it("GET /participants/:id/endpoints - Should return 404 if the participant is not found", async () => {
         // Arrange
         const nonExistingParticipant= "none";
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${nonExistingParticipant}/endpoints`)
             .set("authorization", AUTH_TOKEN);
 
@@ -436,7 +441,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(404);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should update a participant endpoints and return status to be 200", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should update a participant endpoints and return status to be 200", async () => {
         // Arrange
 
         const participant:IParticipant = {
@@ -451,7 +456,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${participant.id}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
             .send(modifiedParticipantEndpointData);
@@ -460,7 +465,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 404 if participantId is null or empty", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 404 if participantId is null or empty", async () => {
         // Arrange
         const emptyParticipantId = "";
         const nullParticipantId = null;
@@ -471,12 +476,12 @@ describe("Participants Routes - Unit Test", () => {
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
             .send(modifiedParticipantEndpointData);
 
-        const response2 = await request(server)
+        const response2 = await request(participantSvcUrl)
         .put(`/participants/${nullParticipantId}/endpoints/${endpointId}`)
         .set("authorization", AUTH_TOKEN)
         .send(modifiedParticipantEndpointData);
@@ -486,7 +491,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response2.status).toBe(404);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participantId is hub participantId", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participantId is hub participantId", async () => {
         // Arrange
         const emptyParticipantId = "hub";
         const endpointId = mockedParticipant1.participantEndpoints[0].id;
@@ -496,7 +501,7 @@ describe("Participants Routes - Unit Test", () => {
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
             .send(modifiedParticipantEndpointData);
@@ -505,7 +510,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if the participant is not active", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if the participant is not active", async () => {
         // Arrange
         const emptyParticipantId = mockedInactiveParticipant.id;
         const endpointId = "1";
@@ -516,7 +521,7 @@ describe("Participants Routes - Unit Test", () => {
 
         repoPartMock.store(mockedInactiveParticipant);
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
             .send(modifiedParticipantEndpointData);
@@ -525,7 +530,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if endpointId not found in participantEndpoints", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if endpointId not found in participantEndpoints", async () => {
         // Arrange
         const emptyParticipantId = mockedParticipant1.id;
         const endpointId = "4";//Non existing endpoint
@@ -539,7 +544,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(mockedParticipant1);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .put(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
             .send(modifiedParticipantEndpointData);
@@ -548,7 +553,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should remove a participant endpoint", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should remove a participant endpoint", async () => {
         // Arrange
         const emptyParticipantId = mockedParticipant1.id;
         const endpointId = "1";
@@ -556,7 +561,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(mockedParticipant1);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
 
@@ -564,7 +569,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 404 on empty participantId", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 404 on empty participantId", async () => {
         // Arrange
         const emptyParticipantId = "5";
         const endpointId = "1";
@@ -572,7 +577,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(mockedParticipant1);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
 
@@ -580,13 +585,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(404);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participantId is hub participantId", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participantId is hub participantId", async () => {
         // Arrange
         const emptyParticipantId = "hub";
         const endpointId = "1";
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
 
@@ -594,7 +599,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participant is not active", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participant is not active", async () => {
         // Arrange
         const emptyParticipantId = mockedInactiveParticipant.id;
         const endpointId = "1";
@@ -602,7 +607,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(mockedInactiveParticipant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
 
@@ -611,7 +616,7 @@ describe("Participants Routes - Unit Test", () => {
         
     });
 
-    test("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if given endpointId not found.", async () => {
+    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if given endpointId not found.", async () => {
         // Arrange
         const emptyParticipantId = mockedParticipant1.id;
         const endpointId = "none"; //Non existing endpointId
@@ -619,7 +624,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(mockedInactiveParticipant);
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
 
@@ -629,12 +634,12 @@ describe("Participants Routes - Unit Test", () => {
     
     /**Participant's Accounts */
 
-    test("GET /participants/:id/accounts - Should return an array of participant accounts", async () => {
+    it("GET /participants/:id/accounts - Should return an array of participant accounts", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/accounts`)
             .set("authorization", AUTH_TOKEN);
 
@@ -643,13 +648,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(Array.isArray(response.body)).toBe(true);
     });
 
-    test("GET /participants/:id/accounts - Should handle unauthorized error", async () => {
+    it("GET /participants/:id/accounts - Should handle unauthorized error", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/accounts`)
             .set("authorization", AUTH_TOKEN);
 
@@ -657,7 +662,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/accountChangeRequest - Should be able to create a participant account change request", async () => {
+    it("POST /participants/:id/accountChangeRequest - Should be able to create a participant account change request", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -670,14 +675,16 @@ describe("Participants Routes - Unit Test", () => {
             externalBankAccountName: "",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_ACCOUNT"
         }
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/accountChangeRequest`)
             .send(participantAccount)
             .set("authorization", AUTH_TOKEN);
@@ -686,7 +693,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/:id/accountchangerequests/:changereqid/approve - Should update account change request status to true", async () => {
+    it("POST /participants/:id/accountchangerequests/:changereqid/approve - Should update account requestState to 'APPROVED'", async () => {
         // Arrange
         
         const participantId = "2";
@@ -706,9 +713,11 @@ describe("Participants Routes - Unit Test", () => {
                     externalBankAccountName: "",
                     createdBy: "user",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     requestType: "ADD_ACCOUNT"
                 }
             ]
@@ -717,7 +726,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/accountchangerequests/${accountChangeRequestId}/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -725,11 +734,11 @@ describe("Participants Routes - Unit Test", () => {
         const accountChangeRequest = fetchedParticipant?.participantAccountsChangeRequest.find((item)=> item.id === "1");
         // Assert
         expect(response.status).toBe(200);
-        expect(accountChangeRequest?.approved).toBe(true);
+        expect(accountChangeRequest?.requestState).toBe(ApprovalRequestState.APPROVED);
 
     });
 
-    test("POST /participants/:id/accountchangerequests/:changereqid/approve - Should return status 422 on approving participant account change request approval if participant is not active", async () => {
+    it("POST /participants/:id/accountchangerequests/:changereqid/approve - Should return status 422 on approving participant account change request approval if participant is not active", async () => {
         // Arrange
         
         const participantId = "2";
@@ -750,9 +759,11 @@ describe("Participants Routes - Unit Test", () => {
                     externalBankAccountName: "",
                     createdBy: "user",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     requestType: "ADD_ACCOUNT"
                 }
             ]
@@ -761,19 +772,15 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/accountchangerequests/${accountChangeRequestId}/approve`)
             .set("authorization", AUTH_TOKEN);
 
-        const fetchedParticipant = await repoPartMock.fetchWhereId("2");
-        const accountChangeRequest = fetchedParticipant?.participantAccountsChangeRequest.find((item)=> item.id === "1");
         // Assert
         expect(response.status).toBe(422);
-        expect(accountChangeRequest?.approved).toBe(false);
-
     });
 
-    test("POST /participants/:id/accountchangerequests/:changereqid/approve - Should return status 500 on non-existing accountChangeRequestId", async () => {
+    it("POST /participants/:id/accountchangerequests/:changereqid/approve - Should return status 500 on non-existing accountChangeRequestId", async () => {
         // Arrange
         
         const participantId = "1";
@@ -792,9 +799,11 @@ describe("Participants Routes - Unit Test", () => {
                     externalBankAccountName: "",
                     createdBy: "user",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     requestType: "ADD_ACCOUNT"
                 }
             ]
@@ -805,7 +814,7 @@ describe("Participants Routes - Unit Test", () => {
         const nonExistingAccChangeReq = "none";
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/accountchangerequests/${nonExistingAccChangeReq}/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -813,7 +822,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/accountchangerequests/:changereqid/approve - Should not be able to approve an already approved request", async () => {
+    it("POST /participants/:id/accountchangerequests/:changereqid/approve - Should not be able to approve an already approved request", async () => {
         // Arrange
         
         const participantId = "1";
@@ -833,9 +842,11 @@ describe("Participants Routes - Unit Test", () => {
                     externalBankAccountName: "",
                     createdBy: "user",
                     createdDate: now,
-                    approved: true,
+                    requestState: ApprovalRequestState.APPROVED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     requestType: "ADD_ACCOUNT"
                 }
             ]
@@ -844,7 +855,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/accountchangerequests/${accountChangeRequestId}/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -855,12 +866,12 @@ describe("Participants Routes - Unit Test", () => {
     
     /**Contact Info */
 
-    test("GET /participants/:id/contactInfo - Should return an array of participant contact info", async () => {
+    it("GET /participants/:id/contactInfo - Should return an array of participant contact info", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/contactInfo`)
             .set("authorization", AUTH_TOKEN);
 
@@ -869,13 +880,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(Array.isArray(response.body)).toBe(true);
     });
     
-    test("GET /participants/:id/contactInfo - Should handle unauthorize error", async () => {
+    it("GET /participants/:id/contactInfo - Should handle unauthorize error", async () => {
         // Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         const participantId = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/contactInfo`)
             .set("authorization", AUTH_TOKEN);
 
@@ -883,7 +894,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/contactInfoChangeRequests - Should create a participant contact info", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests - Should create a participant contact info", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -896,13 +907,15 @@ describe("Participants Routes - Unit Test", () => {
             contactInfoId: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_PARTICIPANT_CONTACT_INFO"
         }
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/contactInfoChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(contactInfo);
@@ -912,7 +925,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.body).toHaveProperty("id");
     });
 
-    test("POST /participants/:id/contactInfoChangeRequests - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests - Should handle unauthorized error", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -927,13 +940,15 @@ describe("Participants Routes - Unit Test", () => {
             contactInfoId: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_PARTICIPANT_CONTACT_INFO"
         }
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/contactInfoChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(contactInfo);
@@ -942,7 +957,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/contactInfoChangeRequests - Should return status 422 when the participant is not active", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests - Should return status 422 when the participant is not active", async () => {
         // Arrange
         const inactiveParticipant = {
             ...mockedParticipant1,
@@ -963,13 +978,15 @@ describe("Participants Routes - Unit Test", () => {
             contactInfoId: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_PARTICIPANT_CONTACT_INFO"
         }
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${inactiveParticipant.id}/contactInfoChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(contactInfo);
@@ -978,7 +995,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(422);
     });
 
-    test("POST /participants/:id/contactInfoChangeRequests - Should return error if the participant is hub participantId", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests - Should return error if the participant is hub participantId", async () => {
         // Arrange
         const now = Date.now();
 
@@ -991,14 +1008,16 @@ describe("Participants Routes - Unit Test", () => {
             contactInfoId: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_PARTICIPANT_CONTACT_INFO"
         };
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${HUB_PARTICIPANT_ID}/contactInfoChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(contactInfo);
@@ -1007,7 +1026,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should approve a contact info change request", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should approve a contact info change request", async () => {
         // Arrange
         const now = Date.now();
         const participant: IParticipant = {
@@ -1023,9 +1042,11 @@ describe("Participants Routes - Unit Test", () => {
                     contactInfoId: "1",
                     createdBy: "user",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     requestType: "ADD_PARTICIPANT_CONTACT_INFO"
                 }
             ]
@@ -1034,20 +1055,21 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/contactInfoChangeRequests/1/approve`)
             .set("authorization", AUTH_TOKEN).send();
 
         // Assert
         expect(response.status).toBe(200);
     });
+    
 
-    test("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
         // Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${mockedParticipant1.id}/contactInfoChangeRequests/1/approve`)
             .set("authorization", AUTH_TOKEN).send();
 
@@ -1055,11 +1077,11 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should return error for invalid changeRequestId", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should return error for invalid changeRequestId", async () => {
         // Arrange
         const nonExistingChangeReqId = "none";
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${mockedParticipant1.id}/contactInfoChangeRequests/${nonExistingChangeReqId}/approve`)
             .set("authorization", AUTH_TOKEN).send();
 
@@ -1067,7 +1089,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should return error when approve by an inactive participant", async () => {
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should return error when approve by an inactive participant", async () => {
         // Arrange
         const now = Date.now();
         const participant: IParticipant = {
@@ -1084,9 +1106,11 @@ describe("Participants Routes - Unit Test", () => {
                     contactInfoId: "1",
                     createdBy: "user",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     requestType: "ADD_PARTICIPANT_CONTACT_INFO"
                 }
             ]
@@ -1095,7 +1119,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/contactInfoChangeRequests/1/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -1103,10 +1127,22 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(422);
     });
 
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should throw error when approving the non existing participant", async () => {
+        // Arrange
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/non_exiting_participant/contactInfoChangeRequests/1/approve`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(404);
+    });
+
 
     /**Participant Status */
 
-    test("POST /participants/:id/statusChangeRequests - Should create a participant status change request", async () => {
+    it("POST /participants/:id/statusChangeRequests - Should create a participant status change request", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -1115,15 +1151,17 @@ describe("Participants Routes - Unit Test", () => {
             isActive: false,
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS"
         }
 
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/statusChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(statusChangeRequest);
@@ -1133,7 +1171,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.body).toHaveProperty("id");
     });
 
-    test("POST /participants/:id/statusChangeRequests - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/statusChangeRequests - Should handle unauthorized error", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -1142,16 +1180,18 @@ describe("Participants Routes - Unit Test", () => {
             isActive: false,
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS"
         }
 
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/statusChangeRequests`)
             .set("authorization", AUTH_TOKEN).send(statusChangeRequest);
 
@@ -1159,7 +1199,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/statusChangeRequests - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/statusChangeRequests - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = {
             ...mockedParticipantHub,
@@ -1176,14 +1216,16 @@ describe("Participants Routes - Unit Test", () => {
             isActive: false,
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS"
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/statusChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(statusChangeRequest);
@@ -1192,7 +1234,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should be able to approve the participant status change request", async () => {
+    it("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should be able to approve the participant status change request", async () => {
         // Arrange
         const now = Date.now();
         const participant: IParticipant = {
@@ -1205,9 +1247,11 @@ describe("Participants Routes - Unit Test", () => {
                     isActive: true,
                     createdBy: "user",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     requestType: "CHANGE_PARTICIPANT_STATUS"
                 }
             ]
@@ -1216,7 +1260,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/statusChangeRequests/1/approve`)
             .set("authorization", AUTH_TOKEN)
 
@@ -1224,12 +1268,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
         // Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${mockedParticipant1.id}/statusChangeRequests/1/approve`)
             .set("authorization", AUTH_TOKEN)
 
@@ -1237,12 +1281,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/statusChangeRequests/:changereqid/approve - Should not perform on the hub participant", async () => {
         // Arrange
         const hubParticipant = HUB_PARTICIPANT_ID;
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${hubParticipant}/statusChangeRequests/1/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -1252,12 +1296,12 @@ describe("Participants Routes - Unit Test", () => {
 
     /**Source IP */
 
-    test("GET /participants/:id/sourceIps - Should return an array of the participant's source IPs", async () => {
+    it("GET /participants/:id/sourceIps - Should return an array of the participant's source IPs", async () => {
         // Arrange
         const participantId = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/sourceIps`)
             .set("authorization", AUTH_TOKEN);
 
@@ -1266,13 +1310,13 @@ describe("Participants Routes - Unit Test", () => {
         expect(Array.isArray(response.body)).toBe(true);
     });
 
-    test("GET /participants/:id/sourceIps - Should handle unauthorize error", async () => {
+    it("GET /participants/:id/sourceIps - Should handle unauthorize error", async () => {
         // Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         const participantId = mockedParticipant1.id;
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/${participantId}/sourceIps`)
             .set("authorization", AUTH_TOKEN);
 
@@ -1280,7 +1324,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/sourceIpChangeRequests - Should create a participant sourceIP change request", async () => {
+    it("POST /participants/:id/sourceIpChangeRequests - Should create a participant sourceIP change request", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -1293,14 +1337,16 @@ describe("Participants Routes - Unit Test", () => {
             portRange: {rangeFirst: 0, rangeLast: 0},
             createdBy: "admin",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_SOURCE_IP"
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/sourceIpChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(sourceIPChangeRequest);
@@ -1310,7 +1356,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.body).toHaveProperty("id");
     });
 
-    test("POST /participants/:id/sourceIpChangeRequests - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/sourceIpChangeRequests - Should handle unauthorized error", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -1323,16 +1369,18 @@ describe("Participants Routes - Unit Test", () => {
             portRange: {rangeFirst: 0, rangeLast: 0},
             createdBy: "admin",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_SOURCE_IP"
         }
 
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/sourceIpChangeRequests`)
             .set("authorization", AUTH_TOKEN).send(sourceIPChangeRequest);
 
@@ -1340,7 +1388,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/sourceIpChangeRequests - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/sourceIpChangeRequests - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = {
             ...mockedParticipantHub,
@@ -1361,14 +1409,16 @@ describe("Participants Routes - Unit Test", () => {
             portRange: {rangeFirst: 0, rangeLast: 0},
             createdBy: "admin",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_SOURCE_IP"
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/sourceIpChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(sourceIPChangeRequest);
@@ -1377,7 +1427,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should be able to approve a participant sourceIP change request", async () => {
+    it("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should be able to approve a participant sourceIP change request", async () => {
         // Arrange
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
             username: "user",
@@ -1399,9 +1449,11 @@ describe("Participants Routes - Unit Test", () => {
                 portRange: { rangeFirst: 0, rangeLast: 0 },
                 createdBy: "admin",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
                 approvedBy: null,
                 approvedDate: null,
+                rejectedBy: null,
+                rejectedDate: null,
                 requestType: "ADD_SOURCE_IP"
 
             }]
@@ -1410,7 +1462,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/SourceIpChangeRequests/908144a9-2505-4787-b39e-60e8f9fe9b99/approve`)
             .set("authorization", AUTH_TOKEN);
             
@@ -1419,7 +1471,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should handle unauthorized error", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -1432,16 +1484,18 @@ describe("Participants Routes - Unit Test", () => {
             portRange: {rangeFirst: 0, rangeLast: 0},
             createdBy: "admin",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_SOURCE_IP"
         }
 
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/SourceIpChangeRequests/908144a9-2505-4787-b39e-60e8f9fe9b99/approve`)
             .set("authorization", AUTH_TOKEN).send(sourceIPChangeRequest);
 
@@ -1449,7 +1503,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/SourceIpChangeRequests/:changereqid/approve - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = {
             ...mockedParticipantHub,
@@ -1470,14 +1524,16 @@ describe("Participants Routes - Unit Test", () => {
             portRange: {rangeFirst: 0, rangeLast: 0},
             createdBy: "admin",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             requestType: "ADD_SOURCE_IP"
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/SourceIpChangeRequests/908144a9-2505-4787-b39e-60e8f9fe9b99/approve`)
             .set("authorization", AUTH_TOKEN)
             .send(sourceIPChangeRequest);
@@ -1488,7 +1544,7 @@ describe("Participants Routes - Unit Test", () => {
 
     /**Fund Movement */
 
-    test("POST /participants/:id/funds - Should create a participant fund movement record", async () => {
+    it("POST /participants/:id/funds - Should create a participant fund movement record", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant2.id;
@@ -1496,9 +1552,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
@@ -1509,7 +1567,7 @@ describe("Participants Routes - Unit Test", () => {
 
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/funds`)
             .set("authorization", AUTH_TOKEN)
             .send(fundMovement);
@@ -1518,7 +1576,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/:id/funds - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/funds - Should handle unauthorized error", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant1.id;
@@ -1526,9 +1584,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
@@ -1540,7 +1600,7 @@ describe("Participants Routes - Unit Test", () => {
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/funds`)
             .set("authorization", AUTH_TOKEN).send(fundMovement);
 
@@ -1548,7 +1608,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/funds - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/funds - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = {
             ...mockedParticipantHub,
@@ -1564,9 +1624,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
@@ -1576,7 +1638,7 @@ describe("Participants Routes - Unit Test", () => {
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/funds`)
             .set("authorization", AUTH_TOKEN)
             .send(fundMovement);
@@ -1585,7 +1647,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/funds/:fundsMovId/approve - Should be able to approve a participant fund movement request", async () => {
+    it("POST /participants/:id/funds/:fundsMovId/approve - Should be able to approve a participant fund movement request", async () => {
         // Arrange
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
             username: "user",
@@ -1602,9 +1664,11 @@ describe("Participants Routes - Unit Test", () => {
                 id: "1",
                 createdBy: "admin",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
                 approvedBy: null,
                 approvedDate: null,
+                rejectedBy: null,
+                rejectedDate: null,
                 direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
                 currencyCode: "USD",
                 amount: "15000",
@@ -1617,7 +1681,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/funds/1/approve`)
             .set("authorization", AUTH_TOKEN);
             
@@ -1626,7 +1690,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/:id/funds/:fundsMovId/approve - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/funds/:fundsMovId/approve - Should handle unauthorized error", async () => {
         // Arrange
         const now = Date.now();
         const participant: IParticipant = {
@@ -1637,9 +1701,11 @@ describe("Participants Routes - Unit Test", () => {
                     id: "1",
                     createdBy: "user",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "15000",
@@ -1655,7 +1721,7 @@ describe("Participants Routes - Unit Test", () => {
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/funds/1/approve`)
             .set("authorization", AUTH_TOKEN).send(participant.fundsMovements[0]);
 
@@ -1663,7 +1729,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/funds/:fundsMovId/approve - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/funds/:fundsMovId/approve - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = {
             ...mockedParticipantHub,
@@ -1679,9 +1745,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
@@ -1691,7 +1759,7 @@ describe("Participants Routes - Unit Test", () => {
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/funds/1/approve`)
             .set("authorization", AUTH_TOKEN)
             .send(fundMovement);
@@ -1703,7 +1771,7 @@ describe("Participants Routes - Unit Test", () => {
 
     /**Net Debit Cap */
 
-    test("POST /participants/:id/ndcChangeRequests - Should create a participant NDC change request", async () => {
+    it("POST /participants/:id/ndcChangeRequests - Should create a participant NDC change request", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant2.id;
@@ -1711,9 +1779,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             currencyCode: "USD",
             type: ParticipantNetDebitCapTypes.ABSOLUTE,
             percentage: null,
@@ -1724,7 +1794,7 @@ describe("Participants Routes - Unit Test", () => {
 
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/ndcChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(ndcChangeRequest);
@@ -1733,7 +1803,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-   test("POST /participants/:id/ndcChangeRequests - Should handle unauthorized error", async () => {
+   it("POST /participants/:id/ndcChangeRequests - Should handle unauthorized error", async () => {
         // Arrange
         const now = Date.now();
         const participantId = mockedParticipant2.id;
@@ -1741,9 +1811,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             currencyCode: "USD",
             type: ParticipantNetDebitCapTypes.ABSOLUTE,
             percentage: null,
@@ -1755,7 +1827,7 @@ describe("Participants Routes - Unit Test", () => {
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participantId}/ndcChangeRequests`)
             .set("authorization", AUTH_TOKEN).send(ndcChangeRequest);
 
@@ -1763,7 +1835,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
      
-    test("POST /participants/:id/ndcChangeRequests - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/ndcChangeRequests - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = {
             ...mockedParticipantHub,
@@ -1779,9 +1851,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "user",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             currencyCode: "USD",
             type: ParticipantNetDebitCapTypes.ABSOLUTE,
             percentage: null,
@@ -1791,7 +1865,7 @@ describe("Participants Routes - Unit Test", () => {
         }
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/ndcChangeRequests`)
             .set("authorization", AUTH_TOKEN)
             .send(ndcChangeRequest);
@@ -1800,7 +1874,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/ndcChangeRequests - Should be able to approve the NDC change request", async () => {
+    it("POST /participants/:id/ndcChangeRequests - Should be able to approve the NDC change request", async () => {
         // Arrange
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
             username: "user",
@@ -1817,24 +1891,24 @@ describe("Participants Routes - Unit Test", () => {
                 id: "1",
                 createdBy: "admin",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
                 approvedBy: null,
                 approvedDate: null,
+                rejectedBy: null,
+                rejectedDate: null,
                 currencyCode: "USD",
                 type: ParticipantNetDebitCapTypes.ABSOLUTE,
                 percentage: null,
-                fixedValue: 1000000,
+                fixedValue: 50000,
                 extReference: null,
                 note: null
             }]
         }
 
         repoPartMock.store(participant);
-        const accBalSettlementAcc = await accAndBalAdapterMock.createAccount("1",participant.id,"SETTLEMENT","USD");
-        const accBalPositionAcc = await accAndBalAdapterMock.createAccount("2",participant.id,"POSITION","USD");
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/ndcchangerequests/1/approve`)
             .set("authorization", AUTH_TOKEN);
             
@@ -1843,7 +1917,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/:id/ndcChangeRequests - Should handle unauthorized error", async () => {
+    it("POST /participants/:id/ndcChangeRequests - Should handle unauthorized error", async () => {
         // Arrange
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
             username: "user",
@@ -1860,9 +1934,11 @@ describe("Participants Routes - Unit Test", () => {
                 id: "1",
                 createdBy: "admin",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
                 approvedBy: null,
                 approvedDate: null,
+                rejectedBy: null,
+                rejectedDate: null,
                 currencyCode: "USD",
                 type: ParticipantNetDebitCapTypes.ABSOLUTE,
                 percentage: null,
@@ -1873,13 +1949,11 @@ describe("Participants Routes - Unit Test", () => {
         }
 
         repoPartMock.store(participant);
-        const accBalSettlementAcc = await accAndBalAdapterMock.createAccount("1",participant.id,"SETTLEMENT","USD");
-        const accBalPositionAcc = await accAndBalAdapterMock.createAccount("2",participant.id,"POSITION","USD");
 
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/ndcchangerequests/1/approve`)
             .set("authorization", AUTH_TOKEN);
 
@@ -1887,7 +1961,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/:id/ndcChangeRequests - Should not perform on the hub participant", async () => {
+    it("POST /participants/:id/ndcChangeRequests - Should not perform on the hub participant", async () => {
         // Arrange
         const participant = mockedParticipantHub;
         const now = Date.now();
@@ -1896,9 +1970,11 @@ describe("Participants Routes - Unit Test", () => {
             id: "1",
             createdBy: "admin",
             createdDate: now,
-            approved: false,
+            requestState: ApprovalRequestState.CREATED,
             approvedBy: null,
             approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
             currencyCode: "USD",
             type: ParticipantNetDebitCapTypes.ABSOLUTE,
             percentage: null,
@@ -1907,7 +1983,7 @@ describe("Participants Routes - Unit Test", () => {
             note: null
         }
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/funds/1/approve`)
             .set("authorization", AUTH_TOKEN)
             .send(ndcChangeRequest);
@@ -1916,7 +1992,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("POST /participants/:id/ndcChangeRequests - Should return status 422 when the participant is not active", async () => {
+    it("POST /participants/:id/ndcChangeRequests - Should return status 422 when the participant is not active", async () => {
         // Arrange
         const now = Date.now();
         const participant:IParticipant = {
@@ -1927,9 +2003,11 @@ describe("Participants Routes - Unit Test", () => {
                     id: "1",
                     createdBy: "admin",
                     createdDate: now,
-                    approved: false,
+                    requestState: ApprovalRequestState.CREATED,
                     approvedBy: null,
                     approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
                     currencyCode: "USD",
                     type: ParticipantNetDebitCapTypes.ABSOLUTE,
                     percentage: null,
@@ -1943,7 +2021,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post(`/participants/${participant.id}/ndcChangeRequests/1/approve`)
             .set("authorization", AUTH_TOKEN)
             .send(participant.netDebitCapChangeRequests);
@@ -1952,13 +2030,14 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(422);
     });
 
+
     /**Liquidity Check */
 
-    test("POST /participants/liquidityCheckValidate - Should handle the case when no file is uploaded", async () => {
+    it("POST /participants/liquidityCheckValidate - Should handle the case when no file is uploaded", async () => {
         // Arrange
 
         //Act
-        await request(server)
+        await request(participantSvcUrl)
             .post('/participants/liquidityCheckValidate')
             .set("authorization", AUTH_TOKEN)
             .expect(400)
@@ -1969,7 +2048,7 @@ describe("Participants Routes - Unit Test", () => {
 
     });
 
-    test("POST /participants/liquidityCheckValidate - Should return error for invalid excel file", async () => {
+    it("POST /participants/liquidityCheckValidate - Should return error for invalid excel file", async () => {
         // Arrange
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Sheet1');
@@ -1980,7 +2059,7 @@ describe("Participants Routes - Unit Test", () => {
         const excelBuffer = await workbook.xlsx.writeBuffer();
 
         //Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post('/participants/liquidityCheckValidate')
             .set("authorization", AUTH_TOKEN)
             .attach('settlementInitiation', Buffer.from(excelBuffer), { filename: 'example.xlsx' }) // Attach the dynamically created Excel file
@@ -1991,7 +2070,7 @@ describe("Participants Routes - Unit Test", () => {
 
     });
 
-    test("POST /participants/liquidityCheckRequestAdjustment - Should make adjustment successfully", async () => {
+    it("POST /participants/liquidityCheckRequestAdjustment - Should make adjustment successfully", async () => {
        
         //Arrange
 
@@ -2019,7 +2098,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         //Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post('/participants/liquidityCheckRequestAdjustment')
             .query({ ignoreDuplicate: "false" })
             .set("authorization", AUTH_TOKEN)
@@ -2031,7 +2110,7 @@ describe("Participants Routes - Unit Test", () => {
 
     });
 
-    test("POST /participants/liquidityCheckRequestAdjustment - Should return 422 when the participant is not active", async () => {
+    it("POST /participants/liquidityCheckRequestAdjustment - Should return 422 when the participant is not active", async () => {
        
         //Arrange
         const participant: IParticipant = {
@@ -2058,7 +2137,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         //Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post('/participants/liquidityCheckRequestAdjustment')
             .query({ ignoreDuplicate: "false" })
             .set("authorization", AUTH_TOKEN)
@@ -2070,7 +2149,7 @@ describe("Participants Routes - Unit Test", () => {
 
     });
 
-    test("POST /participants/liquidityCheckRequestAdjustment - Should return 404 if the participant is not found", async () => {
+    it("POST /participants/liquidityCheckRequestAdjustment - Should return 404 if the participant is not found", async () => {
        
         //Arrange
         const liquidityBalanceAdjustment: IParticipantLiquidityBalanceAdjustment[] = [
@@ -2090,7 +2169,7 @@ describe("Participants Routes - Unit Test", () => {
         ];
 
         //Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post('/participants/liquidityCheckRequestAdjustment')
             .query({ ignoreDuplicate: "false" })
             .set("authorization", AUTH_TOKEN)
@@ -2102,7 +2181,7 @@ describe("Participants Routes - Unit Test", () => {
 
     });
 
-    test("POST /participants/liquidityCheckRequestAdjustment - Should return 500 when the participant's account not found", async () => {
+    it("POST /participants/liquidityCheckRequestAdjustment - Should return 500 when the participant's account not found", async () => {
        
         //Arrange
         const participant: IParticipant = {
@@ -2129,7 +2208,7 @@ describe("Participants Routes - Unit Test", () => {
         repoPartMock.store(participant);
 
         //Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .post('/participants/liquidityCheckRequestAdjustment')
             .query({ ignoreDuplicate: "false" })
             .set("authorization", AUTH_TOKEN)
@@ -2143,9 +2222,9 @@ describe("Participants Routes - Unit Test", () => {
 
     /**Participant Pending Approval */
 
-    test("GET /participants/pendingApprovalsSummary - Should return participant's pending approval summary", async () => {
+    it("GET /participants/pendingApprovalsSummary - Should return participant's pending approval summary", async () => {
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/pendingApprovalsSummary`)
             .set("authorization", AUTH_TOKEN);
 
@@ -2153,21 +2232,21 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("GET /participants/pendingApprovalsSummary - Should handle unauthorized error", async () => {
+    it("GET /participants/pendingApprovalsSummary - Should handle unauthorized error", async () => {
         //Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/pendingApprovalsSummary`)
             .set("authorization", AUTH_TOKEN);
         // Assert
         expect(response.status).toBe(403);
     });
 
-    test("GET /participants/pendingApprovals - Should return participant's pending approvals", async () => {
+    it("GET /participants/pendingApprovals - Should return participant's pending approvals", async () => {
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/pendingApprovals`)
             .set("authorization", AUTH_TOKEN);
 
@@ -2175,19 +2254,19 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("GET /participants/pendingApprovals - Should handle unauthorized error", async () => {
+    it("GET /participants/pendingApprovals - Should handle unauthorized error", async () => {
         //Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/participants/pendingApprovals`)
             .set("authorization", AUTH_TOKEN);
         // Assert
         expect(response.status).toBe(403);
     });
 
-    test("POST /participants/pendingApprovals - Should handle the route successfully", async () => {
+    it("POST /participants/pendingApprovals - Should handle the route successfully", async () => {
         //Arrange
         const pendingApprovals:IParticipantPendingApproval = {
             accountsChangeRequest: [],
@@ -2199,8 +2278,8 @@ describe("Participants Routes - Unit Test", () => {
         }
         
         // Act
-        const response = await request(server)
-            .post(`/participants/pendingApprovals`)
+        const response = await request(participantSvcUrl)
+            .post(`/participants/pendingApprovals/approve`)
             .set("authorization", AUTH_TOKEN)
             .send(pendingApprovals);
 
@@ -2208,7 +2287,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    test("POST /participants/pendingApprovals - Should handle unauthorized error", async () => {
+    it("POST /participants/pendingApprovals - Should handle unauthorized error", async () => {
         //Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
@@ -2222,8 +2301,8 @@ describe("Participants Routes - Unit Test", () => {
         }
         
         // Act
-        const response = await request(server)
-            .post(`/participants/pendingApprovals`)
+        const response = await request(participantSvcUrl)
+            .post(`/participants/pendingApprovals/approve`)
             .set("authorization", AUTH_TOKEN)
             .send(pendingApprovals);
 
@@ -2231,11 +2310,11 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(500);
     });
 
-    test("GET /searchKeywords/ - Should handle the route successfully", async () => {
+    it("GET /searchKeywords/ - Should handle the route successfully", async () => {
         //Arrange
         
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/searchKeywords/`)
             .set("authorization", AUTH_TOKEN)
 
@@ -2244,12 +2323,12 @@ describe("Participants Routes - Unit Test", () => {
         expect(Array.isArray(response.body)).toBe(true);
     });
 
-    test("GET /searchKeywords/ - Should handle unauthorized error", async () => {
+    it("GET /searchKeywords/ - Should handle unauthorized error", async () => {
         //Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
         // Act
-        const response = await request(server)
+        const response = await request(participantSvcUrl)
             .get(`/searchKeywords/`)
             .set("authorization", AUTH_TOKEN)
 
@@ -2257,4 +2336,93 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
+    /**Reject endpoints */
+
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should reject a contact info change request", async () => {
+        // Arrange
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            id: "11",
+            participantContactInfoChangeRequests: [
+                {
+                    id: "1",
+                    name: "someone",
+                    email: "someone@test.com",
+                    phoneNumber: "0988564554",
+                    role: "portal-staff",
+                    contactInfoId: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_PARTICIPANT_CONTACT_INFO"
+                }
+            ]
+        }
+
+        repoPartMock.store(participant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/11/contactInfoChangeRequests/1/reject`)
+            .set("authorization", AUTH_TOKEN).send();
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should handle unauthorize error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
+        
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/:id/contactInfoChangeRequests/:changereqid/reject`)
+            .set("authorization", AUTH_TOKEN);
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should throw error if participant is not active", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            id: "11",
+            isActive: false,
+            participantContactInfoChangeRequests: [
+                {
+                    id: "1",
+                    name: "someone",
+                    email: "someone@test.com",
+                    phoneNumber: "0988564554",
+                    role: "portal-staff",
+                    contactInfoId: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_PARTICIPANT_CONTACT_INFO"
+                }
+            ]
+        }
+
+        repoPartMock.store(participant);
+        
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/:id/contactInfoChangeRequests/:changereqid/reject`)
+            .set("authorization", AUTH_TOKEN);
+        // Assert
+        expect(response.status).toBe(422);
+    });
 });

@@ -33,7 +33,7 @@ import {
 	AccountsAndBalancesAccount,
 	AccountsAndBalancesAccountType
 } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
-import {AccountsAndBalancesJournalEntry} from "@mojaloop/accounts-and-balances-bc-public-types-lib";
+import { AccountsAndBalancesJournalEntry } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 
 class ABAccount {
 	requestedId: string;
@@ -44,12 +44,14 @@ class ABAccount {
 	postedDebitBal: bigint;
 	pendingCreditBal: bigint;
 	postedCreditBal: bigint;
+	balance: bigint;
 
-	constructor(requestedId: string, ownerId: string, type: AccountsAndBalancesAccountType, currencyCode: string) {
+	constructor(requestedId: string, ownerId: string, type: AccountsAndBalancesAccountType, currencyCode: string, balance: bigint) {
 		this.requestedId = requestedId;
 		this.ownerId = ownerId;
 		this.type = type;
 		this.currencyCode = currencyCode;
+		this.balance = balance;
 	}
 }
 
@@ -88,9 +90,10 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	abJournals: Array<ABJournal> = [];
 
 	async init(): Promise<void> {
+		this.abAccounts.push()
 		return Promise.resolve();
 	}
-	async destroy(): Promise<void>{
+	async destroy(): Promise<void> {
 		return Promise.resolve();
 	}
 
@@ -107,9 +110,9 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	}
 
 	createJournalEntries(entries: { requestedId: string; ownerId: string; currencyCode: string; amount: string; pending: boolean; debitedAccountId: string; creditedAccountId: string; }[]): Promise<string[]> {
-		const result:string []= [];
-		
-		for(const entry of entries){
+		const result: string[] = [];
+
+		for (const entry of entries) {
 			const amntAsBigInt = stringToBigint(entry.amount, 2);
 			this.abJournals.push(new ABJournal(
 				entry.requestedId,
@@ -124,7 +127,7 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 			for (const acc of this.abAccounts) {
 				if (acc.postedDebitBal === undefined) acc.postedDebitBal = 0n;
 				if (acc.postedCreditBal === undefined) acc.postedCreditBal = 0n;
-	
+
 				if (acc.requestedId === entry.debitedAccountId) {
 					acc.postedDebitBal += BigInt(amntAsBigInt);
 				} else if (acc.requestedId === entry.creditedAccountId) {
@@ -138,9 +141,12 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	}
 
 	async createAccount(requestedId: string, ownerId: string, type: AccountsAndBalancesAccountType, currencyCode: string): Promise<string> {
-		this.abAccounts.push(new ABAccount(requestedId, ownerId, type, currencyCode));
+		this.abAccounts.push(type === "SETTLEMENT" ? new ABAccount(requestedId, ownerId, type, currencyCode, 1000000n) :
+			new ABAccount(requestedId, ownerId, type, currencyCode, 0n));
+
 		return Promise.resolve(requestedId);
 	}
+
 	async getAccount(accountId: string): Promise<AccountsAndBalancesAccount | null> {
 		for (const acc of this.abAccounts) {
 			if (acc.requestedId === accountId) {
@@ -152,7 +158,7 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	}
 
 	async getAccounts(accountIds: string[]): Promise<AccountsAndBalancesAccount[]> {
-		const returnVal :AccountsAndBalancesAccount[] = [];
+		const returnVal: AccountsAndBalancesAccount[] = [];
 
 		for (const accId of accountIds) {
 			const lookup = await this.getAccount(accId);
@@ -163,7 +169,7 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	}
 
 	async getParticipantAccounts(participantId: string): Promise<AccountsAndBalancesAccount[]> {
-		const returnVal :AccountsAndBalancesAccount[] = [];
+		const returnVal: AccountsAndBalancesAccount[] = [];
 		for (const acc of this.abAccounts) {
 			if (acc.ownerId === participantId) {
 				returnVal.push(this.convert(acc));
@@ -173,7 +179,7 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	}
 
 	async getJournalEntriesByAccountId(accountId: string): Promise<AccountsAndBalancesJournalEntry[]> {
-		const returnVal :AccountsAndBalancesJournalEntry[] = [];
+		const returnVal: AccountsAndBalancesJournalEntry[] = [];
 		for (const je of this.abJournals) {
 			if (je.creditedAccountId === accountId || je.debitedAccountId === accountId) {
 				returnVal.push(this.convertJE(je));
@@ -215,8 +221,8 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 		return Promise.resolve(requestedId);
 	}
 
-	private convert(toConvert: ABAccount) : AccountsAndBalancesAccount {
-		const returnVal : AccountsAndBalancesAccount = {
+	private convert(toConvert: ABAccount): AccountsAndBalancesAccount {
+		const returnVal: AccountsAndBalancesAccount = {
 			id: toConvert.requestedId,
 			ownerId: toConvert.ownerId,
 			state: "ACTIVE",
@@ -230,14 +236,15 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 				"0" : bigintToString(toConvert.postedCreditBal, 2),
 			pendingCreditBalance: toConvert.pendingCreditBal === undefined ?
 				"0" : bigintToString(toConvert.pendingCreditBal, 2),
-			balance: "0",
+			balance: toConvert.balance === undefined ?
+				"0" : bigintToString(toConvert.balance, 0),
 			timestampLastJournalEntry: Date.now()
 		};
 		return returnVal;
 	}
 
-	private convertJE(toConvert: ABJournal) : AccountsAndBalancesJournalEntry {
-		const returnVal : AccountsAndBalancesJournalEntry = {
+	private convertJE(toConvert: ABJournal): AccountsAndBalancesJournalEntry {
+		const returnVal: AccountsAndBalancesJournalEntry = {
 			id: toConvert.requestedId,
 			ownerId: toConvert.ownerId,
 			currencyCode: toConvert.currencyCode,

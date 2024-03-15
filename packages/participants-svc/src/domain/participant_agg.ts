@@ -92,14 +92,16 @@
      CouldNotStoreParticipant, DuplicateRequestFoundError,
      EndpointNotFoundError,
      InvalidAccountError,
+     InvalidNdcAmount,
      InvalidNdcChangeRequest,
-     InvalidParticipantError, InvalidParticipantStatusError,
+     InvalidParticipantError,
      LiquidityAdjustmentAlreadyProcessed,
      NdcChangeRequestAlreadyApproved,
      NdcChangeRequestNotFound,
      NoAccountsError,
      ParticipantAlreadyApproved,
      ParticipantCreateValidationError,
+     ParticipantNotActive,
      ParticipantNotFoundError,
      ParticipantStatusChangeRequestAlreadyApproved,
      ParticipantStatusChangeRequestNotFound,
@@ -804,7 +806,7 @@
              );
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -887,7 +889,7 @@
              );
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -968,7 +970,7 @@
              );
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -1078,7 +1080,7 @@
              );
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -1153,7 +1155,7 @@
              );
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -1319,7 +1321,7 @@
              );
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -1722,7 +1724,7 @@
              );
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -1798,7 +1800,7 @@
          }
  
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -1955,7 +1957,7 @@
          }
  
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -2073,7 +2075,7 @@
              throw err;
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -2171,7 +2173,7 @@
              throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -2275,7 +2277,7 @@
              throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
          }
          if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -2552,7 +2554,7 @@
          }
  
          if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -2656,7 +2658,7 @@
  
          // inactive participants can only deposit funds, not withdrawal
          if (!participant.isActive && fundsMov.direction === "FUNDS_WITHDRAWAL") {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active, cannot withdrawal funds.`
              );
          }
@@ -2918,7 +2920,7 @@
          }
 
          if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -3002,7 +3004,7 @@
          }
 
          if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -3059,7 +3061,7 @@
          const getAccountBalance = async (account: IParticipantAccount) => {
              const accBalAccount = await this._accBal.getAccount(account.id);
              if (!accBalAccount) {
-                 throw new AccountNotFoundError(`Could not get participant's ${account.type} account with id: ${account.id} from accounts and balances`);
+                 throw new AccountNotFoundError(`Could not get participant ${participant.id}'s ${account.type} account with id: ${account.id} from accounts and balances`);
 
 
              }
@@ -3078,7 +3080,7 @@
 
          const checkNdcValue = (ndcValue: number, errorMessage: string) => {
              if (maxBalance <= ndcValue) {
-                 throw new InvalidNdcChangeRequest(errorMessage);
+                 throw new InvalidNdcAmount(errorMessage);
              }
          };
 
@@ -3091,8 +3093,8 @@
          }
 
          const finalNDCAmount = this._calculateParticipantPercentageNetDebitCap(
-             netDebitCapChange.fixedValue || 0,
-             netDebitCapChange.percentage || 0,
+             netDebitCapChange.fixedValue ?? 0,
+             netDebitCapChange.percentage ?? 0,
              currentBalance,
              netDebitCapChange.type
          );
@@ -3156,8 +3158,6 @@
          const event = new ParticipantChangedEvt(payload);
 
          await this._messageProducer.send(event);
-
-         return;
      }
 
      async rejectParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
@@ -3176,7 +3176,7 @@
          }
 
          if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
          }
@@ -3302,11 +3302,11 @@
              if (!participant) throw retParticipantsNotFoundError();
  
              const liqAcc = participant.participantAccounts?.find(
-                 (acc) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
+                 (acc:any) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
              );
  
              const posAcc = participant.participantAccounts?.find(
-                 (acc) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
+                 (acc:any) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
              );
  
              if (!liqAcc || !posAcc) throw retParticipantAccountNotFoundError();
@@ -3464,7 +3464,7 @@
                      );
                  }
                  if (!checkParticipant.isActive) {
-                     throw new InvalidParticipantStatusError(
+                     throw new ParticipantNotActive(
                          `Participant with ID: '${obj.participantId}' is not active.`
                      );
                  }
@@ -3572,7 +3572,7 @@
                  );
              }
              if (!checkParticipant.isActive) {
-                 throw new InvalidParticipantStatusError(
+                 throw new ParticipantNotActive(
                      `Participant with ID: '${obj.participantId}' is not active.`
                  );
              }
