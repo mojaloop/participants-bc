@@ -8,17 +8,13 @@ import {
   MemoryConfigClientMock,
   MemoryMessageConsumer,
   MemoryMessageProducer,
-  ParticipantsRepoMock,
-  mockedParticipant1
+  ParticipantsRepoMock
 } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MetricsMock } from '@mojaloop/platform-shared-lib-observability-types-lib';
 import { LoginHelper } from '@mojaloop/security-bc-client-lib';
 import { ParticipantsEventHandler } from '../../src/application/event_handler';
 import { ParticipantAggregate } from '../../src/domain/participant_agg';
 import { UnauthorizedError } from '@mojaloop/security-bc-public-types-lib';
-import { IMessage, MessageTypes } from '@mojaloop/platform-shared-lib-messaging-types-lib';
-import { IParticipant } from '@mojaloop/participant-bc-public-types-lib';
-
 
 const hasPrivilege = true;
 const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3201";

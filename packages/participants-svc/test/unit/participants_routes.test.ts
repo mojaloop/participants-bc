@@ -2336,8 +2336,8 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    /**Reject endpoints */
-
+   
+    /**Contact Info - Reject implementations*/
     it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should reject a contact info change request", async () => {
         // Arrange
         const now = Date.now();
@@ -2389,8 +2389,6 @@ describe("Participants Routes - Unit Test", () => {
 
     it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should throw error if participant is not active", async () => {
         //Arrange
-        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
-
         const now = Date.now();
         const participant: IParticipant = {
             ...mockedParticipant1,
@@ -2417,12 +2415,153 @@ describe("Participants Routes - Unit Test", () => {
         }
 
         repoPartMock.store(participant);
-        
         // Act
         const response = await request(participantSvcUrl)
-            .post(`/participants/:id/contactInfoChangeRequests/:changereqid/reject`)
+            .post(`/participants/11/contactInfoChangeRequests/1/reject`)
             .set("authorization", AUTH_TOKEN);
         // Assert
         expect(response.status).toBe(422);
+    });
+
+
+    /**Participant Status - Reject implementations*/
+    it("POST /participants/:id/statusChangeRequests/:changereqid/reject - Should reject a contact info change request", async () => {
+        // Arrange
+        
+        jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
+            username: "user",
+			clientId: "user",
+			platformRoleIds: ["user"],
+			accessToken: "mock-token",
+        });
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            id: "13",
+            isActive: false,
+            participantStatusChangeRequests: [
+                {
+                    id: "1",
+                    isActive: true,
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "CHANGE_PARTICIPANT_STATUS"
+                }
+            ]
+        };
+
+        repoPartMock.store(participant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/13/statusChangeRequests/1/reject`)
+            .set("authorization", AUTH_TOKEN).send();
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should handle unauthorize error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
+        
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/11/statusChangeRequests/1/reject`)
+            .set("authorization", AUTH_TOKEN);
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    /**Participant Accounts - Reject implementations*/
+    it("POST /participants/:id/accountchangerequests/:changereqid/reject - Should reject an account change request", async () => {
+        // Arrange
+        
+        const participantId = "2";
+        const accountChangeRequestId = "1";
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant2,
+            id: participantId,
+            participantAccountsChangeRequest: [
+                {
+                    id: accountChangeRequestId,
+                    accountId: "1",
+                    type: ParticipantAccountTypes.POSITION,
+                    currencyCode: "USD",
+                    externalBankAccountId: "",
+                    externalBankAccountName: "",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_ACCOUNT"
+                }
+            ]
+        }
+
+        repoPartMock.store(participant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${participantId}/accountchangerequests/${accountChangeRequestId}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        const fetchedParticipant = await repoPartMock.fetchWhereId("2");
+        const accountChangeRequest = fetchedParticipant?.participantAccountsChangeRequest.find((item)=> item.id === "1");
+
+        // Assert
+        expect(response.status).toBe(200);
+        expect(accountChangeRequest?.requestState).toBe(ApprovalRequestState.REJECTED);
+    });
+
+    it("POST /participants/:id/accountchangerequests/:changereqid/reject - Should handle unauthorize error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
+
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            id: "14",
+            isActive:true,
+            participantAccountsChangeRequest: [
+                {
+                    id: "1",
+                    accountId: "1",
+                    type: ParticipantAccountTypes.POSITION,
+                    currencyCode: "USD",
+                    externalBankAccountId: "",
+                    externalBankAccountName: "",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_ACCOUNT"
+                }
+            ]
+        }
+
+        repoPartMock.store(participant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/14/accountchangerequests/1/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
     });
 });

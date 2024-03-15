@@ -27,7 +27,7 @@
 
 "use strict";
 
-import { IParticipantContactInfoChangeRequest, IParticipantSourceIpChangeRequest, ParticipantAllowedSourceIpsPortModes } from "@mojaloop/participant-bc-public-types-lib";
+import { ApprovalRequestState, IParticipantContactInfoChangeRequest, IParticipantSourceIpChangeRequest, ParticipantAllowedSourceIpsPortModes } from "@mojaloop/participant-bc-public-types-lib";
 import { Participant } from "../../src/domain/entities/participant";
 
 describe('Participant Class', () => {
@@ -54,7 +54,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -81,7 +83,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -107,7 +111,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -133,7 +139,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -159,7 +167,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -185,7 +195,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -207,7 +219,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -233,7 +247,9 @@ describe('Participant Class', () => {
                 allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
@@ -259,7 +275,9 @@ describe('Participant Class', () => {
                 contactInfoId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_PARTICIPANT_CONTACT_INFO"
@@ -279,7 +297,9 @@ describe('Participant Class', () => {
                 contactInfoId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_PARTICIPANT_CONTACT_INFO"
@@ -299,7 +319,9 @@ describe('Participant Class', () => {
                 contactInfoId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_PARTICIPANT_CONTACT_INFO"
@@ -319,7 +341,9 @@ describe('Participant Class', () => {
                 contactInfoId: null,
                 createdBy: "user",
                 createdDate: now,
-                approved: false,
+                requestState: ApprovalRequestState.CREATED,
+                rejectedBy:null,
+                rejectedDate:null,
                 approvedBy: null,
                 approvedDate: null,
                 requestType: "ADD_PARTICIPANT_CONTACT_INFO"

@@ -48,7 +48,6 @@
  
  import {
      DuplicateRequestFoundError,
-     InvalidParticipantError,
      NoAccountsError,
      NoEndpointsError,
      ParticipantCreateValidationError,
