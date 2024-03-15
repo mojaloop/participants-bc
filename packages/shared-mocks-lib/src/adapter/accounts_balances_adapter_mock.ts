@@ -90,7 +90,7 @@ export class AccountsBalancesAdapterMock implements IAccountsBalancesAdapter {
 	abJournals: Array<ABJournal> = [];
 
 	async init(): Promise<void> {
-		this.abAccounts.push()
+		this.abAccounts.push();
 		return Promise.resolve();
 	}
 	async destroy(): Promise<void> {
