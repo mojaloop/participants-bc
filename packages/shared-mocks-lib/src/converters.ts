@@ -31,8 +31,8 @@
 
  "use strict";
 
- const REGEX: RegExp = /^(-{0,1})([0]|([1-9][0-9]{0,17}))([.][0-9]{0,3}[1-9])?$/;
- 
+ const REGEX: RegExp = /^-?\d{1,17}(?:\.\d{1,3}[1-9])?$/;
+
  // Can be optimized.
  export function stringToBigint(stringValue: string, decimals: number): bigint {
      if (!REGEX.test(stringValue)) {

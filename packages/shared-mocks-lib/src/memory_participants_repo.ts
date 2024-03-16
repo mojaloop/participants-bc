@@ -124,8 +124,8 @@ export class ParticipantsRepoMock implements IParticipantsRepository {
             if (name) nameMatch = (name === partItem.name);
 
             let stateMatch = true;
-            if (state) stateMatch = (partItem.approved === (state === "APPROVED" ? true : false));
-
+            if (state) stateMatch = (partItem.approved === (state === "APPROVED"));
+            
             return idMatch && nameMatch && stateMatch;
         });
 

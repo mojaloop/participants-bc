@@ -31,10 +31,9 @@ import { IAccountsBalancesAdapter } from "@mojaloop/participants-bc-participants
 import { stringToBigint, bigintToString } from "../converters";
 import {
 	AccountsAndBalancesAccount,
-	AccountsAndBalancesAccountType
+	AccountsAndBalancesAccountType,
+	AccountsAndBalancesJournalEntry
 } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
-import { AccountsAndBalancesJournalEntry } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
-
 class ABAccount {
 	requestedId: string;
 	ownerId: string;
