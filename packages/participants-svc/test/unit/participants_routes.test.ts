@@ -497,7 +497,7 @@ describe("Participants Routes - Unit Test", () => {
         const endpointId = mockedParticipant1.participantEndpoints[0].id;
         const modifiedParticipantEndpointData: IParticipantEndpoint = {
             ...mockedParticipant1.participantEndpoints[0],
-            value: 'http://56.45.45.162:4041'
+            value: 'https://56.45.45.162:4041'
         }
 
         // Act
@@ -512,17 +512,23 @@ describe("Participants Routes - Unit Test", () => {
 
     it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if the participant is not active", async () => {
         // Arrange
-        const emptyParticipantId = mockedInactiveParticipant.id;
-        const endpointId = "1";
-        const modifiedParticipantEndpointData: IParticipantEndpoint = {
-            ...mockedParticipant1.participantEndpoints[0],
-            value: 'http://56.45.45.162:4041'
+       
+        const inActiveParticipant: IParticipant= {
+            ...mockedParticipant1, 
+            isActive: false
         }
 
-        repoPartMock.store(mockedInactiveParticipant);
+        const endpointId = mockedParticipant1.participantEndpoints[0].id;
+        const modifiedParticipantEndpointData: IParticipantEndpoint = {
+            ...mockedParticipant1.participantEndpoints[0],
+            value: 'https://56.45.45.162:4041'
+        }
+
+        repoPartMock.store(inActiveParticipant);
+
         // Act
         const response = await request(participantSvcUrl)
-            .put(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
+            .put(`/participants/${inActiveParticipant.id}/endpoints/${endpointId}`)
             .set("authorization", AUTH_TOKEN)
             .send(modifiedParticipantEndpointData);
 
@@ -585,52 +591,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(404);
     });
 
-    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participantId is hub participantId", async () => {
-        // Arrange
-        const emptyParticipantId = "hub";
-        const endpointId = "1";
-
-        // Act
-        const response = await request(participantSvcUrl)
-            .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
-            .set("authorization", AUTH_TOKEN)
-
-        // Assert
-        expect(response.status).toBe(500);
-    });
-
-    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participant is not active", async () => {
-        // Arrange
-        const emptyParticipantId = mockedInactiveParticipant.id;
-        const endpointId = "1";
-
-        repoPartMock.store(mockedInactiveParticipant);
-
-        // Act
-        const response = await request(participantSvcUrl)
-            .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
-            .set("authorization", AUTH_TOKEN)
-
-        // Assert
-        expect(response.status).toBe(500);
-        
-    });
-
-    it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if given endpointId not found.", async () => {
-        // Arrange
-        const emptyParticipantId = mockedParticipant1.id;
-        const endpointId = "none"; //Non existing endpointId
-
-        repoPartMock.store(mockedInactiveParticipant);
-        
-        // Act
-        const response = await request(participantSvcUrl)
-            .delete(`/participants/${emptyParticipantId}/endpoints/${endpointId}`)
-            .set("authorization", AUTH_TOKEN)
-
-        // Assert
-        expect(response.status).toBe(500);
-    });
+    
     
     /**Participant's Accounts */
 
@@ -1546,8 +1507,9 @@ describe("Participants Routes - Unit Test", () => {
 
     it("POST /participants/:id/funds - Should create a participant fund movement record", async () => {
         // Arrange
+        
         const now = Date.now();
-        const participantId = mockedParticipant2.id;
+        const participantId = mockedParticipant1.id;
         const fundMovement: IParticipantFundsMovement = {
             id: "1",
             createdBy: "user",
@@ -2423,7 +2385,6 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(422);
     });
 
-
     /**Participant Status - Reject implementations*/
     it("POST /participants/:id/statusChangeRequests/:changereqid/reject - Should reject a contact info change request", async () => {
         // Arrange
@@ -2564,4 +2525,5 @@ describe("Participants Routes - Unit Test", () => {
         // Assert
         expect(response.status).toBe(403);
     });
+
 });

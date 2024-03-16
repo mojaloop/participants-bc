@@ -32,33 +32,47 @@ import { Participant } from "../../src/domain/entities/participant";
 
 describe('Participant Class', () => {
 
+    const now = Date.now();
+
+    const sourceIpChangeRequest : IParticipantSourceIpChangeRequest = {
+        id: "",
+        cidr: "",
+        portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+        ports: [],
+        portRange: {
+            rangeFirst: 0,
+            rangeLast: 0
+        },
+        allowedSourceIpId: null,
+        createdBy: "",
+        createdDate: NaN,
+        requestState: ApprovalRequestState.CREATED,
+        rejectedBy:null,
+        rejectedDate:null,
+        approvedBy: null,
+        approvedDate: null,
+        requestType: "ADD_SOURCE_IP"
+    };
+
     beforeAll(async () => {
         console.log("Unit tests for participant");
     });
 
+    
+    
     describe('ValidateParticipantSourceIpChangeRequest', () => {
 
         it("Should resolve for valid source IP change request", async () => {
-            const now = Date.now();
+            
 
             const validRequest: IParticipantSourceIpChangeRequest =
-            {
+            {   ...sourceIpChangeRequest,
                 id: "1",
                 cidr: "192.168.1.0/24",
                 portMode: ParticipantAllowedSourceIpsPortModes.ANY,
-                ports: [],
-                portRange: {
-                    rangeFirst: 0,
-                    rangeLast: 0
-                },
-                allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
                 requestState: ApprovalRequestState.CREATED,
-                rejectedBy:null,
-                rejectedDate:null,
-                approvedBy: null,
-                approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
             }
 
@@ -71,23 +85,13 @@ describe('Participant Class', () => {
             const now = Date.now();
 
             const invalidRequest: IParticipantSourceIpChangeRequest =
-            {
+            {   ...sourceIpChangeRequest,
                 id: "1",
                 cidr: "",
                 portMode: ParticipantAllowedSourceIpsPortModes.ANY,
-                ports: [],
-                portRange: {
-                    rangeFirst: 0,
-                    rangeLast: 0
-                },
-                allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
                 requestState: ApprovalRequestState.CREATED,
-                rejectedBy:null,
-                rejectedDate:null,
-                approvedBy: null,
-                approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
             }
 
@@ -100,22 +104,13 @@ describe('Participant Class', () => {
 
             const invalidRequest: IParticipantSourceIpChangeRequest =
             {
+                ...sourceIpChangeRequest,
                 id: "1",
                 cidr: "192.168.0.20",
                 portMode: ParticipantAllowedSourceIpsPortModes.ANY,
-                ports: [],
-                portRange: {
-                    rangeFirst: 0,
-                    rangeLast: 0
-                },
-                allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
                 requestState: ApprovalRequestState.CREATED,
-                rejectedBy:null,
-                rejectedDate:null,
-                approvedBy: null,
-                approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
             }
 
@@ -128,6 +123,7 @@ describe('Participant Class', () => {
 
             const invalidRequest: IParticipantSourceIpChangeRequest =
             {
+                ...sourceIpChangeRequest,
                 id: "1",
                 cidr: "192.168.0.20/22",
                 portMode: ParticipantAllowedSourceIpsPortModes.RANGE,
@@ -136,14 +132,9 @@ describe('Participant Class', () => {
                     rangeFirst: 0,
                     rangeLast: 0
                 },
-                allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
                 requestState: ApprovalRequestState.CREATED,
-                rejectedBy:null,
-                rejectedDate:null,
-                approvedBy: null,
-                approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
             }
 
@@ -156,6 +147,7 @@ describe('Participant Class', () => {
 
             const invalidRequest: IParticipantSourceIpChangeRequest =
             {
+                ...sourceIpChangeRequest,
                 id: "1",
                 cidr: "192.168.0.20/22",
                 portMode: ParticipantAllowedSourceIpsPortModes.RANGE,
@@ -164,14 +156,9 @@ describe('Participant Class', () => {
                     rangeFirst: 3300,
                     rangeLast: 3200
                 },
-                allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
                 requestState: ApprovalRequestState.CREATED,
-                rejectedBy:null,
-                rejectedDate:null,
-                approvedBy: null,
-                approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
             }
 
@@ -184,6 +171,7 @@ describe('Participant Class', () => {
 
             const invalidRequest: IParticipantSourceIpChangeRequest =
             {
+                ...sourceIpChangeRequest,
                 id: "1",
                 cidr: "192.168.0.20/22",
                 portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
@@ -192,14 +180,9 @@ describe('Participant Class', () => {
                     rangeFirst: 0,
                     rangeLast: 0
                 },
-                allowedSourceIpId: null,
                 createdBy: "user",
                 createdDate: now,
                 requestState: ApprovalRequestState.CREATED,
-                rejectedBy:null,
-                rejectedDate:null,
-                approvedBy: null,
-                approvedDate: null,
                 requestType: "ADD_SOURCE_IP"
             }
 
