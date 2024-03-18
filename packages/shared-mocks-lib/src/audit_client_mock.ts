@@ -19,9 +19,9 @@
  their names indented and be marked with a '-'. Email address can be added
  optionally within square brackets <email>.
 
- * Coil
- * - Jason Bruwer <jason.bruwer@coil.com>
-
+ * ThitsaWorks
+ - Sithu Kyaw <sithu.kyaw@thitsaworks.com>
+ - Zwe Htet Myat <zwehtet.myat@thitsaworks.com>
  --------------
  ******/
 

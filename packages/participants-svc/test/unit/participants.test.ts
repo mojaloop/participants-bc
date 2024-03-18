@@ -20,7 +20,7 @@
  optionally within square brackets <email>.
 
  * ThitsaWorks
- *  - Sithu Kyaw <sithu.kyaw@thitsaworks.com>
+ - Sithu Kyaw <sithu.kyaw@thitsaworks.com>
 
  --------------
  ******/

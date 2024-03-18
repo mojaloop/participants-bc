@@ -20,12 +20,9 @@
  their names indented and be marked with a '-'. Email address can be added
  optionally within square brackets <email>.
 
- * Gates Foundation
- - Name Surname <name.surname@gatesfoundation.com>
-
- * Arg Software
- - José Antunes <jose.antunes@arg.software>
- - Rui Rocha <rui.rocha@arg.software>
+ * Thitsaworks
+ - Sithu kyaw <sithu.kyaw@thitsaworks.com>
+ - Zwe Htet Myat <zwehtet.myat@thitsaworks.com>
 
  --------------
 **/

@@ -19,10 +19,9 @@
  their names indented and be marked with a '-'. Email address can be added
  optionally within square brackets <email>.
 
- * Arg Software
- - José Antunes <jose.antunes@arg.software>
- - Rui Rocha <rui.rocha@arg.software>
-
+ * ThitsaWorks
+ - Sithu Kyaw <sithu.kyaw@thitsaworks.com>
+ - Zwe Htet Myat <zwehtet.myat@thitsaworks.com>
  --------------
  ******/
 
