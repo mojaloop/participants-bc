@@ -82,6 +82,9 @@ describe("Participants Routes - Unit Test", () => {
     let expressServer: Server;
     let participantAgg;
 
+    const VALID_IP_ADDRESS = process.env.VALID_PARTICIPANT_SOURCE_IP || "";
+    const INVALID_IP_ADDRESS = process.env.INVALID_PARTICIPANT_SOURCE_IP || ""; 
+
     beforeAll(async () => {
         app = express();
         app.use(express.json()); // for parsing application/json
@@ -1340,7 +1343,7 @@ describe("Participants Routes - Unit Test", () => {
         const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
             id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
             allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-            cidr: "192.168.20.10/32",
+            cidr: VALID_IP_ADDRESS,
             portMode: ParticipantAllowedSourceIpsPortModes.ANY,
             ports: [3000, 4000],
             portRange: {rangeFirst: 0, rangeLast: 0},
@@ -1372,7 +1375,7 @@ describe("Participants Routes - Unit Test", () => {
         const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
             id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
             allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-            cidr: "192.168.20.10/32",
+            cidr: VALID_IP_ADDRESS,
             portMode: ParticipantAllowedSourceIpsPortModes.ANY,
             ports: [3000, 4000],
             portRange: {rangeFirst: 0, rangeLast: 0},
@@ -1412,7 +1415,7 @@ describe("Participants Routes - Unit Test", () => {
         const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
             id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
             allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-            cidr: "192.168.20.10/32",
+            cidr: VALID_IP_ADDRESS,
             portMode: ParticipantAllowedSourceIpsPortModes.ANY,
             ports: [3000, 4000],
             portRange: {rangeFirst: 0, rangeLast: 0},
@@ -1452,7 +1455,7 @@ describe("Participants Routes - Unit Test", () => {
             participantSourceIpChangeRequests: [{
                 id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
                 allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-                cidr: "192.168.20.10/32",
+                cidr: VALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.ANY,
                 ports: [3000, 4000],
                 portRange: { rangeFirst: 0, rangeLast: 0 },
@@ -1487,7 +1490,7 @@ describe("Participants Routes - Unit Test", () => {
         const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
             id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
             allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-            cidr: "192.168.20.10/32",
+            cidr: VALID_IP_ADDRESS,
             portMode: ParticipantAllowedSourceIpsPortModes.ANY,
             ports: [3000, 4000],
             portRange: {rangeFirst: 0, rangeLast: 0},
@@ -1527,7 +1530,7 @@ describe("Participants Routes - Unit Test", () => {
         const sourceIPChangeRequest: IParticipantSourceIpChangeRequest = {
             id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
             allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-            cidr: "192.168.20.10/32",
+            cidr: VALID_IP_ADDRESS,
             portMode: ParticipantAllowedSourceIpsPortModes.ANY,
             ports: [3000, 4000],
             portRange: {rangeFirst: 0, rangeLast: 0},
@@ -2865,7 +2868,7 @@ describe("Participants Routes - Unit Test", () => {
                 {
                     id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
                     allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-                    cidr: "192.168.20.10/32",
+                    cidr: VALID_IP_ADDRESS,
                     portMode: ParticipantAllowedSourceIpsPortModes.ANY,
                     ports: [3000, 4000],
                     portRange: { rangeFirst: 0, rangeLast: 0 },
@@ -2908,7 +2911,7 @@ describe("Participants Routes - Unit Test", () => {
                 {
                     id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
                     allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-                    cidr: "192.168.20.10/32",
+                    cidr: VALID_IP_ADDRESS,
                     portMode: ParticipantAllowedSourceIpsPortModes.ANY,
                     ports: [3000, 4000],
                     portRange: { rangeFirst: 0, rangeLast: 0 },
@@ -2946,7 +2949,7 @@ describe("Participants Routes - Unit Test", () => {
                 {
                     id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
                     allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
-                    cidr: "192.168.20.10/32",
+                    cidr: VALID_IP_ADDRESS,
                     portMode: ParticipantAllowedSourceIpsPortModes.ANY,
                     ports: [3000, 4000],
                     portRange: { rangeFirst: 0, rangeLast: 0 },

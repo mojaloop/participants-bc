@@ -34,6 +34,9 @@ describe('Participant Class', () => {
 
     const now = Date.now();
 
+    const VALID_IP_ADDRESS = process.env.VALID_PARTICIPANT_SOURCE_IP || "";
+    const INVALID_IP_ADDRESS = process.env.INVALID_PARTICIPANT_SOURCE_IP || "";
+
     const sourceIpChangeRequest : IParticipantSourceIpChangeRequest = {
         id: "",
         cidr: "",
@@ -68,7 +71,7 @@ describe('Participant Class', () => {
             const validRequest: IParticipantSourceIpChangeRequest =
             {   ...sourceIpChangeRequest,
                 id: "1",
-                cidr: "192.168.1.0/24",
+                cidr: VALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.ANY,
                 createdBy: "user",
                 createdDate: now,
@@ -106,7 +109,7 @@ describe('Participant Class', () => {
             {
                 ...sourceIpChangeRequest,
                 id: "1",
-                cidr: "192.168.0.20",
+                cidr: INVALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.ANY,
                 createdBy: "user",
                 createdDate: now,
@@ -125,7 +128,7 @@ describe('Participant Class', () => {
             {
                 ...sourceIpChangeRequest,
                 id: "1",
-                cidr: "192.168.0.20/22",
+                cidr: VALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.RANGE,
                 ports: [],
                 portRange: {
@@ -149,7 +152,7 @@ describe('Participant Class', () => {
             {
                 ...sourceIpChangeRequest,
                 id: "1",
-                cidr: "192.168.0.20/22",
+                cidr: VALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.RANGE,
                 ports: [],
                 portRange: {
@@ -173,7 +176,7 @@ describe('Participant Class', () => {
             {
                 ...sourceIpChangeRequest,
                 id: "1",
-                cidr: "192.168.0.20/22",
+                cidr: VALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
                 ports: [0, 0],
                 portRange: {
@@ -192,7 +195,7 @@ describe('Participant Class', () => {
             const invalidRequest1: IParticipantSourceIpChangeRequest =
             {
                 id: "1",
-                cidr: "192.168.0.20/22",
+                cidr: VALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
                 ports: undefined,
                 portRange: {
@@ -220,7 +223,7 @@ describe('Participant Class', () => {
             const validSpecificPorts: IParticipantSourceIpChangeRequest =
             {
                 id: "1",
-                cidr: "192.168.0.20/22",
+                cidr: VALID_IP_ADDRESS,
                 portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
                 ports: [3010, 4088],
                 portRange: {
