@@ -1183,15 +1183,8 @@
          note: string = ""
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST);
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError( `Participant with ID: '${participantId}' not found.`);
-         }
+         
+         const existing = await this._validateParticipantAndRetrieve(participantId, true);
  
          const statusChangeRequest = existing.participantStatusChangeRequests.find(
              (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
@@ -1298,15 +1291,8 @@
          note: string = ""
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_STATUS_CHANGE_REQUEST);
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError( `Participant with ID: '${participantId}' not found.`);
-         }
+         
+         const existing = await this._validateParticipantAndRetrieve(participantId, true);
  
          const statusChangeRequest = existing.participantStatusChangeRequests.find(
              (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
@@ -3558,7 +3544,7 @@
              throw new Error(err.message);
          }
      }
-     
+
     
     private _findContactInfoChangeRequest(participant: IParticipant, contactInfoChangeRequestId: string): IParticipantContactInfoChangeRequest {
         const contactInfoChangeRequest = participant.participantContactInfoChangeRequests.find(
@@ -3720,7 +3706,8 @@
     
  
      private async _validateParticipantAndRetrieve(
-         participantId: string
+         participantId: string,
+         isValidatingForParticipantStatusChangeRequest: boolean = false
      ): Promise<IParticipant> {
 
          if (participantId.trim().length == 0)
@@ -3737,7 +3724,7 @@
                  `Participant with ID: '${participantId}' not found.`
              );
          }
-         if (!existing.isActive) {
+         if (!existing.isActive && !isValidatingForParticipantStatusChangeRequest) {
              throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active.`
              );
