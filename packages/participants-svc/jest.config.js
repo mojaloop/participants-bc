@@ -13,6 +13,7 @@ module.exports = {
     coveragePathIgnorePatterns: ["./src/tmp_files"],
     coverageReporters: ["text", ["json", {file: `../../../coverage/${packageName}-final.json`}]],
     clearMocks: true,
+    //Need to re-open *coverageThreshold after initial tests are merged
     /* coverageThreshold: {
         "global": {
             "branches": 90,
