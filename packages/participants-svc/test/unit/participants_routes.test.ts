@@ -428,6 +428,29 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(404);
     });
 
+    it("POST /participants/:id/endpoints - Should be able to create a participant endpoint", async () => {
+        // Arrange
+        const participant = mockedParticipant1;
+        const endpoint:IParticipantEndpoint = {
+            id: "3",
+            type: ParticipantEndpointTypes.FSPIOP,
+            protocol: ParticipantEndpointProtocols["HTTPs/REST"],
+            value: "https://172.31.88.169:4045"
+        };
+        
+        repoPartMock.store(participant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${participant.id}/endpoints`)
+            .send(endpoint)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(200);
+        
+    });
+
     it("PUT /participants/:id/endpoints/:endpointId - Should update a participant endpoints and return status to be 200", async () => {
         // Arrange
 
@@ -2331,7 +2354,7 @@ describe("Participants Routes - Unit Test", () => {
     });
 
    
-    /**Contact Info - Reject implementations*/
+    /**Participant Contact Info Change Requests - Reject implementations*/
     it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should reject a contact info change request", async () => {
         // Arrange
         const now = Date.now();
@@ -2417,8 +2440,8 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(422);
     });
 
-    /**Participant Status - Reject implementations*/
-    it("POST /participants/:id/statusChangeRequests/:changereqid/reject - Should reject a contact info change request", async () => {
+    /**Participant Status Change Requests - Reject implementations*/
+    it("POST /participants/:id/statusChangeRequests/:changereqid/reject - Should reject participant status change request", async () => {
         // Arrange
         
         jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
@@ -2460,7 +2483,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
-    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/reject - Should handle unauthorize error", async () => {
+    it("POST /participants/:id/statusChangeRequests/:changereqid/reject - Should handle unauthorize error", async () => {
         //Arrange
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
         
@@ -2472,7 +2495,7 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
-    /**Participant Accounts - Reject implementations*/
+    /**Participant Account Change Requests - Reject implementations*/
     it("POST /participants/:id/accountchangerequests/:changereqid/reject - Should reject an account change request", async () => {
         // Arrange
         
@@ -2557,5 +2580,402 @@ describe("Participants Routes - Unit Test", () => {
         // Assert
         expect(response.status).toBe(403);
     });
+
+    it("POST /participants/:id/accountchangerequests/:changereqid/reject - Should throw error if participant is not active", async () => {
+        //Arrange
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            id: "14",
+            isActive:false,
+            participantAccountsChangeRequest: [
+                {
+                    id: "1",
+                    accountId: "1",
+                    type: ParticipantAccountTypes.POSITION,
+                    currencyCode: "USD",
+                    externalBankAccountId: "",
+                    externalBankAccountName: "",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_ACCOUNT"
+                }
+            ]
+        }
+        repoPartMock.store(participant);
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/11/contactInfoChangeRequests/1/reject`)
+            .set("authorization", AUTH_TOKEN);
+        // Assert
+        expect(response.status).toBe(422);
+    });
+
+
+    /**Participant Fund Movement Change Requests  - Reject implementations*/
+    it("POST /participants/:id/funds/:fundsMovId/reject - Should reject an fund movement request", async () => {
+        // Arrange
+        
+        const now = Date.now();
+        const mockedParticipant: IParticipant = {
+            ...mockedParticipant1,
+            fundsMovements: [
+                {
+                    id: "3",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    currencyCode: "USD",
+                    amount: "200000",
+                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    extReference: null,
+                    note: null
+                }
+            ]
+        };
+        
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/funds/3/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        const fetchedParticipant = await repoPartMock.fetchWhereId(mockedParticipant1.id);
+        const fundMovementChangeRequest = fetchedParticipant?.fundsMovements.find((item)=> item.id === "3");
+
+        // Assert
+        expect(response.status).toBe(200);
+        expect(fundMovementChangeRequest?.requestState).toBe(ApprovalRequestState.REJECTED);
+    });
+
+    it("POST /participants/:id/funds/:fundsMovId/reject - Should handle unauthorize error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
+
+        const now = Date.now();
+        const mockedParticipant: IParticipant = {
+            ...mockedParticipant1,
+            fundsMovements: [
+                {
+                    id: "3",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    currencyCode: "USD",
+                    amount: "200000",
+                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    extReference: null,
+                    note: null
+                }
+            ]
+        };
+
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/funds/${mockedParticipant.fundsMovements[0].id}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    it("POST /participants/:id/funds/:fundsMovId/reject - Should throw error if participant is not active", async () => {
+        //Arrange
+        const now = Date.now();
+        const mockedParticipant: IParticipant = {
+            ...mockedParticipant1,
+            isActive: false,
+            fundsMovements: [
+                {
+                    id: "3",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    currencyCode: "USD",
+                    amount: "200000",
+                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    extReference: null,
+                    note: null
+                }
+            ]
+        };
+
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/funds/${mockedParticipant.fundsMovements[0].id}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(422);
+    });
+
+    /**Participant NDC Change Requests - Reject implementations*/
+     it("POST /participants/:id/ndcchangerequests/:ndcReqId/reject - Should reject a net debitcap change request", async () => {
+        // Arrange
+        
+         const now = Date.now();
+
+         const mockedParticipant: IParticipant = {
+             ...mockedParticipant1,
+             netDebitCapChangeRequests: [{
+                 id: "1",
+                 createdBy: "user",
+                 createdDate: now,
+                 requestState: ApprovalRequestState.CREATED,
+                 approvedBy: null,
+                 approvedDate: null,
+                 rejectedBy: null,
+                 rejectedDate: null,
+                 currencyCode: "USD",
+                 type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                 percentage: null,
+                 fixedValue: 1000000,
+                 extReference: null,
+                 note: null
+             }
+             ]
+         };
+        
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/ndcchangerequests/1/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        const fetchedParticipant = await repoPartMock.fetchWhereId(mockedParticipant1.id);
+        const ndcChangeRequest = fetchedParticipant?.netDebitCapChangeRequests.find((item)=> item.id === "1");
+
+        // Assert
+        expect(response.status).toBe(200);
+        expect(ndcChangeRequest?.requestState).toBe(ApprovalRequestState.REJECTED);
+    });
+
+    it("POST /participants/:id/ndcchangerequests/:ndcReqId/reject - Should handle unauthorize error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
+
+        const now = Date.now();
+
+        const mockedParticipant: IParticipant = {
+            ...mockedParticipant1,
+            netDebitCapChangeRequests: [{
+                id: "1",
+                createdBy: "user",
+                createdDate: now,
+                requestState: ApprovalRequestState.CREATED,
+                approvedBy: null,
+                approvedDate: null,
+                rejectedBy: null,
+                rejectedDate: null,
+                currencyCode: "USD",
+                type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                percentage: null,
+                fixedValue: 1000000,
+                extReference: null,
+                note: null
+            }
+            ]
+        };
+
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/ndcchangerequests/${mockedParticipant.netDebitCapChangeRequests[0].id}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    it("POST /participants/:id/ndcchangerequests/:ndcReqId/reject - Should throw error if participant is not active", async () => {
+        //Arrange
+        const now = Date.now();
+        const mockedParticipant: IParticipant = {
+            ...mockedParticipant1,
+            isActive:false,
+            netDebitCapChangeRequests: [{
+                id: "1",
+                createdBy: "user",
+                createdDate: now,
+                requestState: ApprovalRequestState.CREATED,
+                approvedBy: null,
+                approvedDate: null,
+                rejectedBy: null,
+                rejectedDate: null,
+                currencyCode: "USD",
+                type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                percentage: null,
+                fixedValue: 1000000,
+                extReference: null,
+                note: null
+            }
+            ]
+        };
+
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/ndcchangerequests/${mockedParticipant.netDebitCapChangeRequests[0].id}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(422);
+    });
+
+    /**Participant Source IP Change Requests - Reject implementations*/
+    it("POST /participants/:id/SourceIpChangeRequests/:changereqid/reject - Should reject a sourceIP change request", async () => {
+        // Arrange
+
+        jest.spyOn(tokenHelperMock, "getCallSecurityContextFromAccessToken").mockResolvedValueOnce({
+            username: "user",
+			clientId: "user",
+			platformRoleIds: ["user"],
+			accessToken: "mock-token",
+        });
+
+        const now = Date.now();
+        const mockedParticipant:IParticipant = {
+            ...mockedParticipant1,
+            participantSourceIpChangeRequests: [
+                {
+                    id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+                    allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+                    cidr: "192.168.20.10/32",
+                    portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+                    ports: [3000, 4000],
+                    portRange: { rangeFirst: 0, rangeLast: 0 },
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_SOURCE_IP"
+
+                }
+            ]
+        };
+        
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/SourceIpChangeRequests/${mockedParticipant.participantSourceIpChangeRequests[0].id}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        const fetchedParticipant = await repoPartMock.fetchWhereId(mockedParticipant1.id);
+        const sourceIpChangeRequests = fetchedParticipant?.participantSourceIpChangeRequests.find((item)=> item.id === mockedParticipant.participantSourceIpChangeRequests[0].id);
+
+        // Assert
+        expect(response.status).toBe(200);
+        expect(sourceIpChangeRequests?.requestState).toBe(ApprovalRequestState.REJECTED);
+    });
+
+    it("POST /participants/:id/SourceIpChangeRequests/:changereqid/reject - Should handle unauthorize error", async () => {
+        //Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
+
+        const now = Date.now();
+        const mockedParticipant:IParticipant = {
+            ...mockedParticipant1,
+            participantSourceIpChangeRequests: [
+                {
+                    id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+                    allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+                    cidr: "192.168.20.10/32",
+                    portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+                    ports: [3000, 4000],
+                    portRange: { rangeFirst: 0, rangeLast: 0 },
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_SOURCE_IP"
+
+                }
+            ]
+        };
+
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/SourceIpChangeRequests/${mockedParticipant.participantSourceIpChangeRequests[0].id}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(403);
+    });
+
+    it("POST /participants/:id/SourceIpChangeRequests/:ndcReqId/reject - Should throw error if participant is not active", async () => {
+        //Arrange
+        const now = Date.now();
+        const mockedParticipant:IParticipant = {
+            ...mockedParticipant1,
+            isActive: false,
+            participantSourceIpChangeRequests: [
+                {
+                    id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+                    allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+                    cidr: "192.168.20.10/32",
+                    portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+                    ports: [3000, 4000],
+                    portRange: { rangeFirst: 0, rangeLast: 0 },
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_SOURCE_IP"
+
+                }
+            ]
+        };
+
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/SourceIpChangeRequests/${mockedParticipant.participantSourceIpChangeRequests[0].id}/reject`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(422);
+    });
+
 
 });
