@@ -64,6 +64,7 @@ export class ParticipantAlreadyApproved extends Error {}
 export class NdcChangeRequestNotFound extends Error {}
 export class NdcChangeRequestAlreadyApproved extends Error {}
 export class InvalidNdcChangeRequest extends Error {}
+export class InvalidNdcAmount extends Error {}
 
 export class CannotAddDuplicateContactInfoError extends Error {}
 export class ContactInfoNotFoundError extends Error {}

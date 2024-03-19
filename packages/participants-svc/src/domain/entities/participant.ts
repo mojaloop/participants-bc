@@ -144,7 +144,7 @@ export class Participant implements IParticipant {
             }
 
             if (request.portMode === "RANGE") {
-                if (Number(request.portRange?.rangeFirst) === 0 || Number(request.portRange?.rangeFirst) === 0) {
+                if (Number(request.portRange?.rangeFirst) === 0 || Number(request.portRange?.rangeLast) === 0) {
                     throw new Error(
                         "Invalid Port Range values."
                     );
@@ -265,106 +265,3 @@ function _validateParticipantSourceIP_Ports(portsArray: number[] | undefined): b
     // Valid ports array
     return true;
 }
-
-
-/*
-// these types below are all unnecessary since they are dumb objects that simply
-// implement the interfaces, might as well just use the interfaces
-
-export declare class ParticipantNetDebitCap implements IParticipantNetDebitCap{
-    currencyCode: string;
-    type: "ABSOLUTE" | "PERCENTAGE";
-    percentage: number;
-    currentValue: number;
-}
-
-export declare class ParticipantNetDebitCapChangeRequest implements IParticipantNetDebitCapChangeRequest {
-    id: string;
-    createdBy: string;
-    createdDate: number;
-    approved: boolean;
-    approvedBy: string | null;
-    approvedDate: number | null;
-
-    currencyCode: string;
-    type: ParticipantNetDebitCapTypes;
-    // null in the case where type == "ABSOLUTE", 0>100 in the case of "PERCENTAGE"
-    percentage: number | null;
-    // this will have the value in currency in case of type == "ABSOLUTE" - will directly to the currentValue when approved
-    // will be null when type === "PERCENTAGE"
-    fixedValue: number | null;
-
-    extReference: string | null;
-    note: string | null;
-}
-
-
-export declare class ParticipantFundsMovement implements IParticipantFundsMovement{
-    id: string;
-    createdBy: string;
-    createdDate: number;
-    approved: boolean;
-    approvedBy: string | null;
-    approvedDate: number | null;
-
-    direction: ParticipantFundsMovementDirections;
-    currencyCode: string;
-    amount: string;
-
-    transferId: string | null;
-    extReference: string | null;
-    note: string | null;
-}
-
-
-export declare class ParticipantAllowedSourceIps implements IParticipantAllowedSourceIps{
-    id: string;                                             // uuid of the source IP
-    cidr: string;                                            // proper cidr format
-    // ANY to only use the cidr, allow traffic from any ports, SPECIFIC to use ports array, RANGE to use portRange
-    portMode: ParticipantAllowedSourceIpsPortModes;
-    ports?: number[];                                       // using a single or multiple ports
-    portRange?: { rangeFirst: number, rangeLast: number; };   // port range
-}
-
-
-export declare class ParticipantEndpoint implements IParticipantEndpoint{
-    id: string;                                             // uuid of the endpoint
-    type: ParticipantEndpointTypes;                            // "FSPIOP" | "ISO20022"
-    protocol: ParticipantEndpointProtocols;                                 // for now only "HTTPs/REST";
-    value: string;                                          // URL format for urls, ex: https://example.com:8080/fspcallbacks/, or simply 192.168.1.1:3000
-}
-
-
-export declare class ParticipantAccount implements IParticipantAccount{
-    id: string;                                             // uuid of the account (from the external accounts and balances system)
-    type: ParticipantAccountTypes;
-    //isActive: boolean                                     //TODO do we need this?
-    currencyCode: string;                                   //TODO move
-    debitBalance: string | null;                            // output only, we don't store this here
-    creditBalance: string | null;                           // output only, we don't store this here
-    balance: string | null;									// output only, we don't store this here
-    externalBankAccountId: string | null;
-    externalBankAccountName: string | null;
-}
-
-export declare class ParticipantAccountChangeRequest implements IParticipantAccountChangeRequest{
-    id: string;
-    accountId: string | null;
-    type: ParticipantAccountTypes;
-    currencyCode: string;
-    externalBankAccountId: string | null;
-    externalBankAccountName: string | null;
-    createdBy: string;
-    createdDate: number;
-    approved: boolean;
-    approvedBy: string | null;
-    approvedDate: number | null;
-}
-
-export declare class ParticipantActivityLogEntry implements IParticipantActivityLogEntry{
-    changeType: ParticipantChangeTypes;
-    user: string;
-    timestamp: number;
-    notes: string | null;
-}
-*/

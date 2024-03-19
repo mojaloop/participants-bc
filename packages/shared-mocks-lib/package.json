@@ -1,0 +1,44 @@
+{
+  "name": "@mojaloop/participants-bc-shared-mocks-lib",
+  "version": "0.0.1",
+  "description": "Participants BC shared mocks.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/mojaloop/participants-bc/tree/main/packages/shared-mocks-lib",
+  "bugs": {
+    "url": "https://github.com/mojaloop/participants-bc/issues#readme"
+  },
+  "contributors": [
+    "José Antunes <jose.antunes@arg.software>",
+    "Rui Rocha <rui.rocha@arg.software>",
+    "Zwe Htet Myat <zwehtet.myat@thitsaworks.com>"
+  ],
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "(npm run clean:npm || true) && npm run clean:dist",
+    "clean:dist": "rm -rf dist",
+    "clean:npm": "rm -rf node_modules",
+    "audit:check": "npm npm audit",
+    "dep:check": "ncu -e 2",
+    "dep:update": "ncu -u",
+    "lint": "eslint ./src",
+    "lint:fix": "eslint ./src --fix"
+  },
+  "dependencies": {
+    "@mojaloop/participants-bc-participants-svc": "*",
+    "@mojaloop/logging-bc-public-types-lib": "~0.5.4",
+    "@mojaloop/platform-shared-lib-messaging-types-lib": "~0.5.6",
+    "@mojaloop/security-bc-client-lib": "~0.5.9",
+    "@mojaloop/participant-bc-public-types-lib": "*"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "npm-check-updates": "^16.14.17",
+    "typescript": "^4.7.3"
+  }
+}

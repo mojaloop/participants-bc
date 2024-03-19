@@ -92,14 +92,16 @@
      CouldNotStoreParticipant, DuplicateRequestFoundError,
      EndpointNotFoundError,
      InvalidAccountError,
+     InvalidNdcAmount,
      InvalidNdcChangeRequest,
-     InvalidParticipantError, InvalidParticipantStatusError,
+     InvalidParticipantError,
      LiquidityAdjustmentAlreadyProcessed,
      NdcChangeRequestAlreadyApproved,
      NdcChangeRequestNotFound,
      NoAccountsError,
      ParticipantAlreadyApproved,
      ParticipantCreateValidationError,
+     ParticipantNotActive,
      ParticipantNotFoundError,
      ParticipantStatusChangeRequestAlreadyApproved,
      ParticipantStatusChangeRequestNotFound,
@@ -263,7 +265,7 @@
                      changeType: ParticipantChangeTypes.ADD_ACCOUNT,
                      user: "(system)",
                      timestamp: hubParticipant.createdDate,
-                     notes: `(participants-svc bootstrap routine added HMLNS account for: ${currency})`,
+                     notes: `(participants-svc bootstrap routine added HMLNS account for: ${currency.code})`,
                  });
              } catch (err) {
                  this._logger.error(err);
@@ -298,7 +300,7 @@
                      changeType: ParticipantChangeTypes.ADD_ACCOUNT,
                      user: "(system)",
                      timestamp: hubParticipant.createdDate,
-                     notes: `(participants-svc bootstrap routine added Reconciliation account for: ${currency})`,
+                     notes: `(participants-svc bootstrap routine added Reconciliation account for: ${currency.code})`,
                  });
              } catch (err) {
                  this._logger.error(err);
@@ -341,7 +343,6 @@
              `Successfully bootstrapped HUB participant with ID: '${hubParticipant.id}'`
          );
  
-         return;
      }
  
      private async _getHub(): Promise<IParticipant> {
@@ -423,10 +424,6 @@
                  `Participant with ID: '${id}' not found.`
              );
  
-         /* if (!part.isActive)
-         throw new InvalidParticipantError(
-             `Participant with ID: '${id}' is disabled.`
-         ); */
  
          this._applyDefaultSorts(part);
          timerEndFn({ success: "true" });
@@ -449,16 +446,6 @@
  
          return parts;
      }
- 
-     /*async getParticipantByName(secCtx: CallSecurityContext, participantName: string): Promise<Participant> {
-           this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
-           const part: Participant | null = await this._repo.fetchWhereName(participantName);
-           if (part==null) throw new ParticipantNotFoundError(`'${participantName}' not found.`);
- 
-           this._applyDefaultSorts(part);
-           return part;
-       }*/
  
      async createParticipant(secCtx: CallSecurityContext, inputParticipant: IParticipant): Promise<string> {
          this._enforcePrivilege(
@@ -788,31 +775,12 @@
          endpoint: IParticipantEndpoint
      ): Promise<string> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
- 
-         if (participantId.trim().length == 0)
-             throw new ParticipantCreateValidationError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (existing == null) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+
+         const existing = await this._validateParticipantAndRetrieve(participantId);
  
          if (!existing.participantEndpoints) existing.participantEndpoints = [];
  
-         // TODO validate endpoint format
- 
+         // TODO: to validate endpoint format
          if (endpoint.id || existing.participantEndpoints.length > 0) {
              if (
                  existing.participantEndpoints.find(
@@ -825,7 +793,7 @@
              endpoint.id = randomUUID();
          }
  
-         existing.participantEndpoints.push(endpoint as IParticipantEndpoint);
+         existing.participantEndpoints.push(endpoint);
          existing.changeLog.push({
              changeType: ParticipantChangeTypes.ADD_ENDPOINT,
              user: secCtx.username!,
@@ -872,39 +840,20 @@
      ): Promise<void> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
  
-         if (participantId.trim().length == 0)
-             throw new ParticipantCreateValidationError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (existing == null) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+         const existing = await this._validateParticipantAndRetrieve(participantId);
  
          if (!existing.participantEndpoints) existing.participantEndpoints = [];
  
-         let foundEndpoint;
+         const foundEndpoint = existing.participantEndpoints.find(
+            (value: IParticipantEndpoint) => value.id === endpoint.id
+        );
          if (
-             !endpoint.id ||
-             !(foundEndpoint = await existing.participantEndpoints.find(
-                 (value: IParticipantEndpoint) => value.id === endpoint.id
-             ))
+             !endpoint.id || !foundEndpoint
          ) {
              throw new EndpointNotFoundError();
          }
  
-         // TODO validate endpoint format
+         // TODO: to validate endpoint format
          foundEndpoint.type = endpoint.type as ParticipantEndpointTypes;
          foundEndpoint.protocol = endpoint.protocol as ParticipantEndpointProtocols;
          foundEndpoint.value = endpoint.value;
@@ -953,25 +902,7 @@
      ): Promise<void> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
  
-         if (participantId.trim().length == 0)
-             throw new ParticipantCreateValidationError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (existing == null) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+         const existing = await this._validateParticipantAndRetrieve(participantId);
  
          if (!existing.participantEndpoints ||
              existing.participantEndpoints.length <= 0 ||
@@ -1063,25 +994,7 @@
  
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
  
-         if (!participantId)
-             throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+         const existing = await this._validateParticipantAndRetrieve(participantId);
  
          if (!existing.participantContactInfoChangeRequests) {
              existing.participantContactInfoChangeRequests = [];
@@ -1135,170 +1048,36 @@
      }
  
      async approveParticipantContactInfoChangeRequest(
-         secCtx: CallSecurityContext,
-         participantId: string,
-         contactInfoChangeRequestId: string
-     ): Promise<string | null> {
-         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
- 
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
- 
-         const contactInfoChangeRequest = existing.participantContactInfoChangeRequests.find(
-             (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
-         );
-         if (!contactInfoChangeRequest) {
-             throw new ContactInfoChangeRequestNotFound(
-                 `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
-             );
-         }
-         if (contactInfoChangeRequest.requestState == ApprovalRequestState.APPROVED) {
-             throw new ContactInfoChangeRequestAlreadyApproved(
-                 `Participant's contact info change request with id: ${contactInfoChangeRequestId} is already approved`
-             );
-         }
- 
-         // now we can enforce the correct privilege
-         //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
- 
-         if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
-             await this._auditClient.audit(
-                 ParticipantChangeTypes.ADD_CONTACT_INFO,
-                 false,
-                 this._getAuditSecCtx(secCtx),
-                 [{ key: "participantId", value: participantId }]
-             );
-             throw new MakerCheckerViolationError(
-                 "Maker check violation - Same user cannot create and approve participant contact info change request."
-             );
-         }
- 
-         if (!existing.participantContacts) {
-             existing.participantContacts = [];
-         } else {
- 
-             if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
-                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
-                     value.name === contactInfoChangeRequest.name)) {
-                     throw new CannotAddDuplicateContactInfoError("Same contact name already exists.");
-                 }
- 
-                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
-                     value.email === contactInfoChangeRequest.email)) {
-                     throw new CannotAddDuplicateContactInfoError("Same contact email already exists.");
-                 }
- 
-                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
-                     value.phoneNumber === contactInfoChangeRequest.phoneNumber)) {
-                     throw new CannotAddDuplicateContactInfoError("Same contact phone no. already exists.");
-                 }
-             } else {
-                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
-                     value.name === contactInfoChangeRequest.name &&
-                     value.email === contactInfoChangeRequest.email &&
-                     value.phoneNumber === contactInfoChangeRequest.phoneNumber &&
-                     value.role === contactInfoChangeRequest.role)) {
- 
-                     throw new CannotAddDuplicateContactInfoError("Same contact information already exists.");
-                 }
-             }
-         }
- 
- 
-         if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
-             contactInfoChangeRequest.contactInfoId = randomUUID();
- 
-             existing.participantContacts.push({
-                 id: contactInfoChangeRequest.contactInfoId,
-                 name: contactInfoChangeRequest.name,
-                 email: contactInfoChangeRequest.email,
-                 phoneNumber: contactInfoChangeRequest.phoneNumber,
-                 role: contactInfoChangeRequest.role
-             });
-         } else {
-             existing.participantContacts.map((contactInfo) => {
-                 if (contactInfo.id == contactInfoChangeRequest.contactInfoId) {
-                     contactInfo.name = contactInfoChangeRequest.name,
-                         contactInfo.email = contactInfoChangeRequest.email,
-                         contactInfo.phoneNumber = contactInfoChangeRequest.phoneNumber,
-                         contactInfo.role = contactInfoChangeRequest.role;
-                 }
-             });
-         }
- 
-         const now = Date.now();
- 
-         contactInfoChangeRequest.requestState = ApprovalRequestState.APPROVED;
-         contactInfoChangeRequest.approvedBy = secCtx.username;
-         contactInfoChangeRequest.approvedDate = Date.now();
- 
-         existing.changeLog.push(
-             {
-                 changeType: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST,
-                 user: secCtx.username!,
-                 timestamp: now,
-                 notes: null,
-             }, {
-                 changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
-                 user: secCtx.username!,
-                 timestamp: now + 1,
-                 notes: null,
-             }
-         );
- 
-         const updateSuccess = await this._repo.store(existing);
-         if (!updateSuccess) {
-             const err = new CouldNotStoreParticipant(
-                 "Could not update participant on adding participant's contact info."
-             );
-             this._logger.error(err);
-             throw err;
-         }
- 
-         this._logger.info(
-             `Successfully added contact info with id: ${contactInfoChangeRequest.contactInfoId} to Participant with ID: '${participantId}'`
-         );
- 
-         await this._auditClient.audit(
-             AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED,
-             true,
-             this._getAuditSecCtx(secCtx),
-             [{ key: "participantId", value: participantId }]
-         );
- 
-         await this._auditClient.audit(
-             (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
-             true,
-             this._getAuditSecCtx(secCtx),
-             [{ key: "participantId", value: participantId }]
-         );
- 
-         //create event for participant create
-         const payload: ParticipantChangedEvtPayload = {
-             participantId: participantId,
-             actionName: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
-         };
- 
-         const event = new ParticipantChangedEvt(payload);
- 
-         await this._messageProducer.send(event);
- 
-         return contactInfoChangeRequest.contactInfoId;
-     }
+        secCtx: CallSecurityContext,
+        participantId: string,
+        contactInfoChangeRequestId: string
+    ): Promise<string | null> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
+    
+        const existing = await this._validateParticipantAndRetrieve(participantId);
+    
+        const contactInfoChangeRequest = this._findContactInfoChangeRequest(existing, contactInfoChangeRequestId);
+    
+        await this._checkContactInfoRequestNotApproved(contactInfoChangeRequest);
+    
+        await this._checkMakerCheckerViolation(secCtx, contactInfoChangeRequest);
+    
+        this._ensureParticipantContactsArray(existing);
+    
+        await this._checkDuplicateContactInfo(existing, contactInfoChangeRequest);
+    
+        this._updateContactInfo(existing, contactInfoChangeRequest);
+    
+        await this._storeParticipant(existing);
+    
+        this._logParticipantChanges(existing, secCtx, contactInfoChangeRequest);
+    
+        await this._auditContactInfoChangeRequests(secCtx, existing, contactInfoChangeRequest);
+    
+        await this._sendParticipantChangedEvent(participantId, contactInfoChangeRequest);
+    
+        return contactInfoChangeRequest.contactInfoId;
+    }
  
      async rejectParticipantContactInfoChangeRequest(
          secCtx: CallSecurityContext,
@@ -1306,93 +1085,29 @@
          contactInfoChangeRequestId: string
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
- 
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
- 
-         const contactInfoChangeRequest = existing.participantContactInfoChangeRequests.find(
-             (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
-         );
-         if (!contactInfoChangeRequest) {
-             throw new ContactInfoChangeRequestNotFound(
-                 `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
-             );
-         }
-         if (contactInfoChangeRequest.requestState == ApprovalRequestState.REJECTED) {
-             throw new ContactInfoChangeRequestAlreadyApproved(
-                 `Participant's contact info change request with id: ${contactInfoChangeRequestId} is already rejected`
-             );
-         }
- 
-         // now we can enforce the correct privilege
-         //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
- 
-         if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
-             await this._auditClient.audit(
-                 ParticipantChangeTypes.ADD_CONTACT_INFO,
-                 false,
-                 this._getAuditSecCtx(secCtx),
-                 [{ key: "participantId", value: participantId }]
-             );
-             throw new MakerCheckerViolationError(
-                 "Maker check violation - Same user cannot create and reject participant contact info change request."
-             );
-         }
- 
+
+         const existing = await this._validateParticipantAndRetrieve(participantId);
+
+         const contactInfoChangeRequest = this._findContactInfoChangeRequest(existing, contactInfoChangeRequestId);
+
+         this._checkContactInfoRequestNotRejected(contactInfoChangeRequest);
+
+         await this._checkMakerCheckerViolation(secCtx, contactInfoChangeRequest);
+
          const now = Date.now();
- 
-         contactInfoChangeRequest.requestState = ApprovalRequestState.REJECTED;
-         contactInfoChangeRequest.rejectedBy = secCtx.username;
-         contactInfoChangeRequest.rejectedDate = Date.now();
- 
-         existing.changeLog.push(
-             {
-                 changeType: ParticipantChangeTypes.REJECT_SOURCE_IP_REQUEST,
-                 user: secCtx.username!,
-                 timestamp: now,
-                 notes: null,
-             }, {
-             changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
-             user: secCtx.username!,
-             timestamp: now + 1,
-             notes: null,
-         }
-         );
- 
-         const updateSuccess = await this._repo.store(existing);
-         if (!updateSuccess) {
-             const err = new CouldNotStoreParticipant(
-                 "Could not update participant on rejecting participant's contact info."
-             );
-             this._logger.error(err);
-             throw err;
-         }
- 
+
+         this._updateContactInfoRequestState(contactInfoChangeRequest, ApprovalRequestState.REJECTED, secCtx.username , now);
+
+         this._logParticipantChanges(existing, secCtx, contactInfoChangeRequest);
+
+         await this._storeParticipant(existing);
+
          this._logger.info(
              `Successfully rejected contact info change request with id: ${contactInfoChangeRequest.contactInfoId} to Participant with ID: '${participantId}'`
          );
- 
-         await this._auditClient.audit(
-             AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_REJECTED,
-             true,
-             this._getAuditSecCtx(secCtx),
-             [{ key: "participantId", value: participantId }]
-         );
- 
+
+         await this._auditContactInfoChangeRequestRejection(secCtx, existing, participantId);
+
          return contactInfoChangeRequest.contactInfoId;
      }
  
@@ -1407,16 +1122,7 @@
      ): Promise<string> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_STATUS_CHANGE_REQUEST);
  
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         //await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing)
-             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+         const existing = await this._validateParticipantAndRetrieve(participantId);
  
          // pedro: Shouldn't we check if other non-approved requests exist and reject this one if they do?
  
@@ -1476,15 +1182,8 @@
          note: string = ""
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST);
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError( `Participant with ID: '${participantId}' not found.`);
-         }
+         
+         const existing = await this._validateParticipantAndRetrieve(participantId, true);
  
          const statusChangeRequest = existing.participantStatusChangeRequests.find(
              (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
@@ -1591,15 +1290,8 @@
          note: string = ""
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_STATUS_CHANGE_REQUEST);
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError( `Participant with ID: '${participantId}' not found.`);
-         }
+         
+         const existing = await this._validateParticipantAndRetrieve(participantId, true);
  
          const statusChangeRequest = existing.participantStatusChangeRequests.find(
              (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
@@ -1708,24 +1400,9 @@
  
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
  
-         if (!participantId)
-             throw new InvalidParticipantError("[id] cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+         const existing = await this._validateParticipantAndRetrieve(participantId);
+
          await Participant.ValidateParticipantSourceIpChangeRequest(sourceIpChangeRequest);
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
  
          if (!existing.participantSourceIpChangeRequests) {
              existing.participantSourceIpChangeRequests = [];
@@ -1785,41 +1462,22 @@
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
  
-         if (!participantId)
-             throw new InvalidParticipantError("[id] cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
- 
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
- 
- 
+         const existing = await this._validateParticipantAndRetrieve(participantId);
+
          const soureIPChangeRequest = existing.participantSourceIpChangeRequests.find(
              (value: IParticipantSourceIpChangeRequest) => value.id === sourceIpChangeRequestId
          );
+
          if (!soureIPChangeRequest) {
              throw new SourceIpChangeRequestNotFound(
-                 `Cannot find a participant's sourceIP change request with id: ${soureIPChangeRequest}`
+                 `Cannot find a participant's sourceIP change request with id: ${sourceIpChangeRequestId}`
              );
          }
          if (soureIPChangeRequest.requestState === ApprovalRequestState.APPROVED) {
              throw new SourceIpChangeRequestAlreadyApproved(
-                 `Participant's sourceIP change request with id: ${soureIPChangeRequest} is already approved`
+                 `Participant's sourceIP change request with id: ${sourceIpChangeRequestId} is already approved`
              );
          }
- 
-         // now we can enforce the correct privilege
-         //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
  
          if (secCtx && soureIPChangeRequest.createdBy === secCtx.username) {
              await this._auditClient.audit(
@@ -1942,42 +1600,26 @@
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
  
-         if (!participantId)
-             throw new InvalidParticipantError("[id] cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
- 
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+         const existing = await this._validateParticipantAndRetrieve(participantId);
  
          const soureIPChangeRequest = existing.participantSourceIpChangeRequests.find(
              (value: IParticipantSourceIpChangeRequest) => value.id === sourceIpChangeRequestId
          );
          if (!soureIPChangeRequest) {
              throw new SourceIpChangeRequestNotFound(
-                 `Cannot find a participant's sourceIP change request with id: ${soureIPChangeRequest}`
+                 `Cannot find a participant's sourceIP change request with id: ${sourceIpChangeRequestId}`
              );
          }
  
          if (soureIPChangeRequest.requestState === ApprovalRequestState.APPROVED) {
              throw new SourceIpChangeRequestAlreadyApproved(
-                 `Participant's sourceIP change request with id: ${soureIPChangeRequest} is already approved`
+                 `Participant's sourceIP change request with id: ${sourceIpChangeRequestId} is already approved`
              );
          }
  
          if (soureIPChangeRequest.requestState === ApprovalRequestState.REJECTED) {
              throw new SourceIpChangeRequestAlreadyApproved(
-                 `Participant's sourceIP change request with id: ${soureIPChangeRequest} is already rejected`
+                 `Participant's sourceIP change request with id: ${sourceIpChangeRequestId} is already rejected`
              );
          }
  
@@ -2048,6 +1690,7 @@
          participantId: string,
          accountChangeRequest: IParticipantAccountChangeRequest
      ): Promise<string> {
+
          if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
              this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_ACCOUNT);
          }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
@@ -2058,25 +1701,7 @@
              throw err;
          }
  
-         if (!participantId){
-             const err = new InvalidParticipantError("[id] cannot be empty");
-             this._logger.error(err);
-             throw err;
-         }
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!existing) {
-             const err = new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
-             this._logger.error(err);
-             throw err;
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+         const existing = await this._validateParticipantAndRetrieve(participantId);
  
          if (accountChangeRequest.type != ParticipantAccountTypes.SETTLEMENT && (accountChangeRequest.externalBankAccountId || accountChangeRequest.externalBankAccountName))
              throw new InvalidAccountError(
@@ -2105,7 +1730,7 @@
              (value: IParticipantAccountChangeRequest) =>
                  value.type === accountChangeRequest.type &&
                  value.currencyCode === accountChangeRequest.currencyCode &&
-                 value.requestState === accountChangeRequest.requestState // TODO this should change to a 3 state field
+                 value.requestState === accountChangeRequest.requestState
          )){
              throw new DuplicateRequestFoundError(
                  "Account create request with the same information exists already"
@@ -2164,18 +1789,9 @@
          participantId: string,
          accountChangeRequestId: string
      ): Promise<string | null> {
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
- 
+        
+         const existing = await this._validateParticipantAndRetrieve(participantId);
+
          const accountChangeRequest = existing.participantAccountsChangeRequest.find(
              (value: IParticipantAccountChangeRequest) => value.id === accountChangeRequestId
          );
@@ -2184,33 +1800,32 @@
                  `Cannot find a participant's account change request with id: ${accountChangeRequestId}`
              );
          }
- 
+
          if (accountChangeRequest.requestState === ApprovalRequestState.APPROVED) {
              throw new AccountChangeRequestAlreadyApproved(
                  `Participant's account change request with id: ${accountChangeRequestId} is already approved`
              );
          }
- 
+
          if (accountChangeRequest.requestState === ApprovalRequestState.REJECTED) {
              throw new AccountChangeRequestAlreadyApproved(
                  `Participant's account change request with id: ${accountChangeRequestId} is already rejected`
              );
          }
- 
-         // now we can enforce the correct privilege
-         if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
+
+         if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
              this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_CREATION_REQUEST);
-         }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+         } else if (accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
              this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST);
-         }else{
-             const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+         } else {
+             const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
              this._logger.error(err);
              throw err;
          }
- 
+
          if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
              await this._auditClient.audit(
-                 (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                 (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                      AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED),
                  false,
                  this._getAuditSecCtx(secCtx),
@@ -2220,28 +1835,28 @@
                  "Maker check violation - Same user cannot create and reject participant account change request"
              );
          }
- 
+
          const now = Date.now();
- 
+
          accountChangeRequest.requestState = ApprovalRequestState.REJECTED;
          accountChangeRequest.rejectedBy = secCtx.username;
          accountChangeRequest.rejectedDate = now;
- 
+
          existing.changeLog.push(
              {
                  changeType: ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_REJECTED,
                  user: secCtx.username!,
                  timestamp: now,
                  notes: null,
-             },{
-                 changeType: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
-                     ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
-                 user: secCtx.username!,
-                 timestamp: now+1,
-                 notes: null,
-             }
+             }, {
+             changeType: (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
+                 ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
+             user: secCtx.username!,
+             timestamp: now + 1,
+             notes: null,
+         }
          );
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -2250,8 +1865,8 @@
              this._logger.error(err);
              throw err;
          }
- 
- 
+
+
          await this._auditClient.audit(
              (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                  AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_REJECTED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_REJECTED),
@@ -2259,7 +1874,7 @@
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
-             
+
          return accountChangeRequest.accountId;
      }
  
@@ -2268,18 +1883,9 @@
          participantId: string,
          accountChangeRequestId: string
      ): Promise<string | null> {
-         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
-         if (!existing) {
-             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
-         }
-         if (!existing.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
- 
+
+         const existing = await this._validateParticipantAndRetrieve(participantId);
+
          const accountChangeRequest = existing.participantAccountsChangeRequest.find(
              (value: IParticipantAccountChangeRequest) => value.id === accountChangeRequestId
          );
@@ -2288,29 +1894,27 @@
                  `Cannot find a participant's account change request with id: ${accountChangeRequestId}`
              );
          }
- 
- 
- 
+
          if (accountChangeRequest.requestState === ApprovalRequestState.APPROVED) {
              throw new AccountChangeRequestAlreadyApproved(
                  `Participant's account change request with id: ${accountChangeRequestId} is already approved`
              );
          }
- 
+
          // now we can enforce the correct privilege
-         if(accountChangeRequest.requestType === "ADD_ACCOUNT") {
+         if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
              this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_CREATION_REQUEST);
-         }else if(accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
+         } else if (accountChangeRequest.requestType === "CHANGE_ACCOUNT_BANK_DETAILS") {
              this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST);
-         }else{
-             const err =new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
+         } else {
+             const err = new InvalidAccountError("Invalid requestType on ParticipantAccountChangeRequest");
              this._logger.error(err);
              throw err;
          }
- 
+
          if (secCtx && accountChangeRequest.createdBy === secCtx.username) {
              await this._auditClient.audit(
-                 (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+                 (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                      AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED),
                  false,
                  this._getAuditSecCtx(secCtx),
@@ -2320,7 +1924,7 @@
                  "Maker check violation - Same user cannot create and approve participant account change request"
              );
          }
- 
+
          if (!existing.participantAccounts) {
              existing.participantAccounts = [];
          } else {
@@ -2335,8 +1939,9 @@
                      "An account with that id, or the same type and currency exists already"
                  );
              }
+             console.log("No duplicate account found.");
          }
- 
+
          if (
              (accountChangeRequest.type === "HUB_MULTILATERAL_SETTLEMENT" ||
                  accountChangeRequest.type === "HUB_RECONCILIATION") &&
@@ -2349,7 +1954,7 @@
                  "Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION"
              );
          }
- 
+
          //no need update process in account&balance
          let accountId: string | null;
          if (accountChangeRequest.requestType === "ADD_ACCOUNT") {
@@ -2365,12 +1970,12 @@
              } catch (err) {
                  this._logger.error(err);
                  if (err instanceof UnauthorizedError) throw err;
- 
+
                  throw new UnableToCreateAccountUpstream(
                      `'${existing.name}' account '${accountChangeRequest.type}' failed upstream.`
                  );
              }
- 
+
              existing.participantAccounts.push({
                  id: accountId,
                  type: accountChangeRequest.type as ParticipantAccountTypes,
@@ -2383,37 +1988,37 @@
              });
          } else {
              accountId = accountChangeRequest.accountId;
- 
+
              existing.participantAccounts.map((account) => {
                  if (account.id == accountId) {
-                     account.externalBankAccountId = accountChangeRequest.externalBankAccountId,
-                         account.externalBankAccountName = accountChangeRequest.externalBankAccountName;
+                     account.externalBankAccountId = accountChangeRequest.externalBankAccountId;
+                     account.externalBankAccountName = accountChangeRequest.externalBankAccountName;
                  }
              });
- 
+
          }
- 
+
          const now = Date.now();
- 
+
          accountChangeRequest.requestState = ApprovalRequestState.APPROVED;
          accountChangeRequest.approvedBy = secCtx.username;
          accountChangeRequest.approvedDate = now;
- 
+
          existing.changeLog.push(
              {
                  changeType: ParticipantChangeTypes.ACCOUNT_CHANGE_REQUEST_APPROVED,
                  user: secCtx.username!,
                  timestamp: now,
                  notes: null,
-             },{
-                 changeType: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
-                     ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
-                 user: secCtx.username!,
-                 timestamp: now+1,
-                 notes: null,
-             }
+             }, {
+             changeType: (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
+                 ParticipantChangeTypes.ADD_ACCOUNT : ParticipantChangeTypes.CHANGE_ACCOUNT_BANK_DETAILS),
+             user: secCtx.username!,
+             timestamp: now + 1,
+             notes: null,
+         }
          );
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -2422,11 +2027,11 @@
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully added account with id: ${accountId} to Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                  AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_APPROVED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_APPROVED),
@@ -2441,37 +2046,20 @@
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for Participant account change request approved - we don't need both, just the reason for the actual change
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
-             actionName: (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
+             actionName: (accountChangeRequest.requestType === "ADD_ACCOUNT" ?
                  AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED : AuditedActionNames.PARTICIPANT_ACCOUNT_BANK_DETAILS_CHANGED)
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
          return accountId;
      }
- 
-     /*async removeParticipantAccount(secCtx: CallSecurityContext, participantId: string, account: ParticipantAccount): Promise<void> {
-           this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ACCOUNTS);
- 
-           if (participantId.trim().length==0) throw new ParticipantCreateValidationError("[id] cannot be empty");
- 
-           const existing: Participant | null = await this._repo.fetchWhereId(participantId);
-           if (existing==null) throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
-           const successLocalAcc = await this._repoAccount.removeAccount(participantId, account);
-           if (!successLocalAcc) throw new InvalidParticipantError(`Unable to remove local account ${account.type}`);
- 
-           await this._auditClient.audit(
-                   AuditedActionNames.PARTICIPANT_ACCOUNT_REMOVED, true,
-                   this._getAuditSecCtx(secCtx),
-                   [{key: "participantId", value: participantId}]
-           );
-       }*/
  
      async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantAccount[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
@@ -2507,9 +2095,9 @@
                  const jAcc = accBalAccounts.find((value) => value.id === pacc.id);
                  if (jAcc == null) continue;
  
-                 pacc.debitBalance = jAcc.postedDebitBalance || null;
-                 pacc.creditBalance = jAcc.postedCreditBalance || null;
-                 pacc.balance = jAcc.balance || null;
+                 pacc.debitBalance = jAcc.postedDebitBalance ?? null;
+                 pacc.creditBalance = jAcc.postedCreditBalance ?? null;
+                 pacc.balance = jAcc.balance ?? null;
              }
          }
          timerEndFn({ success: "true" });
@@ -2532,30 +2120,12 @@
                  : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
          );
  
-         if (!participantId)
-             throw new ParticipantNotFoundError("participantId cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+         const participant = await this._validateParticipantAndRetrieve(participantId);
+
          if (!fundsMov.currencyCode) throw new Error("currencyCode cannot be empty");
          if (!fundsMov.amount) throw new Error("amount cannot be empty");
  
          const hub = await this._getHub();
- 
-         const participant: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!participant) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
- 
-         if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
  
          const settlementAccount = participant.participantAccounts.find(
              (value: IParticipantAccount) =>
@@ -2614,27 +2184,16 @@
              [{ key: "participantId", value: participantId }]
          );
  
-         return;
      }
  
      async approveFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string): Promise<void> {
-         if (!participantId)
-             throw new ParticipantNotFoundError("participantId cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const participant: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!participant) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
+         
+         const participant = await this._validateParticipantAndRetrieve(participantId);
  
          const fundsMov = participant.fundsMovements.find(
              (value: IParticipantFundsMovement) => value.id === fundsMovId
          );
+
          if (!fundsMov) {
              throw new AccountNotFoundError(
                  `Cannot find a participant's funds movement with id: ${fundsMovId}`
@@ -2656,7 +2215,7 @@
  
          // inactive participants can only deposit funds, not withdrawal
          if (!participant.isActive && fundsMov.direction === "FUNDS_WITHDRAWAL") {
-             throw new InvalidParticipantStatusError(
+             throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active, cannot withdrawal funds.`
              );
          }
@@ -2795,24 +2354,12 @@
  
          await this._messageProducer.send(event);
  
-         return;
      }
  
      async rejectFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string): Promise<void> {
-         if (!participantId)
-             throw new ParticipantNotFoundError("participantId cannot be empty");
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const participant: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!participant) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
- 
+         
+         const participant = await this._validateParticipantAndRetrieve(participantId);
+
          const fundsMov = participant.fundsMovements.find(
              (value: IParticipantFundsMovement) => value.id === fundsMovId
          );
@@ -2826,13 +2373,13 @@
                  `Participant's funds movement with id: ${fundsMovId} is already approved`
              );
          }
- 
+
          if (fundsMov.requestState == ApprovalRequestState.REJECTED) {
              throw new AccountNotFoundError(
                  `Participant's funds movement with id: ${fundsMovId} is already rejected`
              );
          }
- 
+
          // now we can enforce the correct privilege
          this._enforcePrivilege(
              secCtx,
@@ -2840,8 +2387,8 @@
                  ? ParticipantPrivilegeNames.REJECT_FUNDS_DEPOSIT
                  : ParticipantPrivilegeNames.REJECT_FUNDS_WITHDRAWAL
          );
- 
- 
+
+
          if (secCtx && fundsMov.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  fundsMov.direction === "FUNDS_DEPOSIT"
@@ -2855,13 +2402,13 @@
                  "Maker check violation - Same user cannot create and reject participant a funds movement"
              );
          }
- 
+
          const now = Date.now();
- 
-         fundsMov.requestState = ApprovalRequestState.REJECTED;      
+
+         fundsMov.requestState = ApprovalRequestState.REJECTED;
          fundsMov.rejectedBy = secCtx.username;
          fundsMov.rejectedDate = now;
- 
+
          const updateSuccess = await this._repo.store(participant);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -2878,12 +2425,7 @@
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
- 
-         /* const actionName = fundsMov.direction === "FUNDS_DEPOSIT" ? "Deposit" : "Withdrawal";
-         await this._updateNdcForParticipants([participant], `Funds movement rejected (${actionName})`); */
- 
-         return;
+
      }
  
      async createParticipantNetDebitCap(
@@ -2893,10 +2435,7 @@
      ) {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_NDC_CHANGE_REQUEST);
 
-         if (!participantId)
-             throw new ParticipantNotFoundError("participantId cannot be empty");
-         if (participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+         const participant = await this._validateParticipantAndRetrieve(participantId);
 
          if (!netDebitCapChangeRequest.currencyCode) throw new Error("currencyCode cannot be empty");
          if (netDebitCapChangeRequest.type === "PERCENTAGE" &&
@@ -2906,21 +2445,6 @@
          if (netDebitCapChangeRequest.type === "ABSOLUTE"
              && (netDebitCapChangeRequest.fixedValue === null || netDebitCapChangeRequest.fixedValue == undefined)) {
              throw new Error("Invalid fixed value");
-         }
-
-         const participant: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!participant) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-
-         if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
          }
 
          const settlementAccount = participant.participantAccounts.find(
@@ -2969,7 +2493,6 @@
              [{ key: "participantId", value: participantId }]
          );
 
-         return;
      }
 
      private _calculateParticipantPercentageNetDebitCap(ndcFixed: number, ndcPercentage: number | null, liqAccBalance: number, type: "ABSOLUTE" | "PERCENTAGE"): number {
@@ -2987,25 +2510,8 @@
      }
 
      async approveParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
-         if (!participantId)
-             throw new ParticipantNotFoundError("participantId cannot be empty");
-         if (participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
-
-         const participant: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!participant) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-
-         if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+        
+         const participant = await this._validateParticipantAndRetrieve(participantId);
 
          const netDebitCapChange = participant.netDebitCapChangeRequests.find(
              (value: IParticipantNetDebitCapChangeRequest) => value.id === ndcReqId
@@ -3059,7 +2565,7 @@
          const getAccountBalance = async (account: IParticipantAccount) => {
              const accBalAccount = await this._accBal.getAccount(account.id);
              if (!accBalAccount) {
-                 throw new AccountNotFoundError(`Could not get participant's ${account.type} account with id: ${account.id} from accounts and balances`);
+                 throw new AccountNotFoundError(`Could not get participant ${participant.id}'s ${account.type} account with id: ${account.id} from accounts and balances`);
 
 
              }
@@ -3078,12 +2584,12 @@
 
          const checkNdcValue = (ndcValue: number, errorMessage: string) => {
              if (maxBalance <= ndcValue) {
-                 throw new InvalidNdcChangeRequest(errorMessage);
+                 throw new InvalidNdcAmount(errorMessage);
              }
          };
 
          if (netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE) {
-             const ndcFixedValue = netDebitCapChange.fixedValue || 0;
+             const ndcFixedValue = netDebitCapChange.fixedValue ?? 0;
              checkNdcValue(ndcFixedValue, "The NDC amount should not be greater than or same as the account's balance.");
          } else if (netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE) {
              const ndcPercentageValue = (Number(netDebitCapChange.percentage) / 100) * maxBalance;
@@ -3091,8 +2597,8 @@
          }
 
          const finalNDCAmount = this._calculateParticipantPercentageNetDebitCap(
-             netDebitCapChange.fixedValue || 0,
-             netDebitCapChange.percentage || 0,
+             netDebitCapChange.fixedValue ?? 0,
+             netDebitCapChange.percentage ?? 0,
              currentBalance,
              netDebitCapChange.type
          );
@@ -3156,30 +2662,10 @@
          const event = new ParticipantChangedEvt(payload);
 
          await this._messageProducer.send(event);
-
-         return;
      }
 
      async rejectParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
-         if (!participantId)
-             throw new ParticipantNotFoundError("participantId cannot be empty");
-         if (participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
-
-         const participant: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!participant) {
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
-         }
-
-         if (!participant.isActive) {
-             throw new InvalidParticipantStatusError(
-                 `Participant with ID: '${participantId}' is not active.`
-             );
-         }
+         const participant = await this._validateParticipantAndRetrieve(participantId);
 
          const netDebitCapChange = participant.netDebitCapChangeRequests.find(
              (value: IParticipantNetDebitCapChangeRequest) => value.id === ndcReqId
@@ -3249,7 +2735,6 @@
              [{ key: "participantId", value: participantId }]
          );
 
-         return;
      }
  
      /**
@@ -3263,12 +2748,12 @@
          // this is an internall call, triggerd by the event handler, we use secCtx for audit
          //this._enforcePrivilege( secCtx, ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST);
  
-         if (!msg.payload || !msg.payload.participantList || !msg.payload.participantList.length) {
+         if (!msg?.payload?.participantList?.length) {
              const error = new Error("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
              this._logger.error(error);
              throw error;
          }
- 
+
          const retParticipantsNotFoundError = (): Error => {
              const error = new Error("Could not get all participants for handleSettlementMatrixSettledEvt()");
              this._logger.error(error);
@@ -3302,11 +2787,11 @@
              if (!participant) throw retParticipantsNotFoundError();
  
              const liqAcc = participant.participantAccounts?.find(
-                 (acc) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
+                 (acc:any) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
              );
  
              const posAcc = participant.participantAccounts?.find(
-                 (acc) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
+                 (acc:any) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
              );
  
              if (!liqAcc || !posAcc) throw retParticipantAccountNotFoundError();
@@ -3387,7 +2872,7 @@
                  ndcDefinition.currentValue = this._calculateParticipantPercentageNetDebitCap(
                      ndcDefinition.currentValue,
                      ndcDefinition.percentage,
-                     Math.min(Number(abAccount.balance || 0)),
+                     Math.min(Number(abAccount.balance ?? 0)),
                      ndcDefinition.type
                  );
                  changed = true;
@@ -3464,7 +2949,7 @@
                      );
                  }
                  if (!checkParticipant.isActive) {
-                     throw new InvalidParticipantStatusError(
+                     throw new ParticipantNotActive(
                          `Participant with ID: '${obj.participantId}' is not active.`
                      );
                  }
@@ -3507,11 +2992,12 @@
  
              for (const obj of liquidityBalanceAdjustments) {
                  const settlementAccount = accounts.find(value => value.id === obj.settlementAccountId);
-                 if (!settlementAccount || settlementAccount.balance == null || settlementAccount.balance == undefined) {
+                 if (!settlementAccount?.balance) {
                      throw new AccountNotFoundError(
                          `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
                      );
                  }
+
  
                  const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
                  obj.updateAmount = Math.abs(amount).toString();
@@ -3572,7 +3058,7 @@
                  );
              }
              if (!checkParticipant.isActive) {
-                 throw new InvalidParticipantStatusError(
+                 throw new ParticipantNotActive(
                      `Participant with ID: '${obj.participantId}' is not active.`
                  );
              }
@@ -3615,7 +3101,7 @@
                      approvedDate: null,
                      direction: obj.direction as ParticipantFundsMovementDirections,
                      currencyCode: obj.currencyCode,
-                     amount: obj.updateAmount || "0",
+                     amount: obj.updateAmount ?? "0",
                      transferId: null,
                      extReference: obj.matrixId,
                      note: `LiquidityBalanceAdjustments for matrixId:${obj.matrixId}`
@@ -3631,7 +3117,6 @@
              []
          );
  
-         return;
      }
  
      async getPendingApprovalSummary(secCtx: CallSecurityContext): Promise<IParticipantPendingApprovalSummary> {
@@ -4058,6 +3543,193 @@
              throw new Error(err.message);
          }
      }
+
+    
+    private _findContactInfoChangeRequest(participant: IParticipant, contactInfoChangeRequestId: string): IParticipantContactInfoChangeRequest {
+        const contactInfoChangeRequest = participant.participantContactInfoChangeRequests.find(
+            (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
+        );
+        if (!contactInfoChangeRequest) {
+            throw new ContactInfoChangeRequestNotFound(
+                `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
+            );
+        }
+        return contactInfoChangeRequest;
+    }
+    
+    private async _checkContactInfoRequestNotApproved(contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
+        if (contactInfoChangeRequest.requestState == ApprovalRequestState.APPROVED) {
+            throw new ContactInfoChangeRequestAlreadyApproved(
+                `Participant's contact info change request with id: ${contactInfoChangeRequest.id} is already approved`
+            );
+        }
+    }
+    
+    private async _checkMakerCheckerViolation(secCtx: CallSecurityContext, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
+        if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
+            throw new MakerCheckerViolationError(
+                "Maker check violation - Same user cannot create and approve participant contact info change request."
+            );
+        }
+    }
+    
+    private _ensureParticipantContactsArray(participant: IParticipant): void {
+        if (!participant.participantContacts) {
+            participant.participantContacts = [];
+        }
+    }
+    
+    private async _checkDuplicateContactInfo(participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
+        if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
+            if (this._hasDuplicateContactInfo(participant, contactInfoChangeRequest)) {
+                throw new CannotAddDuplicateContactInfoError("Same contact information already exists.");
+            }
+        }
+    }
+    
+    private _hasDuplicateContactInfo(participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): boolean {
+        return participant.participantContacts.some((value: IParticipantContactInfo) =>
+            value.name === contactInfoChangeRequest.name &&
+            value.email === contactInfoChangeRequest.email &&
+            value.phoneNumber === contactInfoChangeRequest.phoneNumber &&
+            value.role === contactInfoChangeRequest.role
+        );
+    }
+    
+    private _updateContactInfo(participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): void {
+        if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
+            contactInfoChangeRequest.contactInfoId = randomUUID();
+    
+            participant.participantContacts.push({
+                id: contactInfoChangeRequest.contactInfoId,
+                name: contactInfoChangeRequest.name,
+                email: contactInfoChangeRequest.email,
+                phoneNumber: contactInfoChangeRequest.phoneNumber,
+                role: contactInfoChangeRequest.role
+            });
+        } else {
+            participant.participantContacts.forEach((contactInfo) => {
+                if (contactInfo.id == contactInfoChangeRequest.contactInfoId) {
+                    contactInfo.name = contactInfoChangeRequest.name;
+                    contactInfo.email = contactInfoChangeRequest.email;
+                    contactInfo.phoneNumber = contactInfoChangeRequest.phoneNumber;
+                    contactInfo.role = contactInfoChangeRequest.role;
+                }
+            });
+        }
+    }
+    
+    private async _storeParticipant(participant: IParticipant): Promise<boolean> {
+        const updateSuccess = await this._repo.store(participant);
+        if (!updateSuccess) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on adding participant's contact info."
+            );
+            this._logger.error(err);
+            throw err;
+        }
+        return updateSuccess;
+    }
+    
+    private _logParticipantChanges(participant: IParticipant, secCtx: CallSecurityContext, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): void {
+        const now = Date.now();
+    
+        contactInfoChangeRequest.requestState = ApprovalRequestState.APPROVED;
+        contactInfoChangeRequest.approvedBy = secCtx.username;
+        contactInfoChangeRequest.approvedDate = Date.now();
+    
+        participant.changeLog.push(
+            {
+                changeType: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST,
+                user: secCtx.username!,
+                timestamp: now,
+                notes: null,
+            }, {
+                changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
+                user: secCtx.username!,
+                timestamp: now + 1,
+                notes: null,
+            }
+        );
+    }
+    
+    private async _auditContactInfoChangeRequests(secCtx: CallSecurityContext, participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participant.id }]
+        );
+    
+        await this._auditClient.audit(
+            (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participant.id }]
+        );
+    }
+    
+    private async _sendParticipantChangedEvent(participantId: string, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
+        };
+    
+        const event = new ParticipantChangedEvt(payload);
+    
+        await this._messageProducer.send(event);
+    }
+
+    private _checkContactInfoRequestNotRejected(contactInfoChangeRequest: IParticipantContactInfoChangeRequest): void {
+        if (contactInfoChangeRequest.requestState == ApprovalRequestState.REJECTED) {
+            throw new ContactInfoChangeRequestAlreadyApproved(
+                `Participant's contact info change request with id: ${contactInfoChangeRequest.id} is already rejected`
+            );
+        }
+    }
+    
+    private _updateContactInfoRequestState(contactInfoChangeRequest: IParticipantContactInfoChangeRequest, newState: ApprovalRequestState, username: string | null, timestamp: number): void {
+        contactInfoChangeRequest.requestState = newState;
+        contactInfoChangeRequest.rejectedBy = username;
+        contactInfoChangeRequest.rejectedDate = timestamp;
+    }
+    
+    private async _auditContactInfoChangeRequestRejection(secCtx: CallSecurityContext, participant: IParticipant, participantId: string): Promise<void> {
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_REJECTED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+    }
+    
  
+     private async _validateParticipantAndRetrieve(
+         participantId: string,
+         isValidatingForParticipantStatusChangeRequest: boolean = false
+     ): Promise<IParticipant> {
+
+         if (participantId.trim().length == 0)
+             throw new ParticipantCreateValidationError("[id] cannot be empty");
+
+         if (participantId === HUB_PARTICIPANT_ID)
+             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+         const existing: IParticipant | null = await this._repo.fetchWhereId(
+             participantId
+         );
+         if (existing == null) {
+             throw new ParticipantNotFoundError(
+                 `Participant with ID: '${participantId}' not found.`
+             );
+         }
+         if (!existing.isActive && !isValidatingForParticipantStatusChangeRequest) {
+             throw new ParticipantNotActive(
+                 `Participant with ID: '${participantId}' is not active.`
+             );
+         }
+
+         return existing;
+     }
  }
  

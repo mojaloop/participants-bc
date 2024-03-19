@@ -34,7 +34,6 @@
  import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
  import {
      IParticipant,
-     IParticipantAccount,
      IParticipantAccountChangeRequest,
      IParticipantContactInfoChangeRequest,
      IParticipantEndpoint,
@@ -49,7 +48,6 @@
  
  import {
      DuplicateRequestFoundError,
-     InvalidParticipantError,
      NoAccountsError,
      NoEndpointsError,
      ParticipantCreateValidationError,
@@ -57,7 +55,7 @@
      ParticipantNotFoundError,
      WithdrawalExceedsBalanceError,
  } from "../domain/errors";
- import { TokenHelper } from "@mojaloop/security-bc-client-lib";
+
  import {
      TransferWouldExceedCreditsError,
      TransferWouldExceedDebitsError,
@@ -130,7 +128,7 @@
          this._mainRouter.post("/participants/:id/accountChangeRequest", this._participantAccountCreateChangeRequest.bind(this));
          this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/approve", this._participantAccountApproveChangeRequest.bind(this));
          this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/reject", this._participantAccountRejectChangeRequest.bind(this));
-         // this._mainRouter.delete("/participants/:id/account", this.participantAccountDelete.bind(this));
+        
  
          // funds management
          this._mainRouter.post("/participants/:id/funds", this._participantFundsMovCreate.bind(this));
@@ -205,14 +203,7 @@
                  msg: err.message,
              });
              handled = true;
-         } else if (err instanceof ForbiddenError) {
-             this._logger.warn(err.message);
-             res.status(403).json({
-                 status: "error",
-                 msg: err.message,
-             });
-             handled = true;
-         } else if (err instanceof MakerCheckerViolationError) {
+         } else if (err instanceof ForbiddenError || err instanceof MakerCheckerViolationError) {
              this._logger.warn(err.message);
              res.status(403).json({
                  status: "error",
@@ -331,11 +322,7 @@
                      status: "error",
                      msg: `Validation failure: ${err.message}.`,
                  });
-             } else if (err instanceof InvalidParticipantError) {
-                 res.status(500).json({
-                     status: "error",
-                     msg: `Unable to store participant. ${err.message}.`,
-                 });
+
              } else {
                  this._logger.error(err);
                  res.status(500).json({
@@ -371,56 +358,7 @@
          }
      }
  
-     private async _deactivateParticipant(req: express.Request, res: express.Response): Promise<void> {
-         const id = req.params["id"] ?? null;
-         const actionNote: string | null = req.body?.note || null;
-         this._logger.debug(
-             `Received request to deActivateParticipant Participant with ID: ${id}.`
-         );
- 
-         try {
-             await this._participantsAgg.deactivateParticipant(
-                 req.securityContext!,
-                 id,
-                 actionNote
-             );
-             res.send();
-         } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: err.message,
-             });
-         }
-     }
- 
-     private async _activateParticipant(req: express.Request, res: express.Response): Promise<void> {
-         const id = req.params["id"] ?? null;
-         const actionNote: string | null = req.body?.note || null;
-         this._logger.debug(
-             `Received request to activateParticipant Participant with ID: ${id}.`
-         );
- 
-         try {
-             await this._participantsAgg.activateParticipant(
-                 req.securityContext!,
-                 id,
-                 actionNote
-             );
-             res.send();
-         } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: err.message,
-             });
-         }
-     }
- 
+     
      /*
       * Contact Info
       * */
@@ -438,7 +376,7 @@
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
  
-             if (err instanceof NoAccountsError) {
+             if (err instanceof ParticipantNotFoundError) {
                  res.status(404).json({
                      status: "error",
                      msg: err.message,
@@ -640,18 +578,11 @@
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
  
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
+             this._logger.error(err);
                  res.status(500).json({
                      status: "error",
                      msg: err.message,
                  });
-             }
          }
      }
  
