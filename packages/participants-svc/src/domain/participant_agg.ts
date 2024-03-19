@@ -360,7 +360,7 @@
      private _getAuditSecCtx(secCtx: CallSecurityContext): AuditSecurityContext {
          return {
              userId: secCtx.username,
-             role: "", // Need to fix: get role
+             role: "", // TODO get role
              appId: secCtx.clientId,
          };
      }
@@ -780,8 +780,7 @@
  
          if (!existing.participantEndpoints) existing.participantEndpoints = [];
  
-         // Need Fix: to validate endpoint format
- 
+         // TODO: to validate endpoint format
          if (endpoint.id || existing.participantEndpoints.length > 0) {
              if (
                  existing.participantEndpoints.find(
@@ -854,7 +853,7 @@
              throw new EndpointNotFoundError();
          }
  
-         // Need Fix: to validate endpoint format
+         // TODO: to validate endpoint format
          foundEndpoint.type = endpoint.type as ParticipantEndpointTypes;
          foundEndpoint.protocol = endpoint.protocol as ParticipantEndpointProtocols;
          foundEndpoint.value = endpoint.value;

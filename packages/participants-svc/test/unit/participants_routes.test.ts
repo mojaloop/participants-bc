@@ -83,7 +83,6 @@ describe("Participants Routes - Unit Test", () => {
     let participantAgg;
 
     const VALID_IP_ADDRESS = process.env.VALID_PARTICIPANT_SOURCE_IP || "";
-    const INVALID_IP_ADDRESS = process.env.INVALID_PARTICIPANT_SOURCE_IP || ""; 
 
     beforeAll(async () => {
         app = express();
@@ -438,7 +437,7 @@ describe("Participants Routes - Unit Test", () => {
             value: "https://172.31.88.169:4045"
         };
         
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -464,7 +463,7 @@ describe("Participants Routes - Unit Test", () => {
             value: 'https://56.45.45.162:4041'
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -613,7 +612,7 @@ describe("Participants Routes - Unit Test", () => {
             id: "3"
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -701,7 +700,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -747,7 +746,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -787,7 +786,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         const nonExistingAccChangeReq = "none";
 
@@ -830,7 +829,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -893,7 +892,7 @@ describe("Participants Routes - Unit Test", () => {
             requestType: "ADD_PARTICIPANT_CONTACT_INFO"
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -1033,7 +1032,53 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${participant.id}/contactInfoChangeRequests/1/approve`)
+            .set("authorization", AUTH_TOKEN).send();
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    it("POST /participants/:id/contactInfoChangeRequests/:changereqid/approve - Should approve the updating of contact info  change request", async () => {
+        // Arrange
+        const now = Date.now();
+        const participant: IParticipant = {
+            ...mockedParticipant1,
+            id: "11",
+            participantContacts: [
+                {
+                    id: "1",
+                    name: "Old Name",
+                    email: "oldemail@gmail.com",
+                    phoneNumber: "097565544",
+                    role: "portal-staff"
+                }
+            ],
+            participantContactInfoChangeRequests: [
+                {
+                    id: "1",
+                    name: "New Name",
+                    email: "newemail@test.com",
+                    phoneNumber: "09756946865",
+                    role: "portal-staff",
+                    contactInfoId: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "CHANGE_PARTICIPANT_CONTACT_INFO"
+                }
+            ]
+        }
+
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -1087,7 +1132,7 @@ describe("Participants Routes - Unit Test", () => {
         };
     
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -1125,7 +1170,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -1217,7 +1262,7 @@ describe("Participants Routes - Unit Test", () => {
             isActive: false
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         const now = Date.now();
 
@@ -1267,7 +1312,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -1408,7 +1453,7 @@ describe("Participants Routes - Unit Test", () => {
             isActive: true
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         const now = Date.now();
 
@@ -1471,7 +1516,7 @@ describe("Participants Routes - Unit Test", () => {
             }]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
         
         // Act
         const response = await request(participantSvcUrl)
@@ -1523,7 +1568,7 @@ describe("Participants Routes - Unit Test", () => {
             isActive: false
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         const now = Date.now();
 
@@ -1632,7 +1677,7 @@ describe("Participants Routes - Unit Test", () => {
             isActive: true
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         const now = Date.now();
 
@@ -1694,7 +1739,7 @@ describe("Participants Routes - Unit Test", () => {
             }]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
         
         // Act
         const response = await request(participantSvcUrl)
@@ -1732,7 +1777,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
@@ -1753,7 +1798,7 @@ describe("Participants Routes - Unit Test", () => {
             isActive: true
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         const now = Date.now();
 
@@ -1860,7 +1905,7 @@ describe("Participants Routes - Unit Test", () => {
             isActive: true
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         const now = Date.now();
 
@@ -1922,7 +1967,7 @@ describe("Participants Routes - Unit Test", () => {
             }]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -1965,7 +2010,7 @@ describe("Participants Routes - Unit Test", () => {
             }]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(false);
 
@@ -2035,7 +2080,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -2112,7 +2157,7 @@ describe("Participants Routes - Unit Test", () => {
             }
         ];
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         //Act
         const response = await request(participantSvcUrl)
@@ -2151,7 +2196,7 @@ describe("Participants Routes - Unit Test", () => {
             }
         ];
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         //Act
         const response = await request(participantSvcUrl)
@@ -2222,7 +2267,7 @@ describe("Participants Routes - Unit Test", () => {
             }
         ];
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         //Act
         const response = await request(participantSvcUrl)
@@ -2297,6 +2342,286 @@ describe("Participants Routes - Unit Test", () => {
         // Act
         const response = await request(participantSvcUrl)
             .post(`/participants/pendingApprovals/approve`)
+            .set("authorization", AUTH_TOKEN)
+            .send(pendingApprovals);
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    it("POST /participants/pendingApprovals/approve - Should be able to approve bulk pending requests successfully", async () => {
+        //Arrange
+        const now = Date.now();
+        const mockedParticipant: IParticipant = {
+            ...mockedParticipant1,
+            name: "Test Participant" 
+        };
+
+        const pendingApprovals:IParticipantPendingApproval = {
+            accountsChangeRequest: [
+                {
+                    id: "2",
+                    accountId: "1",
+                    type: ParticipantAccountTypes.POSITION,
+                    currencyCode: "EUR",
+                    externalBankAccountId: "",
+                    externalBankAccountName: "",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_ACCOUNT",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+            fundsMovementRequest: [
+                {
+                    id: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    currencyCode: "USD",
+                    amount: "1000",
+                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
+                    extReference: null,
+                    note: null,
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ] ,
+            ndcChangeRequests:[
+                {
+                    id: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    currencyCode: "USD",
+                    type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                    percentage: null,
+                    fixedValue: 2000,
+                    extReference: null,
+                    note: null,
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+            ipChangeRequests: [
+                {
+                    id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+                    allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+                    cidr: VALID_IP_ADDRESS,
+                    portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+                    ports: [5000, 5001],
+                    portRange: { rangeFirst: 0, rangeLast: 0 },
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_SOURCE_IP",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+
+                }
+            ],
+            contactInfoChangeRequests: [
+                {
+                    id: "1",
+                    name: "anyone",
+                    email: "anyone@test.com",
+                    phoneNumber: "098856452",
+                    role: "portal-staff",
+                    contactInfoId: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_PARTICIPANT_CONTACT_INFO",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+            statusChangeRequests: [
+                {
+                    id: "1",
+                    isActive: true,
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "CHANGE_PARTICIPANT_STATUS",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+        }
+
+        await repoPartMock.store(mockedParticipant);
+        
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/pendingApprovals/approve`)
+            .set("authorization", AUTH_TOKEN)
+            .send(pendingApprovals);
+
+        // Assert
+        expect(response.status).toBe(200);
+    });
+
+    it("POST /participants/pendingApprovals/reject - Should be able to reject bulk pending requests successfully", async () => {
+        //Arrange
+        const now = Date.now();
+        const mockedParticipant: IParticipant = {
+            ...mockedParticipant1,
+            name: "Test Participant" 
+        };
+
+        const pendingApprovals:IParticipantPendingApproval = {
+            accountsChangeRequest: [
+                {
+                    id: "2",
+                    accountId: "1",
+                    type: ParticipantAccountTypes.POSITION,
+                    currencyCode: "EUR",
+                    externalBankAccountId: "",
+                    externalBankAccountName: "",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_ACCOUNT",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+            fundsMovementRequest: [
+                {
+                    id: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    currencyCode: "USD",
+                    amount: "1000",
+                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
+                    extReference: null,
+                    note: null,
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ] ,
+            ndcChangeRequests:[
+                {
+                    id: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    currencyCode: "USD",
+                    type: ParticipantNetDebitCapTypes.ABSOLUTE,
+                    percentage: null,
+                    fixedValue: 2000,
+                    extReference: null,
+                    note: null,
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+            ipChangeRequests: [
+                {
+                    id: "908144a9-2505-4787-b39e-60e8f9fe9b99",
+                    allowedSourceIpId: "fdda19bc-96ab-42bb-af9e-bbdc71889250",
+                    cidr: VALID_IP_ADDRESS,
+                    portMode: ParticipantAllowedSourceIpsPortModes.ANY,
+                    ports: [5000, 5001],
+                    portRange: { rangeFirst: 0, rangeLast: 0 },
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_SOURCE_IP",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+
+                }
+            ],
+            contactInfoChangeRequests: [
+                {
+                    id: "1",
+                    name: "anyone",
+                    email: "anyone@test.com",
+                    phoneNumber: "098856452",
+                    role: "portal-staff",
+                    contactInfoId: "1",
+                    createdBy: "user",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "ADD_PARTICIPANT_CONTACT_INFO",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+            statusChangeRequests: [
+                {
+                    id: "1",
+                    isActive: true,
+                    createdBy: "admin",
+                    createdDate: now,
+                    requestState: ApprovalRequestState.CREATED,
+                    approvedBy: null,
+                    approvedDate: null,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    requestType: "CHANGE_PARTICIPANT_STATUS",
+                    participantId: "1",
+                    participantName: mockedParticipant.name
+                }
+            ],
+        }
+
+        await repoPartMock.store(mockedParticipant);
+        
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/pendingApprovals/reject`)
             .set("authorization", AUTH_TOKEN)
             .send(pendingApprovals);
 
@@ -2381,7 +2706,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -2431,7 +2756,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
         // Act
         const response = await request(participantSvcUrl)
             .post(`/participants/11/contactInfoChangeRequests/1/reject`)
@@ -2472,7 +2797,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         };
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -2526,7 +2851,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -2570,7 +2895,7 @@ describe("Participants Routes - Unit Test", () => {
             ]
         }
 
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
 
         // Act
         const response = await request(participantSvcUrl)
@@ -2607,7 +2932,7 @@ describe("Participants Routes - Unit Test", () => {
                 }
             ]
         }
-        repoPartMock.store(participant);
+        await repoPartMock.store(participant);
         // Act
         const response = await request(participantSvcUrl)
             .post(`/participants/11/contactInfoChangeRequests/1/reject`)

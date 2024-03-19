@@ -21,6 +21,7 @@
  optionally within square brackets <email>.
 
  * Thitsaworks
+ - Sithu kyaw <sithu.kyaw@thitsaworks.com>
  - Zwe Htet Myat <zwehtet.myat@thitsaworks.com>
 
  --------------
@@ -35,53 +36,60 @@ import {
     mockedParticipant2,
 } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MongoDBParticipantsRepo } from "@mojaloop/participants-bc-participants-svc/src/implementations/mongodb_participants_repo";
+import { MongoMemoryServer } from 'mongodb-memory-server';
 
+describe("Implementations - Participants Mongo Repo Test", () => {
+    let mongoServer: MongoMemoryServer;
+  let mongoClient: MongoClient;
+  let collectionParticipant: Collection;
+  let logger: ILogger;
+  let participantsRepo: MongoDBParticipantsRepo;
+  const COLLECTION_NAME = "participant";
+  const DB_NAME = process.env.PARTICIPANTS_DB_TEST_NAME ?? "participants";
 
-const logger: ILogger = new ConsoleLogger();
-logger.setLogLevel(LogLevel.FATAL);
-
-const DB_NAME = process.env.PARTICIPANTS_DB_TEST_NAME ?? "participants";
-const CONNECTION_STRING = process.env["MONGO_URL"] || "mongodb://localhost:27017/";
-const COLLECTION_NAME = "participant";
-
-let participantsRepo: MongoDBParticipantsRepo;
-let mongoClient: MongoClient;
-let collection: Collection;
-
-
-describe("Implementations - Mongo transfers Repo Integration tests", () => {
     beforeAll(async () => {
-        participantsRepo = new MongoDBParticipantsRepo(CONNECTION_STRING, logger);
+        mongoServer = await MongoMemoryServer.create();
+        const mongoUri = mongoServer.getUri();
+        mongoClient = new MongoClient(mongoUri);
+        await mongoClient.connect();
+
+        const db = mongoClient.db(DB_NAME);
+        collectionParticipant = db.collection(COLLECTION_NAME);
+
+        logger = new ConsoleLogger();
+
+        participantsRepo = new MongoDBParticipantsRepo(mongoUri, logger);
         await participantsRepo.init();
+
         
-        mongoClient = await MongoClient.connect(CONNECTION_STRING);
-        collection = mongoClient.db(DB_NAME).collection(COLLECTION_NAME);
     });
 
     beforeEach(async () => {
-        await collection.deleteMany({id: {$ne: "hub"}});
+        await collectionParticipant.deleteMany({});
     });
 
+    
     afterAll(async () => {
-        await collection.deleteMany({id: {$ne: "hub"}});
+        await collectionParticipant.deleteMany({id: {$ne: "hub"}});
         await participantsRepo.destroy();
         await mongoClient.close();
+        await mongoServer.stop();
     });
 
 
-    test("Should be able to init mongo participants repo", async () => {
+    it("Should be able to init mongo participants repo", async () => {
         expect(participantsRepo).toBeDefined();
     });
 
-    test("Should throw error when unable to init participants repo", async () => {
+    it("Should throw error when unable to init participants repo", async () => {
         // Arrange
         const badMongoRepository = new MongoDBParticipantsRepo("invalid connection", logger);
 
         // Act & Assert
         await expect(badMongoRepository.init()).rejects.toThrow();
     });
-
-    test("Should be able to fetch all participants", async () => {
+    
+    it("Should be able to fetch all participants", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
         await participantsRepo.create(participant1);
@@ -95,7 +103,7 @@ describe("Implementations - Mongo transfers Repo Integration tests", () => {
         expect(participants.length).toBeGreaterThanOrEqual(1);
     });
 
-    test("Should be able to fetch a participant by its ID", async () => {
+    it("Should be able to fetch a participant by its ID", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
         await participantsRepo.create(participant1);
@@ -111,7 +119,7 @@ describe("Implementations - Mongo transfers Repo Integration tests", () => {
         }
     });
 
-    test("Should be able to fetch a participant by its name", async () => {
+    it("Should be able to fetch a participant by its name", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
         await participantsRepo.create(participant1);
@@ -127,7 +135,7 @@ describe("Implementations - Mongo transfers Repo Integration tests", () => {
         }
     });
 
-    test("Should be able to fetch participants by their IDs", async () => {
+    it("Should be able to fetch participants by their IDs", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
         const participant2 = mockedParticipant2;
@@ -146,7 +154,7 @@ describe("Implementations - Mongo transfers Repo Integration tests", () => {
         expect(participants.length).toBe(2);
     });
 
-    test("Should be able to search participants by criteria", async () => {
+    it("Should be able to search participants by criteria", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
         await participantsRepo.create(participant1);
@@ -167,7 +175,27 @@ describe("Implementations - Mongo transfers Repo Integration tests", () => {
         expect(participants.items[0].id).toEqual(participant1.id);
     });
 
-    test("Should be able to create a participant", async () => {
+    it("Should be able to retun empty array when cannot find a participant", async () => {
+        // Arrange
+        const participant1 = mockedParticipant1;
+        await participantsRepo.create(participant1);
+
+        // Act
+        const result = await participantsRepo.searchParticipants(
+            "not-existing-participant",
+            participant1.name,
+            participant1.approved ? "APPROVED" : "NOTAPPROVED",
+            0,
+            10
+        );
+
+        // Assert
+        
+        expect(Array.isArray(result.items)).toBe(true);
+        expect(result.items.length).toBe(0);
+    });
+
+    it("Should be able to create a participant", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
 
@@ -183,7 +211,7 @@ describe("Implementations - Mongo transfers Repo Integration tests", () => {
         }
     });
 
-    test("Should be able to update a participant", async () => {
+    it("Should be able to update a participant", async () => {
         // Arrange
         const participant1 = { ...mockedParticipant1 };
         await participantsRepo.create(participant1);
@@ -207,7 +235,7 @@ describe("Implementations - Mongo transfers Repo Integration tests", () => {
         }
     });
 
-    test("Should be able to fetch search keywords", async () => {
+    it("Should be able to fetch search keywords", async () => {
         // Arrange
         const participant1 = mockedParticipant1;
         const participant2 = {
