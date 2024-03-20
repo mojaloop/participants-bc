@@ -2447,17 +2447,29 @@
              throw new Error("Invalid fixed value");
          }
 
-         const settlementAccount = participant.participantAccounts.find(
-             (value: IParticipantAccount) =>
-                 value.currencyCode === netDebitCapChangeRequest.currencyCode &&
-                 value.type === "SETTLEMENT"
-         );
-         if (!settlementAccount) {
-             throw new AccountNotFoundError(
-                 `Cannot find a participant's settlement account for currency: ${netDebitCapChangeRequest.currencyCode}`
+         const findParticipantAccount = (type: string) => {
+             return participant.participantAccounts.find(
+                 (value: IParticipantAccount) =>
+                     value.currencyCode === netDebitCapChangeRequest.currencyCode && value.type === type
+
              );
+         };
+
+         const settlementAccount = findParticipantAccount("SETTLEMENT");
+         const positionAccount = findParticipantAccount("POSITION");
+
+         if (!settlementAccount) {
+             throw new AccountNotFoundError(`Cannot find a participant's settlement account for currency: ${netDebitCapChangeRequest.currencyCode}`);
          }
 
+         const accBalSettlementAccountBalance = await this._getAccountBalance(participant.id, settlementAccount);
+         
+         const requestedNdcAmount = netDebitCapChangeRequest.type === ParticipantNetDebitCapTypes.ABSOLUTE? 
+         netDebitCapChangeRequest.fixedValue ?? 0 :
+         (Number(netDebitCapChangeRequest.percentage) / 100) * accBalSettlementAccountBalance
+         
+         await this._validateRequestedNdcAmount(requestedNdcAmount, accBalSettlementAccountBalance, "The NDC amount cannot be set greater than settlement account balance.");
+  
          const now = Date.now();
          if (!participant.netDebitCapChangeRequests) participant.netDebitCapChangeRequests = [];
          participant.netDebitCapChangeRequests.push({
@@ -2558,22 +2570,10 @@
 
          if (!settlementAccount) {
              throw new AccountNotFoundError(`Cannot find a participant's settlement account for currency: ${netDebitCapChange.currencyCode}`);
-
-
          }
 
-         const getAccountBalance = async (account: IParticipantAccount) => {
-             const accBalAccount = await this._accBal.getAccount(account.id);
-             if (!accBalAccount) {
-                 throw new AccountNotFoundError(`Could not get participant ${participant.id}'s ${account.type} account with id: ${account.id} from accounts and balances`);
-
-
-             }
-             return Number(accBalAccount.balance);
-         };
-
-         const accBalSettlementAccountBalance = await getAccountBalance(settlementAccount);
-         const accBalPositionAccountBalance = positionAccount ? await getAccountBalance(positionAccount) : undefined;
+         const accBalSettlementAccountBalance = await this._getAccountBalance(participant.id, settlementAccount);
+         const accBalPositionAccountBalance = positionAccount ? await this._getAccountBalance(participant.id, positionAccount) : undefined;
 
          const currentBalance: number = accBalSettlementAccountBalance;
 
@@ -3731,5 +3731,21 @@
 
          return existing;
      }
+
+    private async _getAccountBalance(paricipantId: string , account: IParticipantAccount):Promise<number> {
+        const accBalAccount = await this._accBal.getAccount(account.id);
+        if (!accBalAccount) {
+            throw new AccountNotFoundError(`Could not get participant ${paricipantId}'s ${account.type} account with id: ${account.id} from accounts and balances`);
+
+
+        }
+        return Number(accBalAccount.balance);
+    };
+
+    private async _validateRequestedNdcAmount(requestedNdcAmount: number, settlementAccountBalance: number, errorMessage: string) : Promise<void> {
+        if (settlementAccountBalance <= requestedNdcAmount) {
+            throw new InvalidNdcAmount(errorMessage);
+        }
+    };
  }
  
