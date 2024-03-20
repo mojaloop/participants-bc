@@ -2456,7 +2456,6 @@
          };
 
          const settlementAccount = findParticipantAccount("SETTLEMENT");
-         const positionAccount = findParticipantAccount("POSITION");
 
          if (!settlementAccount) {
              throw new AccountNotFoundError(`Cannot find a participant's settlement account for currency: ${netDebitCapChangeRequest.currencyCode}`);
