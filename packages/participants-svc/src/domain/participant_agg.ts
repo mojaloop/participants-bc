@@ -2466,7 +2466,7 @@
          
          const requestedNdcAmount = netDebitCapChangeRequest.type === ParticipantNetDebitCapTypes.ABSOLUTE? 
          netDebitCapChangeRequest.fixedValue ?? 0 :
-         (Number(netDebitCapChangeRequest.percentage) / 100) * accBalSettlementAccountBalance
+         (Number(netDebitCapChangeRequest.percentage) / 100) * accBalSettlementAccountBalance;
          
          await this._validateRequestedNdcAmount(requestedNdcAmount, accBalSettlementAccountBalance, "The NDC amount cannot be set greater than settlement account balance.");
   
@@ -3740,12 +3740,12 @@
 
         }
         return Number(accBalAccount.balance);
-    };
+    }
 
     private async _validateRequestedNdcAmount(requestedNdcAmount: number, settlementAccountBalance: number, errorMessage: string) : Promise<void> {
         if (settlementAccountBalance <= requestedNdcAmount) {
             throw new InvalidNdcAmount(errorMessage);
         }
-    };
+    }
  }
  
