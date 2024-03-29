@@ -69,6 +69,6 @@ docker build -f packages/participants-svc/Dockerfile -t mojaloop/participants-bc
 | AUDIT_KEY_FILE_PATH  | File path for audit key           | /app/data/audit_private_key.pem         |
 | SVC_CLIENT_ID        | Service client ID                 | participants-bc-participants-svc             |
 | SVC_CLIENT_SECRET    | Service client secret             | superServiceSecret     |
-| SVC_DEFAULT_HTTP_PORT                 | Default HTTP port for the service                  | 3100  |
+| SVC_DEFAULT_HTTP_PORT                 | Default HTTP port for the service                  | 3010  |
 | SERVICE_START_TIMEOUT_MS               | Timeout for service startup in milliseconds        | 60_000                 |
 | ACCOUNTS_BALANCES_COA_SVC_URL | Accounts and Balances COA Service URL | localhost:3300 | 

@@ -79,7 +79,7 @@ npm run build
 
 ## 4. Running Locally (dependencies inside of docker)
 
-In this method, we will run all of the core dependencies inside of docker containers, while running the `settlement-bc` server on your local machine.
+In this method, we will run all of the core dependencies inside of docker containers, while running the `participants-bc` server on your local machine.
 
 > Alternatively, you can run the `participants-bc` inside of `docker-compose` with the rest of the dependencies to make the setup a little easier: [Running Inside Docker](#5-running-inside-docker).
 
@@ -124,7 +124,7 @@ See the README.md file on each services for more Environment Variable Configurat
 ### 4.3 Run the server
 
 ```bash
-npm run start:participants-api-svc
+npm run start:participants-svc
 ```
 
 ## 5. Running Inside Docker
