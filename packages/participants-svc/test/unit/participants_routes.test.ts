@@ -1866,6 +1866,41 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(200);
     });
 
+    it("POST /participants/:id/ndcChangeRequests - Should receive error message if requested ndc amount is greater than settlement +  account's balance.", async () => {
+        // Arrange
+        const now = Date.now();
+        const mockedParticipant = mockedParticipant2;
+        //Default mocked settlment account balance for a participant is 1000000
+        const ndcChangeRequest: IParticipantNetDebitCapChangeRequest = {
+            id: "1",
+            createdBy: "user",
+            createdDate: now,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: null,
+            approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
+            currencyCode: "USD",
+            type: ParticipantNetDebitCapTypes.ABSOLUTE,
+            percentage: null,
+            fixedValue: 2000000,//Set new NDC amount which is greater than 1,000,000
+            extReference: null,
+            note: null
+        }
+
+        repoPartMock.store(mockedParticipant);
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .post(`/participants/${mockedParticipant.id}/ndcChangeRequests`)
+            .set("authorization", AUTH_TOKEN)
+            .send(ndcChangeRequest);
+
+        // Assert
+        expect(response.body.status).toBe("error");
+        expect(response.body.msg).toBe("The NDC amount cannot be greater than or equal to the settlement account's balance.");
+    });
+
     it("POST /participants/:id/ndcChangeRequests - Should receive error message if requested ndc amount is greater than settlement account's balance.", async () => {
         // Arrange
         const now = Date.now();
@@ -1898,7 +1933,7 @@ describe("Participants Routes - Unit Test", () => {
 
         // Assert
         expect(response.body.status).toBe("error");
-        expect(response.body.msg).toBe("The NDC amount cannot be set greater than settlement account balance.");
+        expect(response.body.msg).toBe("The NDC amount cannot be greater than or equal to the settlement account's balance.");
     });
 
     it("POST /participants/:id/ndcChangeRequests - Should handle unauthorized error", async () => {
