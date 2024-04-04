@@ -52,7 +52,6 @@ import { MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-l
 import { ApprovalRequestState, HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantPendingApproval, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
 import { Server } from "http";
 import ExcelJS from "exceljs";
-import { InvalidNdcAmount } from "../../src/domain/errors";
 
 const packageJSON = require("../../package.json");
 
