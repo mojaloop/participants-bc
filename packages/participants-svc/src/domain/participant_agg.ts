@@ -2142,10 +2142,30 @@
                  value.currencyCode === fundsMov.currencyCode &&
                  value.type === "HUB_RECONCILIATION"
          );
+
          if (!hubReconAccount) {
              throw new AccountNotFoundError(
                  `Cannot find hub's reconciliation account for currency: ${fundsMov.currencyCode}`
              );
+         }
+
+         if(fundsMov.direction === ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL){
+            const positionAccount = participant.participantAccounts.find(
+                (value: IParticipantAccount) =>
+                    value.currencyCode === fundsMov.currencyCode && value.type === "POSITION"
+            );
+
+            const accBalSettlementAccountBalance = await this._getAccountBalance(participant.id, settlementAccount);
+            const accBalPositionAccountBalance = positionAccount ? await this._getAccountBalance(participant.id, positionAccount) : undefined;
+            
+            const maxBalance = accBalPositionAccountBalance !== undefined && accBalPositionAccountBalance < 0
+            ? accBalSettlementAccountBalance + accBalPositionAccountBalance
+            : accBalSettlementAccountBalance;
+
+            if (Number(fundsMov.amount) >  maxBalance) {
+                throw new WithdrawalExceedsBalanceError("Insufficient funds. Requested withdrawal amount exceeds available balance.");
+            }
+    
          }
  
          const now = Date.now();
@@ -2257,32 +2277,37 @@
              );
          }
  
-         // Check if enough balance in settlement account for withdrawal
+         // Check if enough balance in settlement account and position account for withdrawal
          if (fundsMov.direction === ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL) {
-             // Get the account from account and balance adapter
-             const updatedSettlementAcc = await this._accBal.getAccount(settlementAccount.id);
-             if (!updatedSettlementAcc) {
-                 throw new AccountNotFoundError(
-                     `Could not get settlement account from accountsAndBalances adapter for participant id: ${participant.id}`
-                 );
-             }
+             
+             const positionAccount = participant.participantAccounts.find(
+                 (value: IParticipantAccount) =>
+                     value.currencyCode === fundsMov.currencyCode && value.type === "POSITION"
+             );
  
              const fundsMovAmount = Number(fundsMov.amount);
-             const balance = Number(updatedSettlementAcc.balance);
- 
+             const settlementAccountBalance = await this._getAccountBalance(participant.id, settlementAccount);
+             const positionAccountBalance = positionAccount ? await this._getAccountBalance(participant.id, positionAccount) : undefined;
+
+             const availableBalance = positionAccountBalance !== undefined && positionAccountBalance < 0
+                 ? settlementAccountBalance + positionAccountBalance
+                 : settlementAccountBalance;
+
              if (isNaN(fundsMovAmount)) {
                  throw new AccountNotFoundError(
                      `Invalid withdrawal amount for funds movement with id: ${fundsMovId}`
                  );
              }
-             if (isNaN(balance)) {
+
+             if (isNaN(settlementAccountBalance)) {
                  throw new AccountNotFoundError(
                      `Invalid balance value in the settlement account for participant id: ${participant.id}`
                  );
              }
-             if (fundsMovAmount > balance) {
+
+             if (Number(fundsMov.amount) >  availableBalance) {
                  throw new WithdrawalExceedsBalanceError(
-                     `Not enough balance in the settlement account for participant id: ${participant.id}`
+                     `Insufficient funds. Withdrawal amount exceeds available balance for participant id: ${participant.id}`
                  );
              }
          }
