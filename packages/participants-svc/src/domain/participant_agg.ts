@@ -1048,37 +1048,171 @@
      }
  
      async approveParticipantContactInfoChangeRequest(
-        secCtx: CallSecurityContext,
-        participantId: string,
-        contactInfoChangeRequestId: string
-    ): Promise<string | null> {
-        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
-    
-        const existing = await this._validateParticipantAndRetrieve(participantId);
-    
-        const contactInfoChangeRequest = this._findContactInfoChangeRequest(existing, contactInfoChangeRequestId);
-    
-        await this._checkContactInfoRequestNotApproved(contactInfoChangeRequest);
-    
-        await this._checkMakerCheckerViolation(secCtx, contactInfoChangeRequest);
-    
-        this._ensureParticipantContactsArray(existing);
-    
-        await this._checkDuplicateContactInfo(existing, contactInfoChangeRequest);
-    
-        this._updateContactInfo(existing, contactInfoChangeRequest);
-    
-        await this._storeParticipant(existing);
-    
-        this._logParticipantChanges(existing, secCtx, contactInfoChangeRequest);
-    
-        await this._auditContactInfoChangeRequests(secCtx, existing, contactInfoChangeRequest);
-    
-        await this._sendParticipantChangedEvent(participantId, contactInfoChangeRequest);
-    
-        return contactInfoChangeRequest.contactInfoId;
-    }
- 
+         secCtx: CallSecurityContext,
+         participantId: string,
+         contactInfoChangeRequestId: string
+     ): Promise<string | null> {
+         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
+
+         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+         if (participantId === HUB_PARTICIPANT_ID)
+             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+         if (!existing) {
+             throw new ParticipantNotFoundError(
+                 `Participant with ID: '${participantId}' not found.`
+             );
+         }
+         if (!existing.isActive) {
+             throw new ParticipantNotActive(
+                 `Participant with ID: '${participantId}' is not active.`
+             );
+         }
+
+         const contactInfoChangeRequest = existing.participantContactInfoChangeRequests.find(
+             (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
+         );
+         if (!contactInfoChangeRequest) {
+             throw new ContactInfoChangeRequestNotFound(
+                 `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
+             );
+         }
+         if (contactInfoChangeRequest.requestState == ApprovalRequestState.APPROVED) {
+             throw new ContactInfoChangeRequestAlreadyApproved(
+                 `Participant's contact info change request with id: ${contactInfoChangeRequestId} is already approved`
+             );
+         }
+
+         // now we can enforce the correct privilege
+         //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+         if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
+             await this._auditClient.audit(
+                 ParticipantChangeTypes.ADD_CONTACT_INFO,
+                 false,
+                 this._getAuditSecCtx(secCtx),
+                 [{ key: "participantId", value: participantId }]
+             );
+             throw new MakerCheckerViolationError(
+                 "Maker check violation - Same user cannot create and approve participant contact info change request."
+             );
+         }
+
+         if (!existing.participantContacts) {
+             existing.participantContacts = [];
+         } else {
+
+             if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
+                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                     value.name === contactInfoChangeRequest.name)) {
+                     throw new CannotAddDuplicateContactInfoError("Same contact name already exists.");
+                 }
+
+                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                     value.email === contactInfoChangeRequest.email)) {
+                     throw new CannotAddDuplicateContactInfoError("Same contact email already exists.");
+                 }
+
+                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                     value.phoneNumber === contactInfoChangeRequest.phoneNumber)) {
+                     throw new CannotAddDuplicateContactInfoError("Same contact phone no. already exists.");
+                 }
+             } else {
+                 if (existing.participantContacts.find((value: IParticipantContactInfo) =>
+                     value.name === contactInfoChangeRequest.name &&
+                     value.email === contactInfoChangeRequest.email &&
+                     value.phoneNumber === contactInfoChangeRequest.phoneNumber &&
+                     value.role === contactInfoChangeRequest.role)) {
+
+                     throw new CannotAddDuplicateContactInfoError("Same contact information already exists.");
+                 }
+             }
+         }
+
+
+         if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
+             contactInfoChangeRequest.contactInfoId = randomUUID();
+
+             existing.participantContacts.push({
+                 id: contactInfoChangeRequest.contactInfoId,
+                 name: contactInfoChangeRequest.name,
+                 email: contactInfoChangeRequest.email,
+                 phoneNumber: contactInfoChangeRequest.phoneNumber,
+                 role: contactInfoChangeRequest.role
+             });
+         } else {
+             existing.participantContacts.map((contactInfo) => {
+                 if (contactInfo.id == contactInfoChangeRequest.contactInfoId) {
+                     contactInfo.name = contactInfoChangeRequest.name,
+                         contactInfo.email = contactInfoChangeRequest.email,
+                         contactInfo.phoneNumber = contactInfoChangeRequest.phoneNumber,
+                         contactInfo.role = contactInfoChangeRequest.role;
+                 }
+             });
+         }
+
+         const now = Date.now();
+
+         contactInfoChangeRequest.requestState = ApprovalRequestState.APPROVED;
+         contactInfoChangeRequest.approvedBy = secCtx.username;
+         contactInfoChangeRequest.approvedDate = Date.now();
+
+         existing.changeLog.push(
+             {
+                 changeType: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST,
+                 user: secCtx.username!,
+                 timestamp: now,
+                 notes: null,
+             }, {
+             changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
+             user: secCtx.username!,
+             timestamp: now + 1,
+             notes: null,
+         }
+         );
+
+         const updateSuccess = await this._repo.store(existing);
+         if (!updateSuccess) {
+             const err = new CouldNotStoreParticipant(
+                 "Could not update participant on adding participant's contact info."
+             );
+             this._logger.error(err);
+             throw err;
+         }
+
+         this._logger.info(
+             `Successfully added contact info with id: ${contactInfoChangeRequest.contactInfoId} to Participant with ID: '${participantId}'`
+         );
+
+         await this._auditClient.audit(
+             AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED,
+             true,
+             this._getAuditSecCtx(secCtx),
+             [{ key: "participantId", value: participantId }]
+         );
+
+         await this._auditClient.audit(
+             (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
+             true,
+             this._getAuditSecCtx(secCtx),
+             [{ key: "participantId", value: participantId }]
+         );
+
+         //create event for participant create
+         const payload: ParticipantChangedEvtPayload = {
+             participantId: participantId,
+             actionName: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
+         };
+
+         const event = new ParticipantChangedEvt(payload);
+
+         await this._messageProducer.send(event);
+
+         return contactInfoChangeRequest.contactInfoId;
+     }
+
      async rejectParticipantContactInfoChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -1086,27 +1220,91 @@
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
 
-         const existing = await this._validateParticipantAndRetrieve(participantId);
+         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
 
-         const contactInfoChangeRequest = this._findContactInfoChangeRequest(existing, contactInfoChangeRequestId);
+         if (participantId === HUB_PARTICIPANT_ID)
+             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
 
-         this._checkContactInfoRequestNotRejected(contactInfoChangeRequest);
+         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+         if (!existing) {
+             throw new ParticipantNotFoundError(
+                 `Participant with ID: '${participantId}' not found.`
+             );
+         }
+         if (!existing.isActive) {
+             throw new ParticipantNotActive(
+                 `Participant with ID: '${participantId}' is not active.`
+             );
+         }
 
-         await this._checkMakerCheckerViolation(secCtx, contactInfoChangeRequest);
+         const contactInfoChangeRequest = existing.participantContactInfoChangeRequests.find(
+             (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
+         );
+         if (!contactInfoChangeRequest) {
+             throw new ContactInfoChangeRequestNotFound(
+                 `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
+             );
+         }
+         if (contactInfoChangeRequest.requestState == ApprovalRequestState.REJECTED) {
+             throw new ContactInfoChangeRequestAlreadyApproved(
+                 `Participant's contact info change request with id: ${contactInfoChangeRequestId} is already rejected`
+             );
+         }
+
+         // now we can enforce the correct privilege
+         //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
+
+         if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
+             await this._auditClient.audit(
+                 ParticipantChangeTypes.ADD_CONTACT_INFO,
+                 false,
+                 this._getAuditSecCtx(secCtx),
+                 [{ key: "participantId", value: participantId }]
+             );
+             throw new MakerCheckerViolationError(
+                 "Maker check violation - Same user cannot create and reject participant contact info change request."
+             );
+         }
 
          const now = Date.now();
 
-         this._updateContactInfoRequestState(contactInfoChangeRequest, ApprovalRequestState.REJECTED, secCtx.username , now);
+         contactInfoChangeRequest.requestState = ApprovalRequestState.REJECTED;
+         contactInfoChangeRequest.rejectedBy = secCtx.username;
+         contactInfoChangeRequest.rejectedDate = Date.now();
 
-         this._logParticipantChanges(existing, secCtx, contactInfoChangeRequest);
+         existing.changeLog.push(
+             {
+                 changeType: ParticipantChangeTypes.REJECT_SOURCE_IP_REQUEST,
+                 user: secCtx.username!,
+                 timestamp: now,
+                 notes: null,
+             }, {
+             changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
+             user: secCtx.username!,
+             timestamp: now + 1,
+             notes: null,
+         }
+         );
 
-         await this._storeParticipant(existing);
+         const updateSuccess = await this._repo.store(existing);
+         if (!updateSuccess) {
+             const err = new CouldNotStoreParticipant(
+                 "Could not update participant on rejecting participant's contact info."
+             );
+             this._logger.error(err);
+             throw err;
+         }
 
          this._logger.info(
              `Successfully rejected contact info change request with id: ${contactInfoChangeRequest.contactInfoId} to Participant with ID: '${participantId}'`
          );
 
-         await this._auditContactInfoChangeRequestRejection(secCtx, existing, participantId);
+         await this._auditClient.audit(
+             AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_REJECTED,
+             true,
+             this._getAuditSecCtx(secCtx),
+             [{ key: "participantId", value: participantId }]
+         );
 
          return contactInfoChangeRequest.contactInfoId;
      }
@@ -1121,17 +1319,26 @@
          participantStatusChangeRequest: IParticipantStatusChangeRequest
      ): Promise<string> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_STATUS_CHANGE_REQUEST);
- 
-         const existing = await this._validateParticipantAndRetrieve(participantId);
- 
+
+         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+         if (participantId === HUB_PARTICIPANT_ID)
+             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+         //await Participant.ValidateParticipantContactInfoChangeRequest(contactInfoChangeRequest);
+
+         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+         if (!existing)
+             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+
          // pedro: Shouldn't we check if other non-approved requests exist and reject this one if they do?
- 
+
          if (!existing.participantStatusChangeRequests) {
              existing.participantStatusChangeRequests = [];
          }
- 
+
          const now = Date.now();
- 
+
          existing.participantStatusChangeRequests.push({
              id: participantStatusChangeRequest.id || randomUUID(),
              isActive: participantStatusChangeRequest.isActive,
@@ -1144,14 +1351,14 @@
              rejectedDate: null,
              requestType: participantStatusChangeRequest.requestType
          });
- 
+
          existing.changeLog.push({
              changeType: ParticipantChangeTypes.CHANGE_PARTICIPANT_STATUS_REQUEST,
              user: secCtx.username!,
              timestamp: now,
              notes: null,
          });
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1160,21 +1367,21 @@
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully created participant's status change request for Participant with ID: '${participantId}'.`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          return participantStatusChangeRequest.id;
      }
- 
+
      async approveParticipantStatusChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -1182,13 +1389,20 @@
          note: string = ""
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_STATUS_CHANGE_REQUEST);
-         
-         const existing = await this._validateParticipantAndRetrieve(participantId, true);
- 
+         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+         if (participantId === HUB_PARTICIPANT_ID)
+             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+         if (!existing) {
+             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+         }
+
          const statusChangeRequest = existing.participantStatusChangeRequests.find(
              (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
          );
- 
+
          if (!statusChangeRequest) {
              throw new ParticipantStatusChangeRequestNotFound(
                  `Cannot find a participant's status change request with id: ${changeRequestId}.`
@@ -1199,7 +1413,7 @@
                  `Participant's status change request with id: ${changeRequestId} is already approved.`
              );
          }
- 
+
          if (secCtx && statusChangeRequest.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
@@ -1207,42 +1421,42 @@
                  this._getAuditSecCtx(secCtx),
                  [{ key: "participantId", value: participantId }]
              );
- 
+
              throw new MakerCheckerViolationError(
                  "Maker check violation - Same user cannot create and approve participant status change request."
              );
          }
- 
-         if(statusChangeRequest.isActive) {
+
+         if (statusChangeRequest.isActive) {
              await this.activateParticipant(secCtx, participantId, note);
              existing.isActive = true;
          } else {
              await this.deactivateParticipant(secCtx, participantId, note);
              existing.isActive = false;
          }
- 
- 
- 
+
+
+
          const now = Date.now();
- 
+
          statusChangeRequest.requestState = ApprovalRequestState.APPROVED;
          statusChangeRequest.approvedBy = secCtx.username;
          statusChangeRequest.approvedDate = Date.now();
- 
+
          existing.changeLog.push(
              {
                  changeType: ParticipantChangeTypes.APPROVE_PARTICIPANT_STATUS_REQUEST,
                  user: secCtx.username!,
                  timestamp: now,
                  notes: null,
-             },{
-                 changeType: (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
-                 user: secCtx.username!,
-                 timestamp: now+1,
-                 notes: null,
-             }
+             }, {
+             changeType: (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
+             user: secCtx.username!,
+             timestamp: now + 1,
+             notes: null,
+         }
          );
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1251,38 +1465,38 @@
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully approved change request with id: ${statusChangeRequest.id} to Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          await this._auditClient.audit(
              (statusChangeRequest.isActive ? AuditedActionNames.PARTICIPANT_ENABLED : AuditedActionNames.PARTICIPANT_DISABLED),
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for participant source ip change request approved - we don't need both, just the reason for the actual change
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
-             actionName:  AuditedActionNames.PARTICIPANT_STATUS_CHANGED
+             actionName: AuditedActionNames.PARTICIPANT_STATUS_CHANGED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
          return statusChangeRequest.id;
      }
- 
+
      async rejectParticipantStatusChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -1290,31 +1504,38 @@
          note: string = ""
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.REJECT_PARTICIPANT_STATUS_CHANGE_REQUEST);
-         
-         const existing = await this._validateParticipantAndRetrieve(participantId, true);
- 
+         if (!participantId) throw new InvalidParticipantError("[id] cannot be empty");
+
+         if (participantId === HUB_PARTICIPANT_ID)
+             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+         const existing: IParticipant | null = await this._repo.fetchWhereId(participantId);
+         if (!existing) {
+             throw new ParticipantNotFoundError(`Participant with ID: '${participantId}' not found.`);
+         }
+
          const statusChangeRequest = existing.participantStatusChangeRequests.find(
              (value: IParticipantStatusChangeRequest) => value.id === changeRequestId
          );
- 
+
          if (!statusChangeRequest) {
              throw new ParticipantStatusChangeRequestNotFound(
                  `Cannot find a participant's status change request with id: ${changeRequestId}.`
              );
          }
- 
+
          if (statusChangeRequest.requestState === ApprovalRequestState.APPROVED) {
              throw new ParticipantStatusChangeRequestAlreadyApproved(
                  `Participant's status change request with id: ${changeRequestId} is already approved.`
              );
          }
- 
+
          if (statusChangeRequest.requestState == ApprovalRequestState.REJECTED) {
              throw new ParticipantStatusChangeRequestAlreadyApproved(
                  `Participant's status change request with id: ${changeRequestId} is already rejected.`
              );
          }
- 
+
          if (secCtx && statusChangeRequest.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
@@ -1322,32 +1543,32 @@
                  this._getAuditSecCtx(secCtx),
                  [{ key: "participantId", value: participantId }]
              );
- 
+
              throw new MakerCheckerViolationError(
                  "Maker check violation - Same user cannot create and reject participant status change request."
              );
          }
- 
+
          const now = Date.now();
- 
+
          statusChangeRequest.requestState = ApprovalRequestState.REJECTED;
          statusChangeRequest.rejectedBy = secCtx.username;
          statusChangeRequest.rejectedDate = Date.now();
- 
+
          existing.changeLog.push(
              {
                  changeType: ParticipantChangeTypes.REJECT_PARTICIPANT_STATUS_REQUEST,
                  user: secCtx.username!,
                  timestamp: now,
                  notes: null,
-             },{
-                 changeType: (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
-                 user: secCtx.username!,
-                 timestamp: now+1,
-                 notes: null,
-             }
+             }, {
+             changeType: (statusChangeRequest.isActive ? ParticipantChangeTypes.ENABLE_PARTICIPANT : ParticipantChangeTypes.DISABLE_PARTICIPANT),
+             user: secCtx.username!,
+             timestamp: now + 1,
+             notes: null,
+         }
          );
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1356,18 +1577,18 @@
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully rejected participant's status change request with id: ${statusChangeRequest.id} to Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
-         
+
          return statusChangeRequest.id;
      }
  
@@ -3479,165 +3700,6 @@
          }
      }
 
-    
-    private _findContactInfoChangeRequest(participant: IParticipant, contactInfoChangeRequestId: string): IParticipantContactInfoChangeRequest {
-        const contactInfoChangeRequest = participant.participantContactInfoChangeRequests.find(
-            (value: IParticipantContactInfoChangeRequest) => value.id === contactInfoChangeRequestId
-        );
-        if (!contactInfoChangeRequest) {
-            throw new ContactInfoChangeRequestNotFound(
-                `Cannot find a participant's contact info change request with id: ${contactInfoChangeRequestId}`
-            );
-        }
-        return contactInfoChangeRequest;
-    }
-    
-    private async _checkContactInfoRequestNotApproved(contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
-        if (contactInfoChangeRequest.requestState == ApprovalRequestState.APPROVED) {
-            throw new ContactInfoChangeRequestAlreadyApproved(
-                `Participant's contact info change request with id: ${contactInfoChangeRequest.id} is already approved`
-            );
-        }
-    }
-    
-    private async _checkMakerCheckerViolation(secCtx: CallSecurityContext, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
-        if (secCtx && contactInfoChangeRequest.createdBy === secCtx.username) {
-            throw new MakerCheckerViolationError(
-                "Maker check violation - Same user cannot create and approve participant contact info change request."
-            );
-        }
-    }
-    
-    private _ensureParticipantContactsArray(participant: IParticipant): void {
-        if (!participant.participantContacts) {
-            participant.participantContacts = [];
-        }
-    }
-    
-    private async _checkDuplicateContactInfo(participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
-        if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
-            if (this._hasDuplicateContactInfo(participant, contactInfoChangeRequest)) {
-                throw new CannotAddDuplicateContactInfoError("Same contact information already exists.");
-            }
-        }
-    }
-    
-    private _hasDuplicateContactInfo(participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): boolean {
-        return participant.participantContacts.some((value: IParticipantContactInfo) =>
-            value.name === contactInfoChangeRequest.name &&
-            value.email === contactInfoChangeRequest.email &&
-            value.phoneNumber === contactInfoChangeRequest.phoneNumber &&
-            value.role === contactInfoChangeRequest.role
-        );
-    }
-    
-    private _updateContactInfo(participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): void {
-        if (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO") {
-            contactInfoChangeRequest.contactInfoId = randomUUID();
-    
-            participant.participantContacts.push({
-                id: contactInfoChangeRequest.contactInfoId,
-                name: contactInfoChangeRequest.name,
-                email: contactInfoChangeRequest.email,
-                phoneNumber: contactInfoChangeRequest.phoneNumber,
-                role: contactInfoChangeRequest.role
-            });
-        } else {
-            participant.participantContacts.forEach((contactInfo) => {
-                if (contactInfo.id == contactInfoChangeRequest.contactInfoId) {
-                    contactInfo.name = contactInfoChangeRequest.name;
-                    contactInfo.email = contactInfoChangeRequest.email;
-                    contactInfo.phoneNumber = contactInfoChangeRequest.phoneNumber;
-                    contactInfo.role = contactInfoChangeRequest.role;
-                }
-            });
-        }
-    }
-    
-    private async _storeParticipant(participant: IParticipant): Promise<boolean> {
-        const updateSuccess = await this._repo.store(participant);
-        if (!updateSuccess) {
-            const err = new CouldNotStoreParticipant(
-                "Could not update participant on adding participant's contact info."
-            );
-            this._logger.error(err);
-            throw err;
-        }
-        return updateSuccess;
-    }
-    
-    private _logParticipantChanges(participant: IParticipant, secCtx: CallSecurityContext, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): void {
-        const now = Date.now();
-    
-        contactInfoChangeRequest.requestState = ApprovalRequestState.APPROVED;
-        contactInfoChangeRequest.approvedBy = secCtx.username;
-        contactInfoChangeRequest.approvedDate = Date.now();
-    
-        participant.changeLog.push(
-            {
-                changeType: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST,
-                user: secCtx.username!,
-                timestamp: now,
-                notes: null,
-            }, {
-                changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
-                user: secCtx.username!,
-                timestamp: now + 1,
-                notes: null,
-            }
-        );
-    }
-    
-    private async _auditContactInfoChangeRequests(secCtx: CallSecurityContext, participant: IParticipant, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
-        await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_APPROVED,
-            true,
-            this._getAuditSecCtx(secCtx),
-            [{ key: "participantId", value: participant.id }]
-        );
-    
-        await this._auditClient.audit(
-            (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
-            true,
-            this._getAuditSecCtx(secCtx),
-            [{ key: "participantId", value: participant.id }]
-        );
-    }
-    
-    private async _sendParticipantChangedEvent(participantId: string, contactInfoChangeRequest: IParticipantContactInfoChangeRequest): Promise<void> {
-        const payload: ParticipantChangedEvtPayload = {
-            participantId: participantId,
-            actionName: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? AuditedActionNames.PARTICIPANT_CONTACT_INFO_ADDED : AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGED),
-        };
-    
-        const event = new ParticipantChangedEvt(payload);
-    
-        await this._messageProducer.send(event);
-    }
-
-    private _checkContactInfoRequestNotRejected(contactInfoChangeRequest: IParticipantContactInfoChangeRequest): void {
-        if (contactInfoChangeRequest.requestState == ApprovalRequestState.REJECTED) {
-            throw new ContactInfoChangeRequestAlreadyApproved(
-                `Participant's contact info change request with id: ${contactInfoChangeRequest.id} is already rejected`
-            );
-        }
-    }
-    
-    private _updateContactInfoRequestState(contactInfoChangeRequest: IParticipantContactInfoChangeRequest, newState: ApprovalRequestState, username: string | null, timestamp: number): void {
-        contactInfoChangeRequest.requestState = newState;
-        contactInfoChangeRequest.rejectedBy = username;
-        contactInfoChangeRequest.rejectedDate = timestamp;
-    }
-    
-    private async _auditContactInfoChangeRequestRejection(secCtx: CallSecurityContext, participant: IParticipant, participantId: string): Promise<void> {
-        await this._auditClient.audit(
-            AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_REJECTED,
-            true,
-            this._getAuditSecCtx(secCtx),
-            [{ key: "participantId", value: participantId }]
-        );
-    }
-    
  
      private async _validateParticipantAndRetrieve(
          participantId: string,
