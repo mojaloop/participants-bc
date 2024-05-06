@@ -2773,13 +2773,13 @@
                  currencyCode: netDebitCapChange.currencyCode,
                  type: netDebitCapChange.type as ParticipantNetDebitCapTypes,
                  percentage: netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE ? netDebitCapChange.percentage : 0,
-                 currentValue: netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE ? finalNDCAmount : 0
+                 currentValue: finalNDCAmount,
              });
          } else {
              found.currencyCode = netDebitCapChange.currencyCode;
              found.type = netDebitCapChange.type as ParticipantNetDebitCapTypes;
              found.percentage = netDebitCapChange.type === ParticipantNetDebitCapTypes.PERCENTAGE ? netDebitCapChange.percentage : 0;
-             found.currentValue = netDebitCapChange.type === ParticipantNetDebitCapTypes.ABSOLUTE ? finalNDCAmount : 0;
+             found.currentValue = finalNDCAmount;
          }
 
          netDebitCapChange.requestState = ApprovalRequestState.APPROVED;
