@@ -1292,7 +1292,7 @@
              bankBalance: worksheet.getCell(i, 3).value as string,
              settledTransferAmount: worksheet.getCell(i, 4).value as string,
              currencyCode: worksheet.getCell(i, 5).value as string,
-             direction: null,
+             type: null,
              updateAmount: "",
              settlementAccountId: "",
              isDuplicate: false,

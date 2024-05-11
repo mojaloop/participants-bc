@@ -54,14 +54,14 @@
      ParticipantChangeTypes,
      ParticipantEndpointProtocols,
      ParticipantEndpointTypes,
-     ParticipantFundsMovementDirections,
      ParticipantNetDebitCapTypes,
      ParticipantTypes,
      IParticipantLiquidityBalanceAdjustment,
      IParticipantPendingApprovalSummary,
      IParticipantPendingApproval,
      IParticipantPendingApprovalCountByType,
-     ApprovalRequestState
+     ApprovalRequestState,
+     ParticipantFundsMovementTypes
  } from "@mojaloop/participant-bc-public-types-lib";
  import {
      SettlementMatrixSettledEvt,
@@ -95,6 +95,7 @@
      InvalidNdcAmount,
      InvalidNdcChangeRequest,
      InvalidParticipantError,
+     InvalidParticipantStatusError,
      LiquidityAdjustmentAlreadyProcessed,
      NdcChangeRequestAlreadyApproved,
      NdcChangeRequestNotFound,
@@ -176,7 +177,8 @@
      private _currencyList: Currency[];
      private _metrics: IMetrics;
      private readonly _requestsHisto: IHistogram;
- 
+     private readonly _systemActorName = "system";
+
      constructor(
          configClient: IConfigurationClient,
          repo: IParticipantsRepository,
@@ -2336,9 +2338,9 @@
      ) {
          this._enforcePrivilege(
              secCtx,
-             fundsMov.direction === "FUNDS_DEPOSIT"
-                 ? ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT
-                 : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
+             fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
+                ? ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT
+                : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
          );
  
          const participant = await this._validateParticipantAndRetrieve(participantId);
@@ -2375,7 +2377,7 @@
              id: fundsMov.id || randomUUID(),
              createdBy: secCtx.username!,
              createdDate: now,
-             direction: fundsMov.direction as ParticipantFundsMovementDirections,
+             type: fundsMov.type as ParticipantFundsMovementTypes,
              amount: fundsMov.amount,
              currencyCode: fundsMov.currencyCode,
              note: fundsMov.note,
@@ -2397,9 +2399,9 @@
              throw err;
          }
          await this._auditClient.audit(
-             fundsMov.direction === "FUNDS_DEPOSIT"
-                 ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_CREATED
-                 : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_CREATED,
+            fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
+                ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_CREATED
+                : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_CREATED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
@@ -2429,23 +2431,23 @@
          // now we can enforce the correct privilege
          this._enforcePrivilege(
              secCtx,
-             fundsMov.direction === "FUNDS_DEPOSIT"
-                 ? ParticipantPrivilegeNames.APPROVE_FUNDS_DEPOSIT
-                 : ParticipantPrivilegeNames.APPROVE_FUNDS_WITHDRAWAL
+             fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
+                ? ParticipantPrivilegeNames.APPROVE_FUNDS_DEPOSIT
+                : ParticipantPrivilegeNames.APPROVE_FUNDS_WITHDRAWAL
          );
  
          // inactive participants can only deposit funds, not withdrawal
-         if (!participant.isActive && fundsMov.direction === "FUNDS_WITHDRAWAL") {
-             throw new ParticipantNotActive(
+         if (!participant.isActive && (fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT)) {
+             throw new InvalidParticipantStatusError(
                  `Participant with ID: '${participantId}' is not active, cannot withdrawal funds.`
              );
          }
+
+         
  
          if (secCtx && fundsMov.createdBy === secCtx.username) {
              await this._auditClient.audit(
-                 fundsMov.direction === "FUNDS_DEPOSIT"
-                     ? "FUNDS_DEPOSIT"
-                     : "FUNDS_WITHDRAWAL",
+                 this.getParticipantChangeType(fundsMov.type),
                  false,
                  this._getAuditSecCtx(secCtx),
                  [{ key: "participantId", value: participantId }]
@@ -2479,7 +2481,10 @@
          }
  
          // Check if enough balance in settlement account for withdrawal
-         if (fundsMov.direction === ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL) {
+         if (fundsMov.type === ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT ||
+             fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL ||
+             fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT
+         ) {
              // Get the account from account and balance adapter
              const updatedSettlementAcc = await this._accBal.getAccount(settlementAccount.id);
              if (!updatedSettlementAcc) {
@@ -2517,10 +2522,10 @@
              fundsMov.currencyCode,
              fundsMov.amount,
              false,
-             fundsMov.direction === "FUNDS_DEPOSIT"
+             fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
                  ? hubReconAccount.id
                  : settlementAccount.id,
-             fundsMov.direction === "FUNDS_DEPOSIT"
+                 fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
                  ? settlementAccount.id
                  : hubReconAccount.id
          ).catch((error: Error) => {
@@ -2532,16 +2537,6 @@
          fundsMov.approvedBy = secCtx.username;
          fundsMov.approvedDate = now;
  
-         participant.changeLog.push({
-             changeType:
-                 fundsMov.direction === "FUNDS_DEPOSIT"
-                     ? ParticipantChangeTypes.FUNDS_DEPOSIT
-                     : ParticipantChangeTypes.FUNDS_WITHDRAWAL,
-             user: secCtx.username!,
-             timestamp: now,
-             notes: null,
-         });
- 
          const updateSuccess = await this._repo.store(participant);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -2550,8 +2545,16 @@
              this._logger.error(err);
              throw err;
          }
+
+         participant.changeLog.push({
+             changeType: this.getParticipantChangeType(fundsMov.type),
+             user: secCtx.username!,
+             timestamp: now,
+             notes: null,
+         });
+
          await this._auditClient.audit(
-             fundsMov.direction === "FUNDS_DEPOSIT"
+            fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
                  ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED
                  : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED,
              true,
@@ -2560,13 +2563,13 @@
          );
  
  
-         const actionName = fundsMov.direction === "FUNDS_DEPOSIT" ? "Deposit" : "Withdrawal";
+         const actionName = fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT ? "Deposit" : "Withdrawal";
          await this._updateNdcForParticipants([participant], `Funds movement approved (${actionName})`);
  
          //create event for fund movement approved
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
-             actionName: fundsMov.direction === "FUNDS_DEPOSIT"
+             actionName: fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
                  ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED
                  : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED
          };
@@ -2604,17 +2607,14 @@
          // now we can enforce the correct privilege
          this._enforcePrivilege(
              secCtx,
-             fundsMov.direction === "FUNDS_DEPOSIT"
-                 ? ParticipantPrivilegeNames.REJECT_FUNDS_DEPOSIT
-                 : ParticipantPrivilegeNames.REJECT_FUNDS_WITHDRAWAL
+             fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
+                ? ParticipantPrivilegeNames.REJECT_FUNDS_DEPOSIT
+                : ParticipantPrivilegeNames.REJECT_FUNDS_WITHDRAWAL
          );
-
-
+ 
          if (secCtx && fundsMov.createdBy === secCtx.username) {
              await this._auditClient.audit(
-                 fundsMov.direction === "FUNDS_DEPOSIT"
-                     ? "FUNDS_DEPOSIT"
-                     : "FUNDS_WITHDRAWAL",
+                 this.getParticipantChangeType(fundsMov.type),
                  false,
                  this._getAuditSecCtx(secCtx),
                  [{ key: "participantId", value: participantId }]
@@ -2638,15 +2638,18 @@
              this._logger.error(err);
              throw err;
          }
+
          await this._auditClient.audit(
-             fundsMov.direction === "FUNDS_DEPOSIT"
+             fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
                  ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_REJECTED
                  : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_REJECTED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
-
+ 
+ 
+         return;
      }
  
      async createParticipantNetDebitCap(
@@ -2904,105 +2907,174 @@
          // this is an internall call, triggerd by the event handler, we use secCtx for audit
          //this._enforcePrivilege( secCtx, ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST);
  
-         if (!msg?.payload?.participantList?.length) {
-             const error = new Error("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
-             this._logger.error(error);
-             throw error;
+         if (!msg.payload || !msg.payload.participantList || !msg.payload.participantList.length) {
+            const error = new Error("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            throw error;
          }
 
-         const retParticipantsNotFoundError = (): Error => {
-             const error = new Error("Could not get all participants for handleSettlementMatrixSettledEvt()");
-             this._logger.error(error);
-             return error;
-         };
- 
-         const retParticipantAccountNotFoundError = (): Error => {
-             const error = new Error("Could not get all participants' accounts for handleSettlementMatrixSettledEvt()");
-             this._logger.error(error);
-             return error;
-         };
- 
-         const participantIds = msg.payload.participantList.flatMap(msg => msg.participantId);
-         const participants = await this._repo.fetchWhereIds(participantIds);
-         if (!participants || participants.length !== msg.payload.participantList.length) {
-             throw retParticipantsNotFoundError();
-         }
- 
-         const ledgerEntriesToCreate: {
-             requestedId: string,
-             ownerId: string,
-             currencyCode: string,
-             amount: string,
-             pending: boolean,
-             debitedAccountId: string,
-             creditedAccountId: string
-         }[] = [];
- 
-         for (const participantItem of msg.payload.participantList) {
-             const participant = participants.find(participant => participant.id === participantItem.participantId);
-             if (!participant) throw retParticipantsNotFoundError();
- 
-             const liqAcc = participant.participantAccounts?.find(
-                 (acc:any) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
-             );
- 
-             const posAcc = participant.participantAccounts?.find(
-                 (acc:any) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
-             );
- 
-             if (!liqAcc || !posAcc) throw retParticipantAccountNotFoundError();
- 
-             // if we got a credit -> credit liquidity and debit position
-             if (Number(participantItem.settledCreditBalance) > 0) {
-                 ledgerEntriesToCreate.push({
-                     requestedId: randomUUID(),
-                     ownerId: msg.payload.settlementMatrixId,
-                     currencyCode: participantItem.currencyCode,
-                     amount: participantItem.settledCreditBalance,
-                     pending: false,
-                     creditedAccountId: liqAcc.id,   // driver of the entry is liquidity account
-                     debitedAccountId: posAcc.id
-                 });
-             }
- 
-             // if we got a debit -> debit liquidity and credit position
-             if (Number(participantItem.settledDebitBalance) > 0) {
-                 ledgerEntriesToCreate.push({
-                     requestedId: randomUUID(),
-                     ownerId: msg.payload.settlementMatrixId,
-                     currencyCode: participantItem.currencyCode,
-                     amount: participantItem.settledDebitBalance,
-                     pending: false,
-                     creditedAccountId: posAcc.id,
-                     debitedAccountId: liqAcc.id    // driver of the entry is liquidity account
-                 });
-             }
-         }
- 
-         if (ledgerEntriesToCreate.length == 0) {
-             const error = new Error("Empty list of ledger entries to create in handleSettlementMatrixSettledEvt()");
-             this._logger.error(error);
-             throw error;
-         }
- 
-         const respIds = await this._accBal.createJournalEntries(ledgerEntriesToCreate);
- 
-         if (respIds.length !== ledgerEntriesToCreate.length) {
-             const error = new Error("List of created ledger entries ids, doesn't match request to create in handleSettlementMatrixSettledEvt()");
-             this._logger.error(error);
-             throw error;
-         }
- 
-         this._logger.info(`SettlementMatrixSettledEvt processed successfully for settlement matrix id: ${msg.payload.settlementMatrixId}`);
- 
-         await this._auditClient.audit(
-             AuditedActionNames.PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT,
-             true,
-             this._getAuditSecCtx(secCtx),
-             [{ key: "settlementMatrixId", value: msg.payload.settlementMatrixId }]
-         );
- 
-         await this._updateNdcForParticipants(participants, "SettlementMatrixSettledEvt Processing");
+        const retParticipantsNotFoundError = (): Error => {
+            const error = new Error("Could not get all participants for handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            return error;
+        };
+
+        const retParticipantAccountNotFoundError = (): Error => {
+            const error = new Error("Could not get all participants' accounts for handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            return error;
+        };
+
+        const participantIds = msg.payload.participantList.flatMap(msg => msg.participantId);
+        const participants = await this._repo.fetchWhereIds(participantIds);
+        if (!participants || participants.length !== msg.payload.participantList.length) {
+            throw retParticipantsNotFoundError();
+        }
+    
+        const ledgerEntriesToCreate: {
+            requestedId: string,
+            ownerId: string,
+            currencyCode: string,
+            amount: string,
+            pending: boolean,
+            debitedAccountId: string,
+            creditedAccountId: string
+        }[] = [];
+    
+        for (const participantItem of msg.payload.participantList) {
+            const participant = participants.find(participant => participant.id === participantItem.participantId);
+            if (!participant) throw retParticipantsNotFoundError();
+    
+            const liqAcc = participant.participantAccounts?.find(
+                (acc) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
+            );
+
+            const posAcc = participant.participantAccounts?.find(
+                (acc) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
+            );
+    
+            if (!liqAcc || !posAcc) throw retParticipantAccountNotFoundError();
+            
+            // if we got a credit -> credit liquidity and debit position
+            const now = Date.now();
+            if (Number(participantItem.settledCreditBalance) > 0) {
+               
+                ledgerEntriesToCreate.push({
+                    requestedId: randomUUID(),
+                    ownerId: msg.payload.settlementMatrixId,
+                    currencyCode: participantItem.currencyCode,
+                    amount: participantItem.settledCreditBalance,
+                    pending: false,
+                    creditedAccountId: liqAcc.id,   // driver of the entry is liquidity account
+                    debitedAccountId: posAcc.id
+                });
+                
+                const fundMov: IParticipantFundsMovement = {
+                    id: randomUUID(),
+                    createdBy: this._systemActorName,
+                    createdDate: Date.now(),
+                    requestState: ApprovalRequestState.APPROVED,
+                    approvedBy: this._systemActorName,
+                    approvedDate: now,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    type: ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_CREDIT,
+                    currencyCode:  participantItem.currencyCode,
+                    amount:  participantItem.settledCreditBalance,
+                    transferId: null,
+                    extReference: msg.payload.settlementMatrixId,
+                    note: msg.payload.settlementMatrixId
+                };
+
+                participant.changeLog.push({
+                    changeType: ParticipantChangeTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_CREDIT,
+                    user: ParticipantChangeTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_CREDIT ? 
+                        this._systemActorName: secCtx.username!,
+                    timestamp: now,
+                    notes: ParticipantChangeTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_CREDIT,
+                });
+
+                participant.fundsMovements.push(fundMov);
+            }
+    
+            // if we got a debit -> debit liquidity and credit position
+            if (Number(participantItem.settledDebitBalance) > 0) {
+                                
+                ledgerEntriesToCreate.push({
+                    requestedId: randomUUID(),
+                    ownerId: msg.payload.settlementMatrixId,
+                    currencyCode: participantItem.currencyCode,
+                    amount: participantItem.settledDebitBalance,
+                    pending: false,
+                    creditedAccountId: posAcc.id,
+                    debitedAccountId: liqAcc.id    // driver of the entry is liquidity account
+                });
+
+                const fundMov: IParticipantFundsMovement = {
+                    id: randomUUID(),
+                    createdBy: this._systemActorName,
+                    createdDate: Date.now(),
+                    requestState: ApprovalRequestState.APPROVED,
+                    approvedBy: this._systemActorName,
+                    approvedDate: now,
+                    rejectedBy: null,
+                    rejectedDate: null,
+                    type: ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT,
+                    currencyCode:  participantItem.currencyCode,
+                    amount:  participantItem.settledDebitBalance,
+                    transferId: null,
+                    extReference: msg.payload.settlementMatrixId,
+                    note: msg.payload.settlementMatrixId
+                };
+
+                participant.changeLog.push({
+                    changeType: ParticipantChangeTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT,
+                    user: ParticipantChangeTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT ? 
+                        this._systemActorName:  secCtx.username!,
+                    timestamp: now,
+                    notes: ParticipantChangeTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT,
+                });
+
+                participant.fundsMovements.push(fundMov);
+            }
+        }
+    
+        if (ledgerEntriesToCreate.length == 0) {
+            const error = new Error("Empty list of ledger entries to create in handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            throw error;
+        }
+    
+        const respIds = await this._accBal.createJournalEntries(ledgerEntriesToCreate);
+
+        if (respIds.length !== ledgerEntriesToCreate.length) {
+            const error = new Error("List of created ledger entries ids, doesn't match request to create in handleSettlementMatrixSettledEvt()");
+            this._logger.error(error);
+            throw error;
+        }
+    
+        for (const participantIdObj of msg.payload.participantList) {
+            const participant = participants.find(p => p.id === participantIdObj.participantId);
+            if (!participant) {
+                const error = new Error("Could not get all participants for handleSettlementMatrixSettledEvt()");
+                this._logger.error(error);
+                throw error;
+            }
+
+            const actionType = Number(participantIdObj.settledCreditBalance) > 0 ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED;
+            await this._auditClient.audit(actionType, true, this._getAuditSecCtx(secCtx), [{ key: "participantId", value: participant.id }]);
+        }
+    
+        this._logger.info(`SettlementMatrixSettledEvt processed successfully for settlement matrix id: ${msg.payload.settlementMatrixId}`);
+    
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "settlementMatrixId", value: msg.payload.settlementMatrixId }]
+        );
+    
+        await this._updateNdcForParticipants(participants, "SettlementMatrixSettledEvt Processing");
      }
  
      private async _updateNdcForParticipants(participants: IParticipant[], reason: string): Promise<void> {
@@ -3038,7 +3110,7 @@
  
              participant.changeLog.push({
                  changeType: ParticipantChangeTypes.NDC_RECALCULATED,
-                 user: "(n/a)",
+                 user: this._systemActorName,
                  timestamp: now,
                  notes: "NDC recalculated - for: " + reason,
              });
@@ -3158,9 +3230,9 @@
                  const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
                  obj.updateAmount = Math.abs(amount).toString();
                  if (amount > 0) {
-                     obj.direction = ParticipantFundsMovementDirections.FUNDS_DEPOSIT;
+                    obj.type = ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_CREDIT;//Deposit
                  } else {
-                     obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
+                    obj.type = ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT;//Withdrwal
                  }
              }
  
@@ -3255,7 +3327,7 @@
                      rejectedDate: null,
                      approvedBy: null,
                      approvedDate: null,
-                     direction: obj.direction as ParticipantFundsMovementDirections,
+                     type: obj.type as ParticipantFundsMovementTypes,
                      currencyCode: obj.currencyCode,
                      amount: obj.updateAmount ?? "0",
                      transferId: null,
@@ -3698,6 +3770,23 @@
          } catch (err: any) {
              throw new Error(err.message);
          }
+
+     }
+
+     getParticipantChangeType (fundsMovementType:ParticipantFundsMovementTypes): ParticipantChangeTypes {
+        switch (fundsMovementType) {
+            case ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT:
+                return ParticipantChangeTypes.OPERATOR_FUNDS_DEPOSIT;
+
+            case ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL:
+                return ParticipantChangeTypes.OPERATOR_FUNDS_WITHDRAWAL;
+
+            case ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT:
+                return ParticipantChangeTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT;
+
+            default:
+                return ParticipantChangeTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT;
+        }
      }
 
  
