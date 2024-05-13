@@ -49,7 +49,7 @@ import {
     mockedParticipant2
 } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-lib";
-import { ApprovalRequestState, HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantPendingApproval, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
+import { ApprovalRequestState, HUB_PARTICIPANT_ID, IParticipant, IParticipantAccountChangeRequest, IParticipantContactInfoChangeRequest, IParticipantEndpoint, IParticipantFundsMovement, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCapChangeRequest, IParticipantPendingApproval, IParticipantSourceIpChangeRequest, IParticipantStatusChangeRequest, ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes, ParticipantEndpointProtocols, ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantFundsMovementTypes, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
 import { Server } from "http";
 import ExcelJS from "exceljs";
 
@@ -1616,7 +1616,7 @@ describe("Participants Routes - Unit Test", () => {
             approvedDate: null,
             rejectedBy: null,
             rejectedDate: null,
-            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
             transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -1650,7 +1650,7 @@ describe("Participants Routes - Unit Test", () => {
             approvedDate: null,
             rejectedBy: null,
             rejectedDate: null,
-            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
             transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -1690,7 +1690,7 @@ describe("Participants Routes - Unit Test", () => {
             approvedDate: null,
             rejectedBy: null,
             rejectedDate: null,
-            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
             transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -1730,7 +1730,7 @@ describe("Participants Routes - Unit Test", () => {
                 approvedDate: null,
                 rejectedBy: null,
                 rejectedDate: null,
-                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                 currencyCode: "USD",
                 amount: "15000",
                 transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -1767,7 +1767,7 @@ describe("Participants Routes - Unit Test", () => {
                     approvedDate: null,
                     rejectedBy: null,
                     rejectedDate: null,
-                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "15000",
                     transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -1811,7 +1811,7 @@ describe("Participants Routes - Unit Test", () => {
             approvedDate: null,
             rejectedBy: null,
             rejectedDate: null,
-            direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
             transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -2221,7 +2221,7 @@ describe("Participants Routes - Unit Test", () => {
                 bankBalance: "5000000",
                 settledTransferAmount: "100000",
                 currencyCode: "USD",
-                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                 updateAmount: "110000",
                 settlementAccountId: "1"
             }
@@ -2260,7 +2260,7 @@ describe("Participants Routes - Unit Test", () => {
                 bankBalance: "5000000",
                 settledTransferAmount: "100000",
                 currencyCode: "USD",
-                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                 updateAmount: "110000",
                 settlementAccountId: "1"
             }
@@ -2294,7 +2294,7 @@ describe("Participants Routes - Unit Test", () => {
                 bankBalance: "5000000",
                 settledTransferAmount: "100000",
                 currencyCode: "USD",
-                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                 updateAmount: "110000",
                 settlementAccountId: "1"
             }
@@ -2331,7 +2331,7 @@ describe("Participants Routes - Unit Test", () => {
                 bankBalance: "5000000",
                 settledTransferAmount: "100000",
                 currencyCode: "EUR",
-                direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                 updateAmount: "110000",
                 settlementAccountId: "1"
             }
@@ -2458,7 +2458,7 @@ describe("Participants Routes - Unit Test", () => {
                     approvedDate: null,
                     rejectedBy: null,
                     rejectedDate: null,
-                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "1000",
                     transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
@@ -2598,7 +2598,7 @@ describe("Participants Routes - Unit Test", () => {
                     approvedDate: null,
                     rejectedBy: null,
                     rejectedDate: null,
-                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "1000",
                     transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
@@ -3029,7 +3029,7 @@ describe("Participants Routes - Unit Test", () => {
                     approvedDate: null,
                     rejectedBy: null,
                     rejectedDate: null,
-                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "200000",
                     transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -3071,7 +3071,7 @@ describe("Participants Routes - Unit Test", () => {
                     approvedDate: null,
                     rejectedBy: null,
                     rejectedDate: null,
-                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "200000",
                     transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
@@ -3108,7 +3108,7 @@ describe("Participants Routes - Unit Test", () => {
                     approvedDate: null,
                     rejectedBy: null,
                     rejectedDate: null,
-                    direction: ParticipantFundsMovementDirections.FUNDS_DEPOSIT,
+                    type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "200000",
                     transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",

@@ -119,7 +119,7 @@ export declare interface IParticipantFundsMovement {
   approvedDate: number | null;
   rejectedBy: string | null;
   rejectedDate: number | null;
-  type: ParticipantFundsMovementTypes | null;
+  type: ParticipantFundsMovementTypes;
   currencyCode: string;
   amount: string;
   transferId: string | null;
