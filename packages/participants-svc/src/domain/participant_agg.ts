@@ -3184,7 +3184,8 @@
                  obj.participantName = checkParticipant.name;
  
                  const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
-                     return fundMov.extReference?.trim() === obj.matrixId.trim();
+                     return fundMov.extReference?.trim() === obj.matrixId.trim()
+                      && (fundMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT || fundMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT);
                  });
  
                  if (checkExistingFundMov.length > 0) {
@@ -3229,9 +3230,9 @@
                  const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
                  obj.updateAmount = Math.abs(amount).toString();
                  if (amount > 0) {
-                    obj.type = ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_CREDIT;//Deposit
+                    obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT;//Deposit
                  } else {
-                    obj.type = ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT;//Withdrwal
+                    obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT;//Withdrwal
                  }
              }
  
@@ -3291,7 +3292,8 @@
              }
  
              const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
-                 return fundMov.extReference?.trim() === obj.matrixId.trim();
+                return fundMov.extReference?.trim() === obj.matrixId.trim()
+                && (fundMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT || fundMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT);
              });
  
              duplicateFound = (checkExistingFundMov.length > 0);
