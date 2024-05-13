@@ -117,6 +117,8 @@ function createMockedParticipant(id: string, name: string, type: ParticipantType
         participantContacts: [],
         participantContactInfoChangeRequests: [],
         participantStatusChangeRequests: [],
+        csrRequests: [],
+        certificates: [],
     };
 }
 

@@ -162,7 +162,12 @@
          // liquidity balance adjust file import
          this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single("settlementInitiation"), this._participantLiquidityCheckValidate.bind(this));
          this._mainRouter.post("/participants/liquidityCheckRequestAdjustment", this._participantLiquidityCheckRequestAdjustment.bind(this));
- 
+
+        // Certificate Key Management
+        this._mainRouter.get("/participants/:id/certificates/csr", this._participantCsrPendingRequestsGet.bind(this));
+        this._mainRouter.post("/participants/:id/certificates/csr", this._participantCsrRequestCreate.bind(this));
+        this._mainRouter.post("/participants/:id/certificates/csr/:csrId/approve", this._participantCsrRequestApprove.bind(this));
+        this._mainRouter.post("/participants/:id/certificates/csr/:csrId/reject", this._participantCsrRequestReject.bind(this));
      }
  
      private async _authenticationMiddleware(
@@ -1434,5 +1439,87 @@
          }
      }
  
+
+     private async _participantCsrPendingRequestsGet(req: express.Request, res: express.Response): Promise<void> {
+         try {
+             this._logger.debug("Received request to get CSR requests.");
+
+             const csrRequests = await this._participantsAgg.getCSRPendingRequests(req.securityContext!);
+
+             res.send(csrRequests);
+         } catch (err: unknown) {
+             if (this._handleUnauthorizedError((err as Error), res)) return;
+             this._logger.error(err);
+             res.status(500).json({
+                 status: "error",
+                 msg: (err as Error).message,
+             });
+         }
+     }
+
+     private async _participantCsrRequestCreate(req: express.Request, res: express.Response): Promise<void> {
+         try {
+             this._logger.debug("Received request to create CSR request.");
+
+             if (!req.body.csr) {
+                 res.status(400).json({
+                     status: "error",
+                     msg: "CSR field is required",
+                 });
+                 return;
+             }
+
+             const csrRequest = req.body.csr as string;
+             const participantId = req.params["id"] ?? null;
+             const result = await this._participantsAgg.createCSRRequest(req.securityContext!, participantId, csrRequest);
+
+             res.send(result);
+         } catch (err: unknown) {
+             if (this._handleUnauthorizedError((err as Error), res)) return;
+             this._logger.error(err);
+             res.status(500).json({
+                 status: "error",
+                 msg: (err as Error).message,
+             });
  }
- 
+     }
+
+     private async _participantCsrRequestApprove(req: express.Request, res: express.Response): Promise<void> {
+         try {
+             this._logger.debug("Received request to approve CSR request.");
+
+             const csrId = req.params["csrId"];
+             const participantId = req.params["id"] ?? null;
+             const result = await this._participantsAgg.approveCSRRequest(req.securityContext!, participantId, csrId);
+
+             res.send(result);
+         } catch (err: unknown) {
+             if (this._handleUnauthorizedError((err as Error), res)) return;
+             this._logger.error(err);
+             res.status(500).json({
+                 status: "error",
+                 msg: (err as Error).message,
+             });
+         }
+     }
+
+    private async _participantCsrRequestReject(req: express.Request, res: express.Response): Promise<void> {
+        try {
+            this._logger.debug("Received request to reject CSR request.");
+
+            const csrId = req.params["csrId"];
+            const participantId = req.params["id"] ?? null;
+            const result = await this._participantsAgg.rejectCSRRequest(req.securityContext!, participantId, csrId);
+
+            res.send(result);
+        } catch (err: unknown) {
+            if (this._handleUnauthorizedError((err as Error), res)) return;
+            this._logger.error(err);
+            res.status(500).json({
+                status: "error",
+                msg: (err as Error).message,
+            });
+        }
+    }
+ }
+

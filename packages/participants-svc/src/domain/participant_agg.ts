@@ -73,6 +73,7 @@
      CallSecurityContext,
      ForbiddenError,
      IAuthorizationClient,
+     ICSRRequest,
      MakerCheckerViolationError,
      UnauthorizedError,
  } from "@mojaloop/security-bc-public-types-lib";
@@ -115,6 +116,7 @@
  import {IParticipantsRepository} from "./repo_interfaces";
  import {IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
  import { ParticipantSearchResults, BulkApprovalRequestResults } from "./server_types";
+import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
  
  enum AuditedActionNames {
      PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -176,6 +178,7 @@
      private _currencyList: Currency[];
      private _metrics: IMetrics;
      private readonly _requestsHisto: IHistogram;
+     private _keyManagementClient: KeyMgmtHttpClient;
  
      constructor(
          configClient: IConfigurationClient,
@@ -3782,5 +3785,38 @@
 
         return ndcAmount;
      }
+
+    async getCSRPendingRequests(secCtx: CallSecurityContext): Promise<ICSRRequest[]> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        const csrRequests = await this._keyManagementClient.getPendingCSRApprovals();
+        return csrRequests;
+    }
+
+    async createCSRRequest(secCtx: CallSecurityContext, participantId: string, csr: string): Promise<string> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        await this._validateParticipantAndRetrieve(participantId);
+
+        const csrRequest = await this._keyManagementClient.uploadCSR(participantId, csr);
+        return csrRequest.id;
+    }
+
+    async approveCSRRequest(secCtx: CallSecurityContext, participantId: string, csrId: string): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        await this._validateParticipantAndRetrieve(participantId);
+
+        await this._keyManagementClient.approveCSR(csrId);
+    }
+
+    async rejectCSRRequest(secCtx: CallSecurityContext, participantId: string, csrId: string): Promise<void> {
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+
+        await this._validateParticipantAndRetrieve(participantId);
+
+        await this._keyManagementClient.rejectCSR(csrId);
+    }
+
  }
  

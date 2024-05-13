@@ -45,6 +45,7 @@ import {
     ParticipantChangeTypes,
     ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
+import { ICSRRequest, IPublicCertificate } from "@mojaloop/security-bc-public-types-lib";
 
 /** Participant entity **/
 export class Participant implements IParticipant {
@@ -81,6 +82,10 @@ export class Participant implements IParticipant {
 
     participantStatusChangeRequests: IParticipantStatusChangeRequest[];
 
+
+    csrRequests: ICSRRequest[];
+    certificates: IPublicCertificate[];
+
     static CreateHub(id: string, desc: string, user: string, changeLogNote: string) {
         const now = Date.now();
         const hub: Participant = {
@@ -111,7 +116,9 @@ export class Participant implements IParticipant {
             netDebitCapChangeRequests: [],
             participantContacts: [],
             participantContactInfoChangeRequests: [],
-            participantStatusChangeRequests: []
+            participantStatusChangeRequests: [],
+            csrRequests: [],
+            certificates: []
         };
 
         return hub;

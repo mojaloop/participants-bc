@@ -43,6 +43,10 @@ import {
   ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes, ParticipantTypes
 } from "./enums";
 
+ import {
+     ICSRRequest, IPublicCertificate,
+ } from "@mojaloop/security-bc-public-types-lib";
+
 export const HUB_PARTICIPANT_ID = "hub";
 
 export declare interface IParticipant {
@@ -79,6 +83,9 @@ export declare interface IParticipant {
   participantContactInfoChangeRequests: IParticipantContactInfoChangeRequest[];
 
   participantStatusChangeRequests: IParticipantStatusChangeRequest[];
+
+  csrRequests: ICSRRequest[];
+  certificates: IPublicCertificate[];
 }
 
 export declare interface IParticipantNetDebitCap {
