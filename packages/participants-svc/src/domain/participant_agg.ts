@@ -2904,14 +2904,14 @@
       * @param msg SettlementMatrixSettledEvt
       */
      async handleSettlementMatrixSettledEvt(secCtx: CallSecurityContext, msg: SettlementMatrixSettledEvt): Promise<void> {
-         // this is an internall call, triggerd by the event handler, we use secCtx for audit
-         //this._enforcePrivilege( secCtx, ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST);
- 
-         if (!msg.payload || !msg.payload.participantList || !msg.payload.participantList.length) {
+        // this is an internall call, triggerd by the event handler, we use secCtx for audit
+        //this._enforcePrivilege( secCtx, ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST);
+
+        if (!msg?.payload?.participantList?.length) {
             const error = new Error("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             throw error;
-         }
+        }
 
         const retParticipantsNotFoundError = (): Error => {
             const error = new Error("Could not get all participants for handleSettlementMatrixSettledEvt()");
@@ -2930,7 +2930,7 @@
         if (!participants || participants.length !== msg.payload.participantList.length) {
             throw retParticipantsNotFoundError();
         }
-    
+
         const ledgerEntriesToCreate: {
             requestedId: string,
             ownerId: string,
@@ -2940,11 +2940,11 @@
             debitedAccountId: string,
             creditedAccountId: string
         }[] = [];
-    
+
         for (const participantItem of msg.payload.participantList) {
             const participant = participants.find(participant => participant.id === participantItem.participantId);
             if (!participant) throw retParticipantsNotFoundError();
-    
+
             const liqAcc = participant.participantAccounts?.find(
                 (acc) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
             );
@@ -2952,13 +2952,12 @@
             const posAcc = participant.participantAccounts?.find(
                 (acc) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
             );
-    
+
             if (!liqAcc || !posAcc) throw retParticipantAccountNotFoundError();
-            
-            // if we got a credit -> credit liquidity and debit position
+
             const now = Date.now();
             if (Number(participantItem.settledCreditBalance) > 0) {
-               
+
                 ledgerEntriesToCreate.push({
                     requestedId: randomUUID(),
                     ownerId: msg.payload.settlementMatrixId,
@@ -2968,7 +2967,7 @@
                     creditedAccountId: liqAcc.id,   // driver of the entry is liquidity account
                     debitedAccountId: posAcc.id
                 });
-                
+
                 const fundMov: IParticipantFundsMovement = {
                     id: randomUUID(),
                     createdBy: this._systemActorName,
@@ -2996,10 +2995,10 @@
 
                 participant.fundsMovements.push(fundMov);
             }
-    
+
             // if we got a debit -> debit liquidity and credit position
             if (Number(participantItem.settledDebitBalance) > 0) {
-                                
+
                 ledgerEntriesToCreate.push({
                     requestedId: randomUUID(),
                     ownerId: msg.payload.settlementMatrixId,
@@ -3038,13 +3037,13 @@
                 participant.fundsMovements.push(fundMov);
             }
         }
-    
+
         if (ledgerEntriesToCreate.length == 0) {
             const error = new Error("Empty list of ledger entries to create in handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             throw error;
         }
-    
+
         const respIds = await this._accBal.createJournalEntries(ledgerEntriesToCreate);
 
         if (respIds.length !== ledgerEntriesToCreate.length) {
@@ -3052,7 +3051,7 @@
             this._logger.error(error);
             throw error;
         }
-    
+
         for (const participantIdObj of msg.payload.participantList) {
             const participant = participants.find(p => p.id === participantIdObj.participantId);
             if (!participant) {
@@ -3064,18 +3063,18 @@
             const actionType = Number(participantIdObj.settledCreditBalance) > 0 ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED;
             await this._auditClient.audit(actionType, true, this._getAuditSecCtx(secCtx), [{ key: "participantId", value: participant.id }]);
         }
-    
+
         this._logger.info(`SettlementMatrixSettledEvt processed successfully for settlement matrix id: ${msg.payload.settlementMatrixId}`);
-    
+
         await this._auditClient.audit(
             AuditedActionNames.PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT,
             true,
             this._getAuditSecCtx(secCtx),
             [{ key: "settlementMatrixId", value: msg.payload.settlementMatrixId }]
         );
-    
+
         await this._updateNdcForParticipants(participants, "SettlementMatrixSettledEvt Processing");
-     }
+    }
  
      private async _updateNdcForParticipants(participants: IParticipant[], reason: string): Promise<void> {
          const now = Date.now();
