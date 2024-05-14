@@ -1238,7 +1238,7 @@
  
              if(excelBuffer){
                  await this._extractDataFromExcel(excelBuffer).then(async (data)=> {
-                     const result = await this._participantsAgg.liquidityCheckValidate(req.securityContext!, data);
+                     const result = await this._participantsAgg.validateAndProcessLiquidityAdjustments(req.securityContext!, data);
                      res.send(result);
                  });
              }

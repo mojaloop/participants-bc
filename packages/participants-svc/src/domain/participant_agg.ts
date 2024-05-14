@@ -163,7 +163,9 @@
      PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED = "PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED",
      PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED",
      PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED = "PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED",
-     PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED"
+     PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED",
+     PARTICIPANT_FUNDS_AUTO_CREDITED_BY_MATRIX_SETTLEMENT = "PARTICIPANT_FUNDS_CREDITED_BY_MATRIX_SETTLEMENT",
+     PARTICIPANT_FUNDS_AUTO_DEBITED_BY_MATRIX_SETTLEMENT = "PARTICIPANT_FUNDS_DEBITED_BY_MATRIX_SETTLEMENT"
  }
  
  export class ParticipantAggregate {
@@ -177,7 +179,7 @@
      private _currencyList: Currency[];
      private _metrics: IMetrics;
      private readonly _requestsHisto: IHistogram;
-     private readonly _systemActorName = "system";
+     private readonly _systemActorName = "(system)";
 
      constructor(
          configClient: IConfigurationClient,
@@ -2336,11 +2338,23 @@
          participantId: string,
          fundsMov: IParticipantFundsMovement
      ) {
+         const allowedOperatorFundMovTypes:ParticipantFundsMovementTypes[] = [
+             ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
+             ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT,
+             ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL,
+             ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT,
+         ];
+
+         // Check if fundsMov.type is allowed
+         if (!allowedOperatorFundMovTypes.includes(fundsMov.type)) {
+             throw new Error("Invalid funds movement type.");
+         }
+
          this._enforcePrivilege(
              secCtx,
              fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT || fundsMov.type === ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT
-                ? ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT
-                : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
+                 ? ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT
+                 : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
          );
  
          const participant = await this._validateParticipantAndRetrieve(participantId);
@@ -3060,7 +3074,9 @@
                 throw error;
             }
 
-            const actionType = Number(participantIdObj.settledCreditBalance) > 0 ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED;
+            const actionType = Number(participantIdObj.settledCreditBalance) > 0 ? 
+                 AuditedActionNames.PARTICIPANT_FUNDS_AUTO_CREDITED_BY_MATRIX_SETTLEMENT : 
+                 AuditedActionNames.PARTICIPANT_FUNDS_AUTO_DEBITED_BY_MATRIX_SETTLEMENT;
             await this._auditClient.audit(actionType, true, this._getAuditSecCtx(secCtx), [{ key: "participantId", value: participant.id }]);
         }
 
@@ -3141,7 +3157,7 @@
          return part;
      }
  
-     async liquidityCheckValidate(
+     async validateAndProcessLiquidityAdjustments(
          secCtx: CallSecurityContext,
          liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[]
      ): Promise<IParticipantLiquidityBalanceAdjustment[]> {
