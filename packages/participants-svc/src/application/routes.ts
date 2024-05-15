@@ -1238,7 +1238,7 @@
  
              if(excelBuffer){
                  await this._extractDataFromExcel(excelBuffer).then(async (data)=> {
-                     const result = await this._participantsAgg.liquidityCheckValidate(req.securityContext!, data);
+                     const result = await this._participantsAgg.validateAndProcessLiquidityAdjustments(req.securityContext!, data);
                      res.send(result);
                  });
              }
@@ -1292,7 +1292,7 @@
              bankBalance: worksheet.getCell(i, 3).value as string,
              settledTransferAmount: worksheet.getCell(i, 4).value as string,
              currencyCode: worksheet.getCell(i, 5).value as string,
-             direction: null,
+             type: null,
              updateAmount: "",
              settlementAccountId: "",
              isDuplicate: false,

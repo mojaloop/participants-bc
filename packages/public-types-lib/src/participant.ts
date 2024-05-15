@@ -40,7 +40,7 @@ import {
   ParticipantAccountTypes, ParticipantAllowedSourceIpsPortModes,
   ParticipantChangeTypes,
   ParticipantEndpointProtocols,
-  ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes, ParticipantTypes
+  ParticipantEndpointTypes, ParticipantFundsMovementTypes, ParticipantNetDebitCapTypes, ParticipantTypes
 } from "./enums";
 
 export const HUB_PARTICIPANT_ID = "hub";
@@ -119,7 +119,7 @@ export declare interface IParticipantFundsMovement {
   approvedDate: number | null;
   rejectedBy: string | null;
   rejectedDate: number | null;
-  direction: ParticipantFundsMovementDirections;
+  type: ParticipantFundsMovementTypes;
   currencyCode: string;
   amount: string;
   transferId: string | null;
@@ -233,7 +233,7 @@ export declare interface IParticipantLiquidityBalanceAdjustment {
   bankBalance: string;
   settledTransferAmount: string;
   currencyCode: string;
-  direction: ParticipantFundsMovementDirections | null;
+  type: ParticipantFundsMovementTypes | null;
   updateAmount: string | null;
   settlementAccountId: string | null;
 }
