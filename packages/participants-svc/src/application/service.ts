@@ -72,7 +72,12 @@ import {
     DefaultConfigProvider,
     IConfigProvider
 } from "@mojaloop/platform-configuration-bc-client-lib";
-import {MLKafkaJsonConsumer, MLKafkaJsonConsumerOptions, MLKafkaJsonProducer} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
+import {
+    MLKafkaJsonConsumer,
+    MLKafkaJsonConsumerOptions,
+    MLKafkaJsonProducer,
+    MLKafkaJsonProducerOptions
+} from "@mojaloop/platform-shared-lib-nodejs-kafka-client-lib";
 import crypto from "crypto";
 
 const APP_NAME = "participants-svc";
@@ -92,7 +97,14 @@ const AUTH_N_SVC_JWKS_URL = process.env["AUTH_N_SVC_JWKS_URL"] || `${AUTH_N_SVC_
 
 const AUTH_Z_SVC_BASEURL = process.env["AUTH_Z_SVC_BASEURL"] || "http://localhost:3202";
 
+// Message Consumer/Publisher
 const KAFKA_URL = process.env["KAFKA_URL"] || "localhost:9092";
+const KAFKA_AUTH_ENABLED = process.env["KAFKA_AUTH_ENABLED"] && process.env["KAFKA_AUTH_ENABLED"].toUpperCase()==="TRUE" || false;
+const KAFKA_AUTH_PROTOCOL = process.env["KAFKA_AUTH_PROTOCOL"] || "sasl_plaintext";
+const KAFKA_AUTH_MECHANISM = process.env["KAFKA_AUTH_MECHANISM"] || "plain";
+const KAFKA_AUTH_USERNAME = process.env["KAFKA_AUTH_USERNAME"] || "user";
+const KAFKA_AUTH_PASSWORD = process.env["KAFKA_AUTH_PASSWORD"] || "password";
+
 const MONGO_URL = process.env["MONGO_URL"] || "mongodb://root:example@localhost:27017/";
 const ACCOUNTS_BALANCES_COA_SVC_URL = process.env["ACCOUNTS_BALANCES_COA_SVC_URL"] || "localhost:3300";
 
@@ -108,11 +120,30 @@ const SERVICE_START_TIMEOUT_MS= (process.env["SERVICE_START_TIMEOUT_MS"] && pars
 const INSTANCE_NAME = `${BC_NAME}_${APP_NAME}`;
 const INSTANCE_ID = `${INSTANCE_NAME}__${crypto.randomUUID()}`;
 
+// kafka common options
+const kafkaProducerCommonOptions:MLKafkaJsonProducerOptions = {
+    kafkaBrokerList: KAFKA_URL,
+    producerClientId: `${INSTANCE_ID}`,
+};
+const kafkaConsumerCommonOptions:MLKafkaJsonConsumerOptions ={
+    kafkaBrokerList: KAFKA_URL
+};
+if(KAFKA_AUTH_ENABLED){
+    kafkaProducerCommonOptions.authentication = kafkaConsumerCommonOptions.authentication = {
+        protocol: KAFKA_AUTH_PROTOCOL as "plaintext" | "ssl" | "sasl_plaintext" | "sasl_ssl",
+        mechanism: KAFKA_AUTH_MECHANISM as "PLAIN" | "GSSAPI" | "SCRAM-SHA-256" | "SCRAM-SHA-512",
+        username: KAFKA_AUTH_USERNAME,
+        password: KAFKA_AUTH_PASSWORD
+    };
+}
+
 const kafkaProducerOptions = {
+    ...kafkaProducerCommonOptions,
     kafkaBrokerList: KAFKA_URL
 };
 
 const kafkaConsumerOptions: MLKafkaJsonConsumerOptions = {
+    ...kafkaConsumerCommonOptions,
     kafkaBrokerList: KAFKA_URL,
     kafkaGroupId: `${BC_NAME}_${APP_NAME}`
 };
@@ -174,7 +205,7 @@ export class Service {
             authRequester.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
 
             const messageConsumer = new MLKafkaJsonConsumer({
-                kafkaBrokerList: KAFKA_URL,
+                ...kafkaConsumerCommonOptions,
                 kafkaGroupId: `${APP_NAME}_${Date.now()}` // unique consumer group - use instance id when possible
             }, this.logger.createChild("configClient.consumer"));
             configProvider = new DefaultConfigProvider(logger, authRequester, messageConsumer);
@@ -212,7 +243,7 @@ export class Service {
 
             const messageConsumer = new MLKafkaJsonConsumer(
                 {
-                    kafkaBrokerList: KAFKA_URL,
+                    ...kafkaConsumerCommonOptions,
                     kafkaGroupId: `${BC_NAME}_${APP_NAME}_authz_client`
                 }, logger.createChild("authorizationClientConsumer")
             );
@@ -291,7 +322,9 @@ export class Service {
             logger,
             AUTH_N_TOKEN_ISSUER_NAME,
             AUTH_N_TOKEN_AUDIENCE,
-            new MLKafkaJsonConsumer({kafkaBrokerList: KAFKA_URL, autoOffsetReset: "earliest", kafkaGroupId: INSTANCE_ID}, logger) // for jwt list - no groupId
+            new MLKafkaJsonConsumer({
+                ...kafkaConsumerCommonOptions, autoOffsetReset: "earliest", kafkaGroupId: INSTANCE_ID
+            }, logger) // for jwt list - no groupId
         );
         await this.tokenHelper.init();
 
@@ -375,8 +408,8 @@ export class Service {
             this.logger.error(error);
         }
     }
-      
-    
+
+
 }
 
 
