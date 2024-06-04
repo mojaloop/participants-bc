@@ -78,3 +78,6 @@ export class InvalidParticipantStatusError extends Error {}
 export class LiquidityAdjustmentAlreadyProcessed extends Error {}
 
 export class DuplicateRequestFoundError extends Error {}
+
+export class CSRRequestNotFoundError extends Error {}
+export class CSRRequestAlreadyProcessed extends Error {}

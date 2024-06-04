@@ -36,6 +36,8 @@ import {
     IParticipantAccountChangeRequest,
     IParticipantActivityLogEntry,
     IParticipantAllowedSourceIp,
+    IParticipantCSRRequest,
+    IParticipantCertificate,
     IParticipantContactInfo,
     IParticipantContactInfoChangeRequest,
     IParticipantEndpoint,
@@ -45,7 +47,6 @@ import {
     ParticipantChangeTypes,
     ParticipantTypes
 } from "@mojaloop/participant-bc-public-types-lib";
-import { ICSRRequest, IPublicCertificate } from "@mojaloop/security-bc-public-types-lib";
 
 /** Participant entity **/
 export class Participant implements IParticipant {
@@ -83,8 +84,8 @@ export class Participant implements IParticipant {
     participantStatusChangeRequests: IParticipantStatusChangeRequest[];
 
 
-    csrRequests: ICSRRequest[];
-    certificates: IPublicCertificate[];
+    csrRequests: IParticipantCSRRequest[];
+    certificates: IParticipantCertificate[];
 
     static CreateHub(id: string, desc: string, user: string, changeLogNote: string) {
         const now = Date.now();

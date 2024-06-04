@@ -177,7 +177,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 			const result = await this._collectionParticipant.find(
 				filter,
 				{
-					sort:["updatedAt", "desc"], 
+					sort:["updatedAt", "desc"],
 					skip: skip,
                     limit: pageSize
 				}
@@ -194,14 +194,14 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 
             searchResults.totalPages = Math.ceil(countResult / pageSize);
             searchResults.pageSize = Math.max(pageSize, result.length);
-            
+
         } catch (err) {
             this._logger.error(err);
         }
 
         return Promise.resolve(searchResults);
     }
-    
+
 
     async create(participant: IParticipant): Promise<boolean> {
         this._logger.info(`Name:  ${participant.name} - created in:`);
@@ -233,7 +233,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 
                     participantAllowedSourceIps: participant.participantAllowedSourceIps,
                     participantSourceIpChangeRequests: participant.participantSourceIpChangeRequests,
-                    
+
                     fundsMovements: participant.fundsMovements,
                     netDebitCaps: participant.netDebitCaps,
                     netDebitCapChangeRequests: participant.netDebitCapChangeRequests,
@@ -241,7 +241,10 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 
                     participantContacts: participant.participantContacts,
                     participantContactInfoChangeRequests: participant.participantContactInfoChangeRequests,
-                    participantStatusChangeRequests: participant.participantStatusChangeRequests
+                    participantStatusChangeRequests: participant.participantStatusChangeRequests,
+
+                    csrRequests: participant.csrRequests,
+                    certificates: participant.certificates,
                 },
             }
         );
@@ -261,7 +264,7 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
 				fieldName: "state",
 				distinctTerms: []
 			};
-            
+
 			for await (const term of result) {
 
                 const approved = term._id.approved ? "APPROVED" : "NOTAPPROVED";

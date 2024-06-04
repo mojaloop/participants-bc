@@ -43,6 +43,7 @@ import {ILogger, LogLevel} from "@mojaloop/logging-bc-public-types-lib";
 import {
     AuthenticatedHttpRequester,
     AuthorizationClient,
+    KeyMgmtHttpClient,
     LoginHelper,
     TokenHelper
 } from "@mojaloop/security-bc-client-lib";
@@ -83,6 +84,8 @@ const LOG_LEVEL: LogLevel = process.env["LOG_LEVEL"] as LogLevel || LogLevel.DEB
 
 const SVC_DEFAULT_HTTP_PORT = 3010;
 
+
+const KEY_MANAGEMENT_SVC_BASEURL = process.env["KEY_MANAGEMENT_SVC_BASEURL"] || "http://localhost:3204";
 const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3201";
 const AUTH_N_SVC_TOKEN_URL = AUTH_N_SVC_BASEURL + "/token"; // TODO this should not be known here, libs that use the base should add the suffix
 const AUTH_N_TOKEN_ISSUER_NAME = process.env["AUTH_N_TOKEN_ISSUER_NAME"] || "mojaloop.vnext.dev.default_issuer";
@@ -93,7 +96,7 @@ const AUTH_N_SVC_JWKS_URL = process.env["AUTH_N_SVC_JWKS_URL"] || `${AUTH_N_SVC_
 const AUTH_Z_SVC_BASEURL = process.env["AUTH_Z_SVC_BASEURL"] || "http://localhost:3202";
 
 const KAFKA_URL = process.env["KAFKA_URL"] || "localhost:9092";
-const MONGO_URL = process.env["MONGO_URL"] || "mongodb://root:example@localhost:27017/";
+const MONGO_URL = process.env["MONGO_URL"] || "mongodb://root:mongoDbPas42@localhost:27017/";
 const ACCOUNTS_BALANCES_COA_SVC_URL = process.env["ACCOUNTS_BALANCES_COA_SVC_URL"] || "localhost:3300";
 
 const KAFKA_AUDITS_TOPIC = process.env["KAFKA_AUDITS_TOPIC"] || "audits";
@@ -134,6 +137,7 @@ export class Service {
     static configClient:IConfigurationClient;
     static metrics:IMetrics;
     static messageConsumer: IMessageConsumer;
+    static keymgmtHttpClient: KeyMgmtHttpClient;
     static eventHandler:ParticipantsEventHandler;
     static startupTimer: NodeJS.Timeout;
 
@@ -146,7 +150,8 @@ export class Service {
         messageProducer?: IMessageProducer,
         configProvider?: IConfigProvider,
         metrics?:IMetrics,
-        messageConsumer?: IMessageConsumer
+        messageConsumer?: IMessageConsumer,
+        keymgmtHttpClient?: KeyMgmtHttpClient
     ): Promise<void> {
         console.log(`Service starting with PID: ${process.pid}`);
 
@@ -204,12 +209,12 @@ export class Service {
         this.auditClient = auditClient;
 
 
+        // create the instance of IAuthenticatedHttpRequester
+        const authRequester = new AuthenticatedHttpRequester(logger, AUTH_N_SVC_TOKEN_URL);
+        authRequester.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
+
         // authorization client
         if (!authorizationClient) {
-            // create the instance of IAuthenticatedHttpRequester
-            const authRequester = new AuthenticatedHttpRequester(logger, AUTH_N_SVC_TOKEN_URL);
-            authRequester.setAppCredentials(SVC_CLIENT_ID, SVC_CLIENT_SECRET);
-
             const messageConsumer = new MLKafkaJsonConsumer(
                 {
                     kafkaBrokerList: KAFKA_URL,
@@ -232,6 +237,11 @@ export class Service {
             await (authorizationClient as AuthorizationClient).init();
         }
         this.authorizationClient = authorizationClient;
+
+        if(!keymgmtHttpClient){
+            keymgmtHttpClient = new KeyMgmtHttpClient(KEY_MANAGEMENT_SVC_BASEURL, authRequester);
+        }
+        this.keymgmtHttpClient = keymgmtHttpClient;
 
 
         // repos and aggregate
@@ -278,6 +288,7 @@ export class Service {
             this.accountsBalancesAdapter,
             this.auditClient,
             this.authorizationClient,
+            this.keymgmtHttpClient,
             this.messageProducer,
             this.metrics,
             this.logger
@@ -375,8 +386,8 @@ export class Service {
             this.logger.error(error);
         }
     }
-      
-    
+
+
 }
 
 

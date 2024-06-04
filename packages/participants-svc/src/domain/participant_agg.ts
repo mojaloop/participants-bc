@@ -61,7 +61,8 @@
      IParticipantPendingApprovalSummary,
      IParticipantPendingApproval,
      IParticipantPendingApprovalCountByType,
-     ApprovalRequestState
+     ApprovalRequestState,
+     IParticipantCSRRequest
  } from "@mojaloop/participant-bc-public-types-lib";
  import {
      SettlementMatrixSettledEvt,
@@ -79,11 +80,13 @@
  } from "@mojaloop/security-bc-public-types-lib";
  import {randomUUID} from "crypto";
  import {Participant,} from "./entities/participant";
- 
+
  import {
      AccountChangeRequestAlreadyApproved,
      AccountChangeRequestNotFound,
      AccountNotFoundError,
+     CSRRequestAlreadyProcessed,
+     CSRRequestNotFoundError,
      CannotAddDuplicateAccountError,
      CannotAddDuplicateContactInfoError,
      CannotAddDuplicateEndpointError,
@@ -117,7 +120,7 @@
  import {IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
  import { ParticipantSearchResults, BulkApprovalRequestResults } from "./server_types";
 import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
- 
+
  enum AuditedActionNames {
      PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
      PARTICIPANT_APPROVED = "PARTICIPANT_APPROVED",
@@ -164,9 +167,12 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
      PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED = "PARTICIPANT_STATUS_CHANGE_REQUEST_CREATED",
      PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED = "PARTICIPANT_STATUS_CHANGE_REQUEST_APPROVED",
      PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED = "PARTICIPANT_STATUS_CHANGE_REQUEST_REJECTED",
-     PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED"
+     PARTICIPANT_STATUS_CHANGED = "PARTICIPANT_STATUS_CHANGED",
+     PARTICIPANT_CSR_REQUEST_CREATED = "PARTICIPANT_CSR_REQUEST_CREATED",
+     PARTICIPANT_CSR_REQUEST_APPROVED = "PARTICIPANT_CSR_REQUEST_APPROVED",
+     PARTICIPANT_CSR_REQUEST_REJECTED = "PARTICIPANT_CSR_REQUEST_REJECTED",
  }
- 
+
  export class ParticipantAggregate {
      private _logger: ILogger;
      private _configClient: IConfigurationClient;
@@ -179,13 +185,14 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
      private _metrics: IMetrics;
      private readonly _requestsHisto: IHistogram;
      private _keyManagementClient: KeyMgmtHttpClient;
- 
+
      constructor(
          configClient: IConfigurationClient,
          repo: IParticipantsRepository,
          accBal: IAccountsBalancesAdapter,
          auditClient: IAuditClient,
          authorizationClient: IAuthorizationClient,
+         keyManagementClient: KeyMgmtHttpClient,
          messageProducer: IMessageProducer,
          metrics: IMetrics,
          logger: ILogger
@@ -199,23 +206,24 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          this._messageProducer = messageProducer;
          this._metrics = metrics;
          this._currencyList = this._configClient.globalConfigs.getCurrencies();
- 
+         this._keyManagementClient = keyManagementClient;
+
          this._requestsHisto = metrics.getHistogram("ParticipantAggregate", "Participants Aggregate metrics", ["callName", "success"]);
      }
- 
+
      async init(): Promise<void> {
          await this._repo.init();
          await this._accBal.init();
- 
+
          // find hub participant or create one
          const hubParticipant = await this._repo.fetchWhereId(HUB_PARTICIPANT_ID);
          if (hubParticipant) {
              if (hubParticipant.type === "HUB") return;
              throw new Error("Hub participant record is not of type HUB");
          }
- 
+
          await this._bootstrapHubParticipant();
- 
+
          this._configClient.setChangeHandlerFunction(async (type: "BC" | "GLOBAL") => {
              // configurations changed centrally, reload what needs reloading
              if (type === "GLOBAL") {
@@ -223,22 +231,22 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              }
          });
      }
- 
+
      private async _bootstrapHubParticipant(): Promise<void> {
          const userAndRole = "(system)";
- 
+
          const hubParticipant = Participant.CreateHub(
              HUB_PARTICIPANT_ID,
              "Hub participant account",
              userAndRole,
              "(participants-svc bootstrap routine)"
          );
- 
+
          if (!(await this._repo.create(hubParticipant)))
              throw new CouldNotStoreParticipant(
                  "Unable to create HUB participant successfully!"
              );
- 
+
          // Create the accounts for each currency
          for (const currency of this._currencyList) {
              // Hub Multilateral Net Settlement (HMLNS) account
@@ -253,7 +261,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  externalBankAccountId: null,
                  externalBankAccountName: null,
              };
- 
+
              try {
                  // this uses the initial security context/loginhelper, which is the service creds
                  participantHMLNSAccount.id = await this._accBal.createAccount(
@@ -262,7 +270,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      participantHMLNSAccount.type as AccountsAndBalancesAccountType,
                      participantHMLNSAccount.currencyCode
                  );
- 
+
                  hubParticipant.participantAccounts.push(participantHMLNSAccount);
                  hubParticipant.changeLog.push({
                      changeType: ParticipantChangeTypes.ADD_ACCOUNT,
@@ -276,7 +284,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      `'${hubParticipant.name}' account '${participantHMLNSAccount.type}' failed upstream.`
                  );
              }
- 
+
              // Hub Reconciliation account
              // participant account record (minimal
              const participantReconAccount: IParticipantAccount = {
@@ -289,7 +297,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  externalBankAccountId: null,
                  externalBankAccountName: null
              };
- 
+
              try {
                  // this uses the initial security context/loginhelper, which is the service creds
                  participantReconAccount.id = await this._accBal.createAccount(
@@ -307,19 +315,19 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  });
              } catch (err) {
                  this._logger.error(err);
- 
+
                  throw new UnableToCreateAccountUpstream(
                      `'${hubParticipant.name}' account '${participantReconAccount.type}' failed upstream.`
                  );
              }
          }
- 
+
          // store the participant that now has the accounts
          if (!(await this._repo.store(hubParticipant)))
              throw new CouldNotStoreParticipant(
                  "Unable to store HUB participant successfully!"
              );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_CREATED,
              true,
@@ -330,7 +338,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              },
              [{ key: "participantId", value: hubParticipant.id }]
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_ACCOUNT_ADDED,
              true,
@@ -341,13 +349,13 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              },
              [{ key: "participantId", value: hubParticipant.id }]
          );
- 
+
          this._logger.info(
              `Successfully bootstrapped HUB participant with ID: '${hubParticipant.id}'`
          );
- 
+
      }
- 
+
      private async _getHub(): Promise<IParticipant> {
          const hub: IParticipant | null = await this._repo.fetchWhereId(
              HUB_PARTICIPANT_ID
@@ -359,7 +367,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          }
          return hub;
      }
- 
+
      private _getAuditSecCtx(secCtx: CallSecurityContext): AuditSecurityContext {
          return {
              userId: secCtx.username,
@@ -367,7 +375,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              appId: secCtx.clientId,
          };
      }
- 
+
      private _enforcePrivilege(secCtx: CallSecurityContext, privName: string): void {
          if(this._authorizationClient.rolesHavePrivilege(secCtx.platformRoleIds, privName)) {
              return;
@@ -376,34 +384,34 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              `Required privilege "${privName}" not held by caller`
          );
      }
- 
+
      private _applyDefaultSorts(participant: IParticipant): void {
          if (!participant) return;
- 
+
          // sort changeLog desc
          participant.changeLog.sort(
              (a: IParticipantActivityLogEntry, b: IParticipantActivityLogEntry) =>
                  b.timestamp - a.timestamp
          );
      }
- 
+
      async getAllParticipants(secCtx: CallSecurityContext): Promise<IParticipant[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllParticipants" });
- 
+
          const list: IParticipant[] | null = await this._repo.fetchAll();
          list.forEach(this._applyDefaultSorts);
- 
+
          timerEndFn({ success: "true" });
          return list;
      }
- 
+
      async searchParticipants(secCtx: CallSecurityContext, id:string|null, name:string|null, state:string|null, pageIndex?:number, pageSize?: number): Promise<ParticipantSearchResults> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "searchParticipants" });
- 
+
          const list: ParticipantSearchResults = await this._repo.searchParticipants(
              id,
              name,
@@ -413,66 +421,66 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          );
          list.items.forEach(this._applyDefaultSorts);
          timerEndFn({ success: "true" });
- 
+
          return list;
      }
- 
+
      async getParticipantById(secCtx: CallSecurityContext, id: string): Promise<IParticipant> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "getParticipantById" });
          const part: IParticipant | null = await this._repo.fetchWhereId(id);
          if (part == null)
              throw new ParticipantNotFoundError(
                  `Participant with ID: '${id}' not found.`
              );
- 
- 
+
+
          this._applyDefaultSorts(part);
          timerEndFn({ success: "true" });
- 
+
          return part;
      }
- 
+
      async getParticipantsByIds(secCtx: CallSecurityContext, ids: string[]): Promise<IParticipant[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "getParticipantsByIds" });
          const parts: IParticipant[] = await this._repo.fetchWhereIds(ids);
          if (parts.length == 0)
              throw new ParticipantNotFoundError(
                  `Participant with IDs: '${ids}' not found.`
              );
- 
+
          parts.forEach(this._applyDefaultSorts);
          timerEndFn({ success: "true" });
- 
+
          return parts;
      }
- 
+
      async createParticipant(secCtx: CallSecurityContext, inputParticipant: IParticipant): Promise<string> {
          this._enforcePrivilege(
              secCtx,
              ParticipantPrivilegeNames.CREATE_PARTICIPANT
          );
- 
+
          if (inputParticipant.name.trim().length == 0)
              throw new ParticipantCreateValidationError("[name] cannot be empty");
- 
+
          if (inputParticipant.type === "HUB") {
              this._logger.warn("Cannot create participants of type HUB via the API");
              throw new ParticipantCreateValidationError(
                  "Cannot create participants of type HUB via the API"
              );
          }
- 
+
          if (await this._repo.fetchWhereName(inputParticipant.name)) {
              this._logger.debug("trying to create duplicate participant");
              throw new ParticipantCreateValidationError(
                  `Participant with name: '${inputParticipant.name}' already exists`
              );
          }
- 
+
          if (inputParticipant.id) {
              if (inputParticipant.id.toUpperCase() === HUB_PARTICIPANT_ID.toUpperCase()) {
                  this._logger.warn(
@@ -482,7 +490,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      "Cannot create a participant with the Hub reserved Id"
                  );
              }
- 
+
              if (await this._repo.fetchWhereId(inputParticipant.id)) {
                  this._logger.debug("trying to create duplicate participant");
                  throw new ParticipantCreateValidationError(
@@ -490,13 +498,13 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  );
              }
          }
- 
+
          // make sure participant id fits 32 char length (as per FSPIOP definition)
          if (!inputParticipant.id || inputParticipant.id.length > 32) {
              inputParticipant.id = randomUUID();
              inputParticipant.id = inputParticipant.id.replace(/-/g, "");
          }
- 
+
          const now = Date.now();
          const createdParticipant: Participant = {
              id: inputParticipant.id,
@@ -528,51 +536,54 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              netDebitCapChangeRequests: [],
              participantContacts: [],
              participantContactInfoChangeRequests: [],
-             participantStatusChangeRequests: []
- 
+             participantStatusChangeRequests: [],
+
+             csrRequests: [],
+             certificates: [],
+
          };
- 
+
          if (!(await this._repo.create(createdParticipant)))
              throw new CouldNotStoreParticipant(
                  "Unable to create participant successfully!"
              );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_CREATED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: createdParticipant.id }]
          );
- 
+
          this._logger.info(
              `Successfully created participant with ID: '${createdParticipant.id}'`
          );
- 
+
          //create event for participant create
          const payload: ParticipantChangedEvtPayload = {
              participantId: inputParticipant.id,
              actionName: AuditedActionNames.PARTICIPANT_CREATED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
          return createdParticipant.id;
      }
- 
+
      async approveParticipant(secCtx: CallSecurityContext, participantId: string, note: string | null): Promise<void> {
          this._enforcePrivilege(
              secCtx,
              ParticipantPrivilegeNames.APPROVE_PARTICIPANT
          );
- 
+
          if (!participantId)
              throw new ParticipantNotFoundError("[id] cannot be empty");
- 
+
          if(participantId === HUB_PARTICIPANT_ID)
              throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+
          const existing: IParticipant | null = await this._repo.fetchWhereId(
              participantId
          );
@@ -580,12 +591,12 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              throw new ParticipantNotFoundError(
                  `Participant with ID: '${participantId}' not found.`
              );
- 
+
          if (existing.approved)
              throw new ParticipantAlreadyApproved(
                  `Participant with ID: '${participantId}' is already approved.`
              );
- 
+
          if (secCtx && existing.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  AuditedActionNames.PARTICIPANT_APPROVED,
@@ -597,58 +608,58 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  "Maker check violation - Same user cannot create and approve a participant"
              );
          }
- 
+
          const now = Date.now();
          existing.isActive = true;
          existing.approved = true;
          existing.approvedBy = secCtx.username;
          existing.approvedDate = now;
- 
+
          existing.changeLog.push({
              changeType: ParticipantChangeTypes.APPROVE,
              user: secCtx.username!,
              timestamp: now,
              notes: note,
          });
- 
+
          if (!(await this._repo.store(existing))) {
              throw new CouldNotStoreParticipant("Unable to approve participant.");
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_APPROVED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for participant approve
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName: AuditedActionNames.PARTICIPANT_APPROVED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
          this._logger.info(
              `Successfully approved participant with ID: '${existing.id}'`
          );
      }
- 
+
      async activateParticipant(secCtx: CallSecurityContext, participantId: string, note: string | null): Promise<void> {
          this._enforcePrivilege(
              secCtx,
              ParticipantPrivilegeNames.ENABLE_PARTICIPANT
          );
- 
+
          if (!participantId)
              throw new ParticipantNotFoundError("[id] cannot be empty");
- 
+
          if(participantId === HUB_PARTICIPANT_ID)
              throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+
          const existing: IParticipant | null = await this._repo.fetchWhereId(
              participantId
          );
@@ -656,23 +667,23 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              throw new ParticipantNotFoundError(
                  `Participant with ID: '${participantId}' not found.`
              );
- 
+
          if (existing.isActive) {
              this._logger.warn(
                  `Trying to activate an already active participant with id: ${participantId}`
              );
              return;
          }
- 
+
          existing.isActive = true;
- 
+
          existing.changeLog.push({
              changeType: ParticipantChangeTypes.ACTIVATE,
              user: secCtx.username!,
              timestamp: Date.now(),
              notes: note,
          });
- 
+
          if (!(await this._repo.store(existing))) {
              const err = new CouldNotStoreParticipant(
                  "Could not update participant on activateParticipant"
@@ -680,41 +691,41 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_ENABLED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          this._logger.info(
              `Successfully activated participant with ID: '${existing.id}'`
          );
- 
+
          //create event for participant activate
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName: AuditedActionNames.PARTICIPANT_ENABLED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
      }
- 
+
      async deactivateParticipant(secCtx: CallSecurityContext, participantId: string, note: string | null): Promise<void> {
          this._enforcePrivilege(
              secCtx,
              ParticipantPrivilegeNames.ENABLE_PARTICIPANT
          );
- 
+
          if (!participantId)
              throw new ParticipantNotFoundError("[id] cannot be empty");
- 
+
          if(participantId === HUB_PARTICIPANT_ID)
              throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
+
          const existing: IParticipant | null = await this._repo.fetchWhereId(
              participantId
          );
@@ -722,14 +733,14 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              throw new ParticipantNotFoundError(
                  `Participant with ID: '${participantId}' not found.`
              );
- 
+
          if (!existing.isActive) {
              this._logger.warn(
                  `Trying to deactivate an already active participant with id: ${participantId}`
              );
              return;
          }
- 
+
          existing.isActive = false;
          existing.changeLog.push({
              changeType: ParticipantChangeTypes.DEACTIVATE,
@@ -737,7 +748,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              timestamp: Date.now(),
              notes: note,
          });
- 
+
          if (!(await this._repo.store(existing))) {
              const err = new CouldNotStoreParticipant(
                  "Could not update participant on deactivateParticipant"
@@ -745,33 +756,33 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_DISABLED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          this._logger.info(
              `Successfully deactivated participant with ID: '${existing.id}'`
          );
- 
+
          //create event for participant deactivate
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName: AuditedActionNames.PARTICIPANT_DISABLED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
      }
- 
+
      /*
       * Endpoints
       * */
- 
+
      async addParticipantEndpoint(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -780,9 +791,9 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
 
          const existing = await this._validateParticipantAndRetrieve(participantId);
- 
+
          if (!existing.participantEndpoints) existing.participantEndpoints = [];
- 
+
          // TODO: to validate endpoint format
          if (endpoint.id || existing.participantEndpoints.length > 0) {
              if (
@@ -795,7 +806,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          } else {
              endpoint.id = randomUUID();
          }
- 
+
          existing.participantEndpoints.push(endpoint);
          existing.changeLog.push({
              changeType: ParticipantChangeTypes.ADD_ENDPOINT,
@@ -803,7 +814,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              timestamp: Date.now(),
              notes: null,
          });
- 
+
          if (!(await this._repo.store(existing))) {
              const err = new CouldNotStoreParticipant(
                  "Could not update participant on addParticipantEndpoint"
@@ -811,42 +822,42 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully added endpoint with id: ${endpoint.id} to Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_ENDPOINT_ADDED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for participant add endpoint
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_ADDED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
          return endpoint.id;
      }
- 
+
      async changeParticipantEndpoint(
          secCtx: CallSecurityContext,
          participantId: string,
          endpoint: IParticipantEndpoint
      ): Promise<void> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
- 
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
- 
+
          if (!existing.participantEndpoints) existing.participantEndpoints = [];
- 
+
          const foundEndpoint = existing.participantEndpoints.find(
             (value: IParticipantEndpoint) => value.id === endpoint.id
         );
@@ -855,19 +866,19 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          ) {
              throw new EndpointNotFoundError();
          }
- 
+
          // TODO: to validate endpoint format
          foundEndpoint.type = endpoint.type as ParticipantEndpointTypes;
          foundEndpoint.protocol = endpoint.protocol as ParticipantEndpointProtocols;
          foundEndpoint.value = endpoint.value;
- 
+
          existing.changeLog.push({
              changeType: ParticipantChangeTypes.CHANGE_ENDPOINT,
              user: secCtx.username!,
              timestamp: Date.now(),
              notes: null,
          });
- 
+
          if (!(await this._repo.store(existing))) {
              const err = new CouldNotStoreParticipant(
                  "Could not update participant on changeParticipantEndpoint"
@@ -875,38 +886,38 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully changed endpoint with id: ${endpoint.id} on Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_ENDPOINT_CHANGED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for participant change endpoint
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_CHANGED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
      }
- 
+
      async removeParticipantEndpoint(
          secCtx: CallSecurityContext,
          participantId: string,
          endpointId: string
      ): Promise<void> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.MANAGE_ENDPOINTS);
- 
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
- 
+
          if (!existing.participantEndpoints ||
              existing.participantEndpoints.length <= 0 ||
              !existing.participantEndpoints.find(
@@ -918,7 +929,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              );
              throw new EndpointNotFoundError();
          }
- 
+
          existing.participantEndpoints = existing.participantEndpoints.filter(
              (value: IParticipantEndpoint) => value.id !== endpointId
          );
@@ -928,7 +939,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              timestamp: Date.now(),
              notes: null,
          });
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -937,45 +948,45 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_ENDPOINT_REMOVED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for participant remove endpoint
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName: AuditedActionNames.PARTICIPANT_ENDPOINT_REMOVED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
      }
- 
+
      async getParticipantEndpointsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantEndpoint[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const part: IParticipant | null = await this._repo.fetchWhereId(id);
          if (!part)
              throw new ParticipantNotFoundError(
                  `Participant with ID: '${id}' not found.`
              );
- 
+
          return part.participantEndpoints || [];
      }
- 
- 
+
+
      /*
       * Contact Info
       * */
- 
+
      async getContactInfoByParticipantId(secCtx: CallSecurityContext, id: string): Promise<IParticipantContactInfo[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "getContactInfoByParticipantId" });
          const existing: IParticipant | null = await this._repo.fetchWhereId(id);
          if (!existing) {
@@ -985,24 +996,24 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              );
          }
          const participantContacts = existing.participantContacts || [];
- 
+
          return participantContacts;
      }
- 
+
      async createParticipantContactInfoChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
          contactInfoChangeRequest: IParticipantContactInfoChangeRequest
      ): Promise<string> {
- 
+
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST);
- 
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
- 
+
          if (!existing.participantContactInfoChangeRequests) {
              existing.participantContactInfoChangeRequests = [];
          }
- 
+
          existing.participantContactInfoChangeRequests.push({
              id: contactInfoChangeRequest.id || randomUUID(),
              contactInfoId: contactInfoChangeRequest.contactInfoId,
@@ -1019,14 +1030,14 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              approvedDate: null,
              requestType: contactInfoChangeRequest.requestType
          });
- 
+
          existing.changeLog.push({
              changeType: (contactInfoChangeRequest.requestType === "ADD_PARTICIPANT_CONTACT_INFO" ? ParticipantChangeTypes.ADD_CONTACT_INFO : ParticipantChangeTypes.CHANGE_CONTACT_INFO),
              user: secCtx.username!,
              timestamp: Date.now(),
              notes: null,
          });
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1035,21 +1046,21 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully created contact info change request for Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_CONTACT_INFO_CHANGE_REQUEST_CREATED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          return contactInfoChangeRequest.id;
      }
- 
+
      async approveParticipantContactInfoChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -1311,11 +1322,11 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
 
          return contactInfoChangeRequest.contactInfoId;
      }
- 
+
      /*
       * Participant Status
       * */
- 
+
      async createParticipantStatusChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -1594,15 +1605,15 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
 
          return statusChangeRequest.id;
      }
- 
- 
+
+
      /*
       * SourceIPs
       * */
- 
+
      async getAllowedSourceIpsByParticipantId(secCtx: CallSecurityContext, id: string): Promise<IParticipantAllowedSourceIp[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllowedSourceIpsByParticipantId" });
          const existing: IParticipant | null = await this._repo.fetchWhereId(id);
          if (!existing) {
@@ -1612,26 +1623,26 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              );
          }
          const participantAllowedSourceIps = existing.participantAllowedSourceIps || [];
- 
+
          return participantAllowedSourceIps;
      }
- 
+
      async createParticipantSourceIpChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
          sourceIpChangeRequest: IParticipantSourceIpChangeRequest
      ): Promise<string> {
- 
+
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
- 
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
 
          await Participant.ValidateParticipantSourceIpChangeRequest(sourceIpChangeRequest);
- 
+
          if (!existing.participantSourceIpChangeRequests) {
              existing.participantSourceIpChangeRequests = [];
          }
- 
+
          existing.participantSourceIpChangeRequests.push({
              id: sourceIpChangeRequest.id || randomUUID(),
              allowedSourceIpId: sourceIpChangeRequest.allowedSourceIpId,
@@ -1648,14 +1659,14 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              approvedDate: null,
              requestType: sourceIpChangeRequest.requestType
          });
- 
+
          existing.changeLog.push({
              changeType: (sourceIpChangeRequest.requestType === "ADD_SOURCE_IP" ? ParticipantChangeTypes.ADD_SOURCE_IP : ParticipantChangeTypes.CHANGE_SOURCE_IP),
              user: secCtx.username!,
              timestamp: Date.now(),
              notes: null,
          });
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1664,28 +1675,28 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully created sourceIP change request for Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_CREATED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          return sourceIpChangeRequest.id;
      }
- 
+
      async approveParticipantSourceIpChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
          sourceIpChangeRequestId: string
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
- 
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
 
          const soureIPChangeRequest = existing.participantSourceIpChangeRequests.find(
@@ -1702,7 +1713,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  `Participant's sourceIP change request with id: ${sourceIpChangeRequestId} is already approved`
              );
          }
- 
+
          if (secCtx && soureIPChangeRequest.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  ParticipantChangeTypes.ADD_SOURCE_IP,
@@ -1714,7 +1725,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  "Maker check violation - Same user cannot create and approve participant sourceIP change request"
              );
          }
- 
+
          if (!existing.participantAllowedSourceIps) {
              existing.participantAllowedSourceIps = [];
          } else {
@@ -1730,16 +1741,16 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      );
                  }
              });
- 
+
              if (isDuplicate) {
                  throw new CannotAddDuplicateSourceIpError("Same sourceIP record already exists.");
              }
          }
- 
+
          if (soureIPChangeRequest.requestType === "ADD_SOURCE_IP") {
              soureIPChangeRequest.allowedSourceIpId = randomUUID();
- 
- 
+
+
              existing.participantAllowedSourceIps.push({
                  id: soureIPChangeRequest.allowedSourceIpId,
                  cidr: soureIPChangeRequest.cidr,
@@ -1757,13 +1768,13 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  }
              });
          }
- 
+
          const now = Date.now();
- 
+
          soureIPChangeRequest.requestState = ApprovalRequestState.APPROVED;
          soureIPChangeRequest.approvedBy = secCtx.username;
          soureIPChangeRequest.approvedDate = Date.now();
- 
+
          existing.changeLog.push(
              {
                  changeType: ParticipantChangeTypes.APPROVE_SOURCE_IP_REQUEST,
@@ -1777,7 +1788,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  notes: null,
              }
          );
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1786,11 +1797,11 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully added sourceIP with id: ${soureIPChangeRequest.allowedSourceIpId} to Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_APPROVED,
              true,
@@ -1803,29 +1814,29 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          //create event for participant source ip change request approved - we don't need both, just the reason for the actual change
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
              actionName:  (soureIPChangeRequest.requestType==="ADD_SOURCE_IP" ? AuditedActionNames.PARTICIPANT_SOURCE_IP_ADDED : AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGED)
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
          return soureIPChangeRequest.allowedSourceIpId;
      }
- 
+
      async rejectParticipantSourceIpChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
          sourceIpChangeRequestId: string
      ): Promise<string | null> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
- 
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
- 
+
          const soureIPChangeRequest = existing.participantSourceIpChangeRequests.find(
              (value: IParticipantSourceIpChangeRequest) => value.id === sourceIpChangeRequestId
          );
@@ -1834,22 +1845,22 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  `Cannot find a participant's sourceIP change request with id: ${sourceIpChangeRequestId}`
              );
          }
- 
+
          if (soureIPChangeRequest.requestState === ApprovalRequestState.APPROVED) {
              throw new SourceIpChangeRequestAlreadyApproved(
                  `Participant's sourceIP change request with id: ${sourceIpChangeRequestId} is already approved`
              );
          }
- 
+
          if (soureIPChangeRequest.requestState === ApprovalRequestState.REJECTED) {
              throw new SourceIpChangeRequestAlreadyApproved(
                  `Participant's sourceIP change request with id: ${sourceIpChangeRequestId} is already rejected`
              );
          }
- 
+
          // now we can enforce the correct privilege
          //this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PARTICIPANT_SOURCE_IP_CHANGE_REQUEST);
- 
+
          if (secCtx && soureIPChangeRequest.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  ParticipantChangeTypes.ADD_SOURCE_IP,
@@ -1861,13 +1872,13 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  "Maker check violation - Same user cannot create and reject participant sourceIP change request"
              );
          }
- 
+
          const now = Date.now();
- 
+
          soureIPChangeRequest.requestState = ApprovalRequestState.REJECTED;
          soureIPChangeRequest.rejectedBy = secCtx.username;
          soureIPChangeRequest.rejectedDate = Date.now();
- 
+
          existing.changeLog.push(
              {
                  changeType: ParticipantChangeTypes.REJECT_SOURCE_IP_REQUEST,
@@ -1881,7 +1892,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  notes: null,
              }
          );
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1890,25 +1901,25 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully rejected sourceIP change request with id: ${soureIPChangeRequest.allowedSourceIpId} to Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_SOURCE_IP_CHANGE_REQUEST_REJECTED,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
-        
+
          return soureIPChangeRequest.id;
      }
- 
+
      /*
       * Accounts
       * */
- 
+
      async createParticipantAccountChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -1924,18 +1935,18 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
- 
+
          if (accountChangeRequest.type != ParticipantAccountTypes.SETTLEMENT && (accountChangeRequest.externalBankAccountId || accountChangeRequest.externalBankAccountName))
              throw new InvalidAccountError(
                  "Only the SETTLEMENT account type can have external bank account info."
              );
- 
+
          if (!existing.participantAccountsChangeRequest) {
              existing.participantAccountsChangeRequest = [];
          }
- 
+
          if (
              (accountChangeRequest.type === "HUB_MULTILATERAL_SETTLEMENT" ||
                  accountChangeRequest.type === "HUB_RECONCILIATION") &&
@@ -1948,7 +1959,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  "Only the hub can have accounts of type HUB_MULTILATERAL_SETTLEMENT or HUB_RECONCILIATION"
              );
          }
- 
+
          /*Check duplicate requests*/
          if(existing.participantAccountsChangeRequest.find(
              (value: IParticipantAccountChangeRequest) =>
@@ -1960,7 +1971,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  "Account create request with the same information exists already"
              );
          }
- 
+
          existing.participantAccountsChangeRequest.push({
              id: accountChangeRequest.id || randomUUID(),
              accountId: accountChangeRequest.accountId,
@@ -1983,7 +1994,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              timestamp: Date.now(),
              notes: null,
          });
- 
+
          const updateSuccess = await this._repo.store(existing);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -1992,11 +2003,11 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(err);
              throw err;
          }
- 
+
          this._logger.info(
              `Successfully created account to Participant with ID: '${participantId}'`
          );
- 
+
          await this._auditClient.audit(
              (accountChangeRequest.requestType==="ADD_ACCOUNT" ?
                  AuditedActionNames.PARTICIPANT_ADD_ACCOUNT_CHANGE_REQUEST_CREATED : AuditedActionNames.PARTICIPANT_CHANGE_ACCOUNT_BANK_DETAILS_CHANGE_REQUEST_CREATED),
@@ -2004,16 +2015,16 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
          return accountChangeRequest.id;
      }
- 
+
      async rejectParticipantAccountChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
          accountChangeRequestId: string
      ): Promise<string | null> {
-        
+
          const existing = await this._validateParticipantAndRetrieve(participantId);
 
          const accountChangeRequest = existing.participantAccountsChangeRequest.find(
@@ -2101,7 +2112,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
 
          return accountChangeRequest.accountId;
      }
- 
+
      async approveParticipantAccountChangeRequest(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -2284,10 +2295,10 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
 
          return accountId;
      }
- 
+
      async getParticipantAccountsById(secCtx: CallSecurityContext, id: string): Promise<IParticipantAccount[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "getParticipantAccountsById" });
          const existing: IParticipant | null = await this._repo.fetchWhereId(id);
          if (!existing) {
@@ -2297,14 +2308,14 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              );
          }
          const participantAccounts = existing.participantAccounts || [];
- 
+
          if (participantAccounts.length > 0) {
              // Obtain the most recent account balances:
              this._accBal.setToken(secCtx.accessToken);
              const accBalAccounts = await this._accBal.getAccounts(
                  participantAccounts.map((value: IParticipantAccount) => value.id)
              );
- 
+
              if (!accBalAccounts) {
                  const err = new NoAccountsError(
                      "Could not get participant accounts from accountsAndBalances adapter for participant id: " +
@@ -2314,21 +2325,21 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  timerEndFn({ success: "false" });
                  throw err;
              }
- 
+
              for (const pacc of participantAccounts) {
                  const jAcc = accBalAccounts.find((value) => value.id === pacc.id);
                  if (jAcc == null) continue;
- 
+
                  pacc.debitBalance = jAcc.postedDebitBalance ?? null;
                  pacc.creditBalance = jAcc.postedCreditBalance ?? null;
                  pacc.balance = jAcc.balance ?? null;
              }
          }
          timerEndFn({ success: "true" });
- 
+
          return participantAccounts;
      }
- 
+
      /*
       * Funds management
       * */
@@ -2343,14 +2354,14 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  ? ParticipantPrivilegeNames.CREATE_FUNDS_DEPOSIT
                  : ParticipantPrivilegeNames.CREATE_FUNDS_WITHDRAWAL
          );
- 
+
          const participant = await this._validateParticipantAndRetrieve(participantId);
 
          if (!fundsMov.currencyCode) throw new Error("currencyCode cannot be empty");
          if (!fundsMov.amount) throw new Error("amount cannot be empty");
- 
+
          const hub = await this._getHub();
- 
+
          const settlementAccount = participant.participantAccounts.find(
              (value: IParticipantAccount) =>
                  value.currencyCode === fundsMov.currencyCode &&
@@ -2371,7 +2382,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  `Cannot find hub's reconciliation account for currency: ${fundsMov.currencyCode}`
              );
          }
- 
+
          const now = Date.now();
          if (!participant.fundsMovements) participant.fundsMovements = [];
          participant.fundsMovements.push({
@@ -2390,7 +2401,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              approvedDate: null,
              transferId: null,
          });
- 
+
          const updateSuccess = await this._repo.store(participant);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -2407,13 +2418,13 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
+
      }
- 
+
      async approveFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string): Promise<void> {
-         
+
          const participant = await this._validateParticipantAndRetrieve(participantId);
- 
+
          const fundsMov = participant.fundsMovements.find(
              (value: IParticipantFundsMovement) => value.id === fundsMovId
          );
@@ -2428,7 +2439,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  `Participant's funds movement with id: ${fundsMovId} is already approved`
              );
          }
- 
+
          // now we can enforce the correct privilege
          this._enforcePrivilege(
              secCtx,
@@ -2436,14 +2447,14 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  ? ParticipantPrivilegeNames.APPROVE_FUNDS_DEPOSIT
                  : ParticipantPrivilegeNames.APPROVE_FUNDS_WITHDRAWAL
          );
- 
+
          // inactive participants can only deposit funds, not withdrawal
          if (!participant.isActive && fundsMov.direction === "FUNDS_WITHDRAWAL") {
              throw new ParticipantNotActive(
                  `Participant with ID: '${participantId}' is not active, cannot withdrawal funds.`
              );
          }
- 
+
          if (secCtx && fundsMov.createdBy === secCtx.username) {
              await this._auditClient.audit(
                  fundsMov.direction === "FUNDS_DEPOSIT"
@@ -2457,7 +2468,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  "Maker check violation - Same user cannot create and approve participant a funds movement"
              );
          }
- 
+
          // find accounts
          const hub = await this._getHub();
          const hubReconAccount = hub.participantAccounts.find(
@@ -2480,7 +2491,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  `Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`
              );
          }
- 
+
          // Check if enough balance in settlement account for withdrawal
          if (fundsMov.direction === ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL) {
              // Get the account from account and balance adapter
@@ -2490,10 +2501,10 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      `Could not get settlement account from accountsAndBalances adapter for participant id: ${participant.id}`
                  );
              }
- 
+
              const fundsMovAmount = Number(fundsMov.amount);
              const balance = Number(updatedSettlementAcc.balance);
- 
+
              if (isNaN(fundsMovAmount)) {
                  throw new AccountNotFoundError(
                      `Invalid withdrawal amount for funds movement with id: ${fundsMovId}`
@@ -2510,9 +2521,9 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  );
              }
          }
- 
+
          const now = Date.now();
- 
+
          this._accBal.setToken(secCtx.accessToken);
          fundsMov.transferId = await this._accBal.createJournalEntry(
              randomUUID(),
@@ -2530,11 +2541,11 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(error);
              throw error;
          });
- 
+
          fundsMov.requestState = ApprovalRequestState.APPROVED;
          fundsMov.approvedBy = secCtx.username;
          fundsMov.approvedDate = now;
- 
+
          participant.changeLog.push({
              changeType:
                  fundsMov.direction === "FUNDS_DEPOSIT"
@@ -2544,7 +2555,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              timestamp: now,
              notes: null,
          });
- 
+
          const updateSuccess = await this._repo.store(participant);
          if (!updateSuccess) {
              const err = new CouldNotStoreParticipant(
@@ -2561,11 +2572,11 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._getAuditSecCtx(secCtx),
              [{ key: "participantId", value: participantId }]
          );
- 
- 
+
+
          const actionName = fundsMov.direction === "FUNDS_DEPOSIT" ? "Deposit" : "Withdrawal";
          await this._updateNdcForParticipants([participant], `Funds movement approved (${actionName})`);
- 
+
          //create event for fund movement approved
          const payload: ParticipantChangedEvtPayload = {
              participantId: participantId,
@@ -2573,15 +2584,15 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  ? AuditedActionNames.PARTICIPANT_FUNDS_DEPOSIT_APPROVED
                  : AuditedActionNames.PARTICIPANT_FUNDS_WITHDRAWAL_APPROVED
          };
- 
+
          const event = new ParticipantChangedEvt(payload);
- 
+
          await this._messageProducer.send(event);
- 
+
      }
- 
+
      async rejectFundsMovement(secCtx: CallSecurityContext, participantId: string, fundsMovId: string): Promise<void> {
-         
+
          const participant = await this._validateParticipantAndRetrieve(participantId);
 
          const fundsMov = participant.fundsMovements.find(
@@ -2651,7 +2662,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          );
 
      }
- 
+
      async createParticipantNetDebitCap(
          secCtx: CallSecurityContext,
          participantId: string,
@@ -2672,7 +2683,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          }
 
          await this._validateRequestedNdcValueAndRetriveNdcAmount(participant, netDebitCapChangeRequest);
-  
+
          const now = Date.now();
          if (!participant.netDebitCapChangeRequests) participant.netDebitCapChangeRequests = [];
          participant.netDebitCapChangeRequests.push({
@@ -2725,7 +2736,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
      }
 
      async approveParticipantNetDebitCap(secCtx: CallSecurityContext, participantId: string, ndcReqId: string): Promise<void> {
-        
+
          const participant = await this._validateParticipantAndRetrieve(participantId);
 
          const netDebitCapChange = participant.netDebitCapChangeRequests.find(
@@ -2761,7 +2772,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          }
 
          const finalNDCAmount = await this._validateRequestedNdcValueAndRetriveNdcAmount(participant, netDebitCapChange);
-         
+
          const now = Date.now();
 
          if (!participant.netDebitCaps) participant.netDebitCaps = [];
@@ -2895,7 +2906,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
          );
 
      }
- 
+
      /**
       * This will reflect the settlement in the participants accounts ledger,
       * updating their settlement/liquidity and position accounts as instructed
@@ -2906,7 +2917,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
      async handleSettlementMatrixSettledEvt(secCtx: CallSecurityContext, msg: SettlementMatrixSettledEvt): Promise<void> {
          // this is an internall call, triggerd by the event handler, we use secCtx for audit
          //this._enforcePrivilege( secCtx, ParticipantPrivilegeNames.APPROVE_NDC_CHANGE_REQUEST);
- 
+
          if (!msg?.payload?.participantList?.length) {
              const error = new Error("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
              this._logger.error(error);
@@ -2918,19 +2929,19 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              this._logger.error(error);
              return error;
          };
- 
+
          const retParticipantAccountNotFoundError = (): Error => {
              const error = new Error("Could not get all participants' accounts for handleSettlementMatrixSettledEvt()");
              this._logger.error(error);
              return error;
          };
- 
+
          const participantIds = msg.payload.participantList.flatMap(msg => msg.participantId);
          const participants = await this._repo.fetchWhereIds(participantIds);
          if (!participants || participants.length !== msg.payload.participantList.length) {
              throw retParticipantsNotFoundError();
          }
- 
+
          const ledgerEntriesToCreate: {
              requestedId: string,
              ownerId: string,
@@ -2940,21 +2951,21 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              debitedAccountId: string,
              creditedAccountId: string
          }[] = [];
- 
+
          for (const participantItem of msg.payload.participantList) {
              const participant = participants.find(participant => participant.id === participantItem.participantId);
              if (!participant) throw retParticipantsNotFoundError();
- 
+
              const liqAcc = participant.participantAccounts?.find(
                  (acc:any) => acc.type === "SETTLEMENT" && acc.currencyCode === participantItem.currencyCode
              );
- 
+
              const posAcc = participant.participantAccounts?.find(
                  (acc:any) => acc.type === "POSITION" && acc.currencyCode === participantItem.currencyCode
              );
- 
+
              if (!liqAcc || !posAcc) throw retParticipantAccountNotFoundError();
- 
+
              // if we got a credit -> credit liquidity and debit position
              if (Number(participantItem.settledCreditBalance) > 0) {
                  ledgerEntriesToCreate.push({
@@ -2967,7 +2978,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      debitedAccountId: posAcc.id
                  });
              }
- 
+
              // if we got a debit -> debit liquidity and credit position
              if (Number(participantItem.settledDebitBalance) > 0) {
                  ledgerEntriesToCreate.push({
@@ -2981,41 +2992,41 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  });
              }
          }
- 
+
          if (ledgerEntriesToCreate.length == 0) {
              const error = new Error("Empty list of ledger entries to create in handleSettlementMatrixSettledEvt()");
              this._logger.error(error);
              throw error;
          }
- 
+
          const respIds = await this._accBal.createJournalEntries(ledgerEntriesToCreate);
- 
+
          if (respIds.length !== ledgerEntriesToCreate.length) {
              const error = new Error("List of created ledger entries ids, doesn't match request to create in handleSettlementMatrixSettledEvt()");
              this._logger.error(error);
              throw error;
          }
- 
+
          this._logger.info(`SettlementMatrixSettledEvt processed successfully for settlement matrix id: ${msg.payload.settlementMatrixId}`);
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANTS_PROCESSED_MATRIX_SETTLED_EVENT,
              true,
              this._getAuditSecCtx(secCtx),
              [{ key: "settlementMatrixId", value: msg.payload.settlementMatrixId }]
          );
- 
+
          await this._updateNdcForParticipants(participants, "SettlementMatrixSettledEvt Processing");
      }
- 
+
      private async _updateNdcForParticipants(participants: IParticipant[], reason: string): Promise<void> {
          const now = Date.now();
- 
+
          for (const participant of participants) {
              if (!participant.netDebitCaps || participant.netDebitCaps.length <= 0) continue;
- 
+
              let changed = false;
- 
+
              for (const ndcDefinition of participant.netDebitCaps) {
                  const partAccount = participant.participantAccounts.find(
                      item => item.type === "SETTLEMENT" && item.currencyCode === ndcDefinition.currencyCode
@@ -3027,7 +3038,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  if (!abAccount) {
                      throw new Error(`Cannot get participant account with id: ${partAccount.id} from accounts and balaces for _updateNdcForParticipants()`);
                  }
- 
+
                  ndcDefinition.currentValue = this._calculateNdcAmount(
                      ndcDefinition.currentValue,
                      ndcDefinition.percentage,
@@ -3036,43 +3047,43 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  );
                  changed = true;
              }
- 
+
              if (!changed) continue;
- 
+
              participant.changeLog.push({
                  changeType: ParticipantChangeTypes.NDC_RECALCULATED,
                  user: "(n/a)",
                  timestamp: now,
                  notes: "NDC recalculated - for: " + reason,
              });
- 
+
              await this._repo.store(participant);
- 
+
              this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
- 
+
              //create event for NDC recalculated
              const payload: ParticipantChangedEvtPayload = {
                  participantId: participant.id,
                  actionName: ParticipantChangeTypes.NDC_RECALCULATED
              };
- 
+
              const event = new ParticipantChangedEvt(payload);
- 
+
              await this._messageProducer.send(event);
          }
      }
- 
+
      async getSearchKeywords(secCtx: CallSecurityContext): Promise<{fieldName:string, distinctTerms:string[]}[]> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
- 
+
          const timerEndFn = this._requestsHisto.startTimer({ callName: "getSearchKeywords" });
          const part = await this._repo.getSearchKeywords();
- 
+
          timerEndFn({ success: "true" });
- 
+
          return part;
      }
- 
+
      async liquidityCheckValidate(
          secCtx: CallSecurityContext,
          liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[]
@@ -3082,13 +3093,13 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  secCtx,
                  ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
              );
- 
+
              if (!liquidityBalanceAdjustments)
                  throw new Error("Invalid data for liquidity balance adjustment.");
- 
+
              const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
              const allParticipants = await this._repo.fetchWhereIds(participantIds);
- 
+
              // first pass to validate participants, duplicates and get the account Ids
              for (const obj of liquidityBalanceAdjustments) {
                  // Validate values for each object
@@ -3112,19 +3123,19 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          `Participant with ID: '${obj.participantId}' is not active.`
                      );
                  }
- 
+
                  obj.participantName = checkParticipant.name;
- 
+
                  const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
                      return fundMov.extReference?.trim() === obj.matrixId.trim();
                  });
- 
+
                  if (checkExistingFundMov.length > 0) {
                      obj.isDuplicate = true;
                  } else {
                      obj.isDuplicate = false;
                  }
- 
+
                  const settlementAccount = checkParticipant.participantAccounts.find(
                      (value: IParticipantAccount) =>
                          value.currencyCode === obj.currencyCode &&
@@ -3135,20 +3146,20 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
                      );
                  }
- 
+
                  obj.settlementAccountId = settlementAccount.id;
              }
- 
+
              // get balances we've checked settlementAccountId above
              const accountIds = liquidityBalanceAdjustments.map(value => value.settlementAccountId!);
- 
+
              let accounts: AccountsAndBalancesAccount[] = [];
              try {
                  accounts = await this._accBal.getAccounts(accountIds);
              } catch (err) {
                  throw new Error("Could not get account balances in liquidity balance adjustment");
              }
- 
+
              for (const obj of liquidityBalanceAdjustments) {
                  const settlementAccount = accounts.find(value => value.id === obj.settlementAccountId);
                  if (!settlementAccount?.balance) {
@@ -3157,7 +3168,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      );
                  }
 
- 
+
                  const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
                  obj.updateAmount = Math.abs(amount).toString();
                  if (amount > 0) {
@@ -3166,21 +3177,21 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      obj.direction = ParticipantFundsMovementDirections.FUNDS_WITHDRAWAL;
                  }
              }
- 
- 
+
+
              await this._auditClient.audit(
                  AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CHECKED,
                  true,
                  this._getAuditSecCtx(secCtx),
                  []
              );
- 
+
              return liquidityBalanceAdjustments;
          } catch (err: any) {
              throw new Error(err.message);
          }
      }
- 
+
      async createLiquidityCheckRequestAdjustment(
          secCtx: CallSecurityContext,
          liquidityBalanceAdjustments: IParticipantLiquidityBalanceAdjustment[],
@@ -3190,13 +3201,13 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              secCtx,
              ParticipantPrivilegeNames.CREATE_LIQUIDITY_ADJUSTMENT_BULK_REQUEST
          );
- 
+
          if (!liquidityBalanceAdjustments)
              throw new Error("Invalid data for liquidity balance adjustment.");
- 
+
          const participantIds = liquidityBalanceAdjustments.map(value => value.participantId);
          const allParticipants = await this._repo.fetchWhereIds(participantIds);
- 
+
          let duplicateFound = false;
          for (const obj of liquidityBalanceAdjustments) {
              // Validate values for each object
@@ -3209,7 +3220,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              } else if (!obj.currencyCode) {
                  throw new Error(`Invalid currencyCode: ${obj.currencyCode} in liquidity balance adjustment.`);
              }
- 
+
              const checkParticipant = allParticipants.find(item => item.id === obj.participantId);
              if (!checkParticipant) {
                  throw new ParticipantNotFoundError(
@@ -3221,33 +3232,33 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      `Participant with ID: '${obj.participantId}' is not active.`
                  );
              }
- 
+
              const checkExistingFundMov = checkParticipant.fundsMovements.filter((fundMov: IParticipantFundsMovement) => {
                  return fundMov.extReference?.trim() === obj.matrixId.trim();
              });
- 
+
              duplicateFound = (checkExistingFundMov.length > 0);
- 
+
              const settlementAccount = checkParticipant.participantAccounts.find(
                  (value: IParticipantAccount) =>
                      value.currencyCode === obj.currencyCode &&
                      value.type === "SETTLEMENT"
              );
- 
+
              if (!settlementAccount) {
                  throw new AccountNotFoundError(
                      `Cannot find settlement account for participantId: ${obj.participantId} with currency: ${obj.currencyCode}`
                  );
              }
          }
- 
+
          if(duplicateFound && !ignoreDuplicate){
              throw new LiquidityAdjustmentAlreadyProcessed("Liquidity adjustment already exists.");
          }
- 
+
          for(const obj of liquidityBalanceAdjustments){
              const amountValue: number = obj.updateAmount !== null ? parseFloat(obj.updateAmount) : 0;
- 
+
              if(amountValue > 0){
                  const fundMovement: IParticipantFundsMovement = {
                      id: randomUUID(),
@@ -3268,25 +3279,25 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                  await this.createFundsMovement(secCtx,obj.participantId, fundMovement);
              }
          }
- 
+
          await this._auditClient.audit(
              AuditedActionNames.PARTICIPANT_LIQUIDITY_BALANCE_ADJUSTMENT_CREATED,
              true,
              this._getAuditSecCtx(secCtx),
              []
          );
- 
+
      }
- 
+
      async getPendingApprovalSummary(secCtx: CallSecurityContext): Promise<IParticipantPendingApprovalSummary> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_ALL_PENDING_APPROVALS);
- 
+
          try {
              const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
- 
+
              let participants: IParticipant[] | null = await this._repo.fetchAll();
              participants = participants.filter(p => p.id !== HUB_PARTICIPANT_ID);
- 
+
              let totalCount = 0;
              let accountsChangeRequest = 0;
              let fundsMovementRequest = 0;
@@ -3294,7 +3305,8 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              let ipChangeRequests = 0;
              let contactInfoChangeRequests = 0;
              let statusChangeRequests = 0;
- 
+             let csrRequests = 0;
+
              accountsChangeRequest = participants
                  .map(value => {
                      if (value.participantAccountsChangeRequest) {
@@ -3305,7 +3317,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          return 0;
                      }
                  }).reduce((acc, count) => acc + count, 0);
- 
+
              fundsMovementRequest = participants.map(value => {
                  if (value.fundsMovements) {
                      return value.fundsMovements.filter(
@@ -3315,7 +3327,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return 0;
                  }
              }).reduce((acc, count) => acc + count, 0);
- 
+
              ndcChangeRequests = participants.map(value => {
                  if (value.netDebitCapChangeRequests) {
                      return value.netDebitCapChangeRequests.filter(
@@ -3325,7 +3337,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return 0;
                  }
              }).reduce((acc, count) => acc + count, 0);
- 
+
              ipChangeRequests = participants.map(value => {
                  if (value.participantSourceIpChangeRequests) {
                      return value.participantSourceIpChangeRequests.filter(
@@ -3335,7 +3347,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return 0;
                  }
              }).reduce((acc, count) => acc + count, 0);
- 
+
              contactInfoChangeRequests = participants.map(value => {
                  if (value.participantContactInfoChangeRequests) {
                      return value.participantContactInfoChangeRequests.filter(
@@ -3345,7 +3357,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return 0;
                  }
              }).reduce((acc, count) => acc + count, 0);
- 
+
              statusChangeRequests = participants.map(value => {
                  if (value.participantStatusChangeRequests) {
                      return value.participantStatusChangeRequests.filter(
@@ -3355,9 +3367,19 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return 0;
                  }
              }).reduce((acc, count) => acc + count, 0);
- 
-             totalCount = accountsChangeRequest + fundsMovementRequest + ndcChangeRequests + ipChangeRequests + contactInfoChangeRequests + statusChangeRequests;
- 
+
+             csrRequests = participants.map(value => {
+                if (value.csrRequests) {
+                    return value.csrRequests.filter(
+                        (csr: { requestState: ApprovalRequestState; }) => csr.requestState === ApprovalRequestState.CREATED
+                    ).length;
+                } else {
+                    return 0;
+                }
+            }).reduce((acc, count) => acc + count, 0);
+
+             totalCount = accountsChangeRequest + fundsMovementRequest + ndcChangeRequests + ipChangeRequests + contactInfoChangeRequests + statusChangeRequests + csrRequests;
+
              const pendingApprovalCountByType: IParticipantPendingApprovalCountByType[] = [];
              pendingApprovalCountByType.push({ type: "accountsChangeRequest", count: accountsChangeRequest });
              pendingApprovalCountByType.push({ type: "fundsMovementRequest", count: fundsMovementRequest });
@@ -3365,11 +3387,12 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              pendingApprovalCountByType.push({ type: "ipChangeRequests", count: ipChangeRequests });
              pendingApprovalCountByType.push({ type: "contactInfoChangeRequests", count: contactInfoChangeRequests });
              pendingApprovalCountByType.push({ type: "statusChangeRequests", count: statusChangeRequests });
- 
+             pendingApprovalCountByType.push({ type: "csrRequests", count: csrRequests });
+
              const pendingApprovalSummary: IParticipantPendingApprovalSummary = {
                  totalCount: totalCount,
                  countByType: pendingApprovalCountByType
- 
+
              };
              timerEndFn({ success: "true" });
              return pendingApprovalSummary;
@@ -3377,16 +3400,16 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              throw new Error(err.message);
          }
      }
- 
+
      async getAllPendingApprovals(secCtx: CallSecurityContext): Promise<IParticipantPendingApproval> {
          this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_ALL_PENDING_APPROVALS);
- 
+
          try {
              const timerEndFn = this._requestsHisto.startTimer({ callName: "getAllPendingApprovals" });
- 
+
              let participants: IParticipant[] | null = await this._repo.fetchAll();
              participants = participants.filter(p => p.id !== HUB_PARTICIPANT_ID);
- 
+
              const accountsChangeRequest = participants
                  .flatMap(({ id: participantId, name: participantName, ...value }) => {
                      if (value.participantAccountsChangeRequest) {
@@ -3397,7 +3420,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          return [];
                      }
                  });
- 
+
              const fundsMovementRequest = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                  if (value.fundsMovements) {
                      return value.fundsMovements.filter(
@@ -3407,7 +3430,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return [];
                  }
              });
- 
+
              const ndcChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                  if (value.netDebitCapChangeRequests) {
                      return value.netDebitCapChangeRequests.filter(
@@ -3417,7 +3440,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return [];
                  }
              });
- 
+
              const ipChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                  if (value.participantSourceIpChangeRequests) {
                      return value.participantSourceIpChangeRequests.filter(
@@ -3427,7 +3450,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return [];
                  }
              });
- 
+
              const contactInfoChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                  if (value.participantContactInfoChangeRequests) {
                      return value.participantContactInfoChangeRequests.filter(
@@ -3437,7 +3460,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return [];
                  }
              });
- 
+
              const statusChangeRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
                  if (value.participantStatusChangeRequests) {
                      return value.participantStatusChangeRequests.filter(
@@ -3447,36 +3470,47 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                      return [];
                  }
              });
- 
+
+            const csrRequests = participants.flatMap(({ id: participantId, name: participantName, ...value }) => {
+                if (value.csrRequests) {
+                    return value.csrRequests.filter(
+                        (csr: { requestState: ApprovalRequestState; }) => csr.requestState === ApprovalRequestState.CREATED
+                    ).map(data => ({ ...data, participantId, participantName }));
+                } else {
+                    return [];
+                }
+            });
+
              const pendingApprovals: IParticipantPendingApproval = {
                  accountsChangeRequest: accountsChangeRequest,
                  fundsMovementRequest: fundsMovementRequest,
                  ndcChangeRequests: ndcChangeRequests,
                  ipChangeRequests: ipChangeRequests,
                  contactInfoChangeRequests: contactInfoChangeRequests,
-                 statusChangeRequests: statusChangeRequests
+                 statusChangeRequests: statusChangeRequests,
+                 csrRequests: csrRequests,
              };
- 
+
              timerEndFn({ success: "true" });
              return pendingApprovals;
          } catch (err: any) {
              throw new Error(err.message);
          }
- 
+
      }
- 
+
      async approveBulkPendingApprovalRequests(secCtx: CallSecurityContext, pendingApprovals: IParticipantPendingApproval): Promise<BulkApprovalRequestResults[]> {
          try {
              this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PENDING_APPROVAL_BULK_REQUEST);
- 
+
              const messages: BulkApprovalRequestResults[] = [];
- 
+
              if(pendingApprovals) {
                  if(pendingApprovals.accountsChangeRequest){
                      for (const changeReq of pendingApprovals.accountsChangeRequest){
                          try{
                              await this.approveParticipantAccountChangeRequest(secCtx, changeReq.participantId, changeReq.id);
-                        
+
                              messages.push({
                                  reqId: changeReq.id,
                                  status: "success",
@@ -3491,9 +3525,9 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                              });
                          }
                      }
-                     
+
                  }
-                 
+
                  if (pendingApprovals.fundsMovementRequest) {
                      for (const changeReq of pendingApprovals.fundsMovementRequest) {
                          try {
@@ -3513,7 +3547,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
- 
+
                  if (pendingApprovals.ndcChangeRequests) {
                      for (const changeReq of pendingApprovals.ndcChangeRequests) {
                          try {
@@ -3533,8 +3567,8 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
- 
-                 
+
+
                  if (pendingApprovals.ipChangeRequests) {
                      for (const changeReq of pendingApprovals.ipChangeRequests) {
                          try {
@@ -3544,7 +3578,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                                  status: "success",
                                  message: `Successfully approved request id: ${changeReq.id} of ${changeReq.participantId}`,
                              });
- 
+
                          } catch (err: any) {
                              this._logger.error((err as Error).message);
                              messages.push({
@@ -3555,7 +3589,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
-                 
+
                  if (pendingApprovals.contactInfoChangeRequests) {
                      for (const changeReq of pendingApprovals.contactInfoChangeRequests) {
                          try {
@@ -3575,27 +3609,27 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
-                 
+
              }
- 
+
              return messages;
          } catch (err: any) {
              throw new Error(err.message);
          }
      }
- 
+
      async rejectBulkPendingApprovalRequests(secCtx: CallSecurityContext, pendingApprovals: IParticipantPendingApproval): Promise<BulkApprovalRequestResults[]> {
          try {
              this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.APPROVE_PENDING_APPROVAL_BULK_REQUEST);
- 
+
              const messages: BulkApprovalRequestResults[] = [];
- 
+
              if(pendingApprovals) {
                  if(pendingApprovals.accountsChangeRequest){
                      for (const changeReq of pendingApprovals.accountsChangeRequest){
                          try{
                              await this.rejectParticipantAccountChangeRequest(secCtx, changeReq.participantId, changeReq.id);
-                        
+
                              messages.push({
                                  reqId: changeReq.id,
                                  status: "success",
@@ -3610,9 +3644,9 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                              });
                          }
                      }
-                     
+
                  }
-                 
+
                  if (pendingApprovals.fundsMovementRequest) {
                      for (const changeReq of pendingApprovals.fundsMovementRequest) {
                          try {
@@ -3632,7 +3666,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
- 
+
                  if (pendingApprovals.ndcChangeRequests) {
                      for (const changeReq of pendingApprovals.ndcChangeRequests) {
                          try {
@@ -3652,8 +3686,8 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
- 
-                 
+
+
                  if (pendingApprovals.ipChangeRequests) {
                      for (const changeReq of pendingApprovals.ipChangeRequests) {
                          try {
@@ -3663,7 +3697,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                                  status: "success",
                                  message: `Successfully rejected request id: ${changeReq.id} of ${changeReq.participantId}`,
                              });
- 
+
                          } catch (err: any) {
                              this._logger.error((err as Error).message);
                              messages.push({
@@ -3674,7 +3708,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
-                 
+
                  if (pendingApprovals.contactInfoChangeRequests) {
                      for (const changeReq of pendingApprovals.contactInfoChangeRequests) {
                          try {
@@ -3694,16 +3728,16 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
                          }
                      }
                  }
-                 
+
              }
- 
+
              return messages;
          } catch (err: any) {
              throw new Error(err.message);
          }
      }
 
- 
+
      private async _validateParticipantAndRetrieve(
          participantId: string,
          isValidatingForParticipantStatusChangeRequest: boolean = false
@@ -3748,7 +3782,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
             (value: IParticipantAccount) =>
                 value.currencyCode === netDebitCapChangeRequest.currencyCode && value.type === "SETTLEMENT"
         );
-        
+
         const positionAccount = participant.participantAccounts.find(
             (value: IParticipantAccount) =>
                 value.currencyCode === netDebitCapChangeRequest.currencyCode && value.type === "POSITION"
@@ -3775,7 +3809,7 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
              throw new InvalidNdcAmount("The NDC amount cannot be greater than or equal to the settlement account's balance.");
          }
 
-         
+
          const ndcAmount = this._calculateNdcAmount(
             netDebitCapChangeRequest.fixedValue ?? 0,
             netDebitCapChangeRequest.percentage ?? 0,
@@ -3786,28 +3820,85 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
         return ndcAmount;
      }
 
-    async getCSRPendingRequests(secCtx: CallSecurityContext): Promise<ICSRRequest[]> {
-        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
-
-        const csrRequests = await this._keyManagementClient.getPendingCSRApprovals();
-        return csrRequests;
-    }
-
     async createCSRRequest(secCtx: CallSecurityContext, participantId: string, csr: string): Promise<string> {
-        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
+        this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.CREATE_PARTICIPANT_CERTIFICATE_SIGNING_REQUEST);
 
-        await this._validateParticipantAndRetrieve(participantId);
+        const existing = await this._validateParticipantAndRetrieve(participantId);
 
-        const csrRequest = await this._keyManagementClient.uploadCSR(participantId, csr);
-        return csrRequest.id;
+        if(!existing.csrRequests){
+            existing.csrRequests = [];
+        }
+
+        const uploadResult = await this._keyManagementClient.uploadCSR(participantId, csr);
+        const csrRequest: IParticipantCSRRequest = {
+            csrId: uploadResult.id,
+            requestState: ApprovalRequestState.CREATED,
+            createdBy: secCtx.username!,
+            createdDate: Date.now(),
+            approvedBy: null,
+            approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null
+        };
+
+        existing.csrRequests.push(csrRequest);
+
+        if(!(await this._repo.store(existing))){
+            throw new Error("Failed to store participant with CSR request");
+        }
+
+        this._logger.info(`CSR request created for participant with id: ${participantId}`);
+        this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_CSR_REQUEST_CREATED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [
+                { key: "participantId", value: participantId },
+                { key: "csrRequestId", value: csrRequest.csrId }
+            ]
+        );
+        return csrRequest.csrId;
     }
 
     async approveCSRRequest(secCtx: CallSecurityContext, participantId: string, csrId: string): Promise<void> {
         this._enforcePrivilege(secCtx, ParticipantPrivilegeNames.VIEW_PARTICIPANT);
 
-        await this._validateParticipantAndRetrieve(participantId);
+        const existing = await this._validateParticipantAndRetrieve(participantId);
 
-        await this._keyManagementClient.approveCSR(csrId);
+        const csrRequestIndex = existing.csrRequests.findIndex(csr => csr.csrId === csrId);
+        if (csrRequestIndex < 0) {
+            throw new CSRRequestNotFoundError(`CSR request with ID: '${csrId}' not found.`);
+        }
+
+        const csrRequest = existing.csrRequests[csrRequestIndex];
+
+        if (csrRequest.requestState !== ApprovalRequestState.CREATED) {
+            throw new CSRRequestAlreadyProcessed(`CSR request with ID: '${csrId}' has already been processed.`);
+        }
+
+         if (secCtx && csrRequest.createdBy === secCtx.username) {
+             await this._auditClient.audit(
+                 ParticipantChangeTypes.ADD_CSR_REQUEST,
+                 false,
+                 this._getAuditSecCtx(secCtx),
+                 [{ key: "participantId", value: participantId }]
+             );
+             throw new MakerCheckerViolationError(
+                 "Maker check violation - Same user cannot create and approve participant CSR request"
+             );
+         }
+
+        csrRequest.requestState = ApprovalRequestState.APPROVED;
+        csrRequest.approvedBy = secCtx.username;
+        csrRequest.approvedDate = Date.now();
+
+        if(!(await this._repo.store(existing))){
+            throw new Error("Failed to store participant with CSR request");
+        }
+
+        await this._keyManagementClient.createCertificateFromCSR(csrId);
+
+        // await this._keyManagementClient.approveCSR(csrId);
     }
 
     async rejectCSRRequest(secCtx: CallSecurityContext, participantId: string, csrId: string): Promise<void> {
@@ -3815,8 +3906,8 @@ import { KeyMgmtHttpClient } from "@mojaloop/security-bc-client-lib";
 
         await this._validateParticipantAndRetrieve(participantId);
 
-        await this._keyManagementClient.rejectCSR(csrId);
+        // await this._keyManagementClient.rejectCSR(csrId);
     }
 
  }
- 
+

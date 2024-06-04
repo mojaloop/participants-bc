@@ -174,5 +174,20 @@ export const AppPrivilegesDefinition = [
         privId: ParticipantPrivilegeNames.APPROVE_PENDING_APPROVAL_BULK_REQUEST,
         labelName: "Approve bulk participant pending approval requests",
         description: "Approve bulk participant pending approval requests"
+    },
+    {
+        privId: ParticipantPrivilegeNames.CREATE_PARTICIPANT_CERTIFICATE_SIGNING_REQUEST,
+        labelName: "Create a participant certificate signing request",
+        description: "Create a participant certificate signing request"
+    },
+    {
+        privId: ParticipantPrivilegeNames.APPROVE_PARTICIPANT_CERTIFICATE_SIGNING_REQUEST,
+        labelName: "Approve a participant certificate signing request",
+        description: "Approve a participant certificate signing request"
+    },
+    {
+        privId: ParticipantPrivilegeNames.REJECT_PARTICIPANT_CERTIFICATE_SIGNING_REQUEST,
+        labelName: "Reject a participant certificate signing request",
+        description: "Reject a participant certificate signing request"
     }
 ];

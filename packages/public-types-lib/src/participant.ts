@@ -43,10 +43,6 @@ import {
   ParticipantEndpointTypes, ParticipantFundsMovementDirections, ParticipantNetDebitCapTypes, ParticipantTypes
 } from "./enums";
 
- import {
-     ICSRRequest, IPublicCertificate,
- } from "@mojaloop/security-bc-public-types-lib";
-
 export const HUB_PARTICIPANT_ID = "hub";
 
 export declare interface IParticipant {
@@ -84,8 +80,25 @@ export declare interface IParticipant {
 
   participantStatusChangeRequests: IParticipantStatusChangeRequest[];
 
-  csrRequests: ICSRRequest[];
-  certificates: IPublicCertificate[];
+  csrRequests: IParticipantCSRRequest[];
+  certificates: IParticipantCertificate[];
+}
+
+export declare interface IParticipantCSRRequest {
+    csrId: string; // CSR ID from the security-bc
+    requestState: ApprovalRequestState;
+    createdBy: string;
+    createdDate: number;
+    approvedBy: string | null;
+    approvedDate: number | null;
+    rejectedBy: string | null;
+    rejectedDate: number | null;
+}
+
+export declare interface IParticipantCertificate {
+    certId: string; // certificate ID in the security bounded context
+    keyFingerprint: string; // Key fingerprint from the security-bc
+    usedFor: "MTLS" | "JWS" | "JWE"     // how keypair is used for
 }
 
 export declare interface IParticipantNetDebitCap {
@@ -262,4 +275,5 @@ export declare interface IParticipantPendingApproval {
   ipChangeRequests: (IParticipantSourceIpChangeRequest & { participantId: string; participantName: string })[];
   contactInfoChangeRequests: (IParticipantContactInfoChangeRequest & { participantId: string; participantName: string })[];
   statusChangeRequests: (IParticipantStatusChangeRequest & { participantId: string; participantName: string })[];
+  csrRequests: (IParticipantCSRRequest & { participantId: string; participantName: string })[];
 }

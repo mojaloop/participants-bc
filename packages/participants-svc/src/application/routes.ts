@@ -45,7 +45,7 @@
      IParticipantPendingApproval
  } from "@mojaloop/participant-bc-public-types-lib";
  import { ParticipantAggregate } from "../domain/participant_agg";
- 
+
  import {
      DuplicateRequestFoundError,
      NoAccountsError,
@@ -70,20 +70,20 @@
  import { ParticipantSearchResults } from "../domain/server_types";
  import multer from "multer";
  import ExcelJS from "exceljs";
- 
+
  // Extend express request to include our security fields
  declare module "express-serve-static-core" {
      export interface Request {
          securityContext: null | CallSecurityContext;
      }
  }
- 
+
  export class ExpressRoutes {
      private _logger: ILogger;
      private _tokenHelper: ITokenHelper;
      private _participantsAgg: ParticipantAggregate;
      private _mainRouter = express.Router();
- 
+
      constructor(
          participantsAgg: ParticipantAggregate,
          tokenHelper: ITokenHelper,
@@ -92,21 +92,21 @@
          this._logger = logger.createChild("ExpressRoutes");
          this._tokenHelper = tokenHelper;
          this._participantsAgg = participantsAgg;
- 
+
          const storage = multer.memoryStorage();
          const uploadfile = multer({ storage: storage });
- 
+
          // inject authentication - all request below this require a valid token
          this._mainRouter.use(this._authenticationMiddleware.bind(this));
- 
- 
+
+
          // participant's bulk approval
          this._mainRouter.get("/participants/pendingApprovalsSummary", this._participantPendingApprovalsSummary.bind(this));
          this._mainRouter.get("/participants/pendingApprovals", this._participantPendingApprovals.bind(this));
          this._mainRouter.post("/participants/pendingApprovals/approve", this._participantApprovePendingApprovals.bind(this));
          this._mainRouter.post("/participants/pendingApprovals/reject", this._participantRejectPendingApprovals.bind(this));
- 
- 
+
+
          // participant
          this._mainRouter.get("/participants", this._getAllParticipants.bind(this));
          this._mainRouter.get(
@@ -116,89 +116,88 @@
          this._mainRouter.get("/participants/:id", this._participantById.bind(this));
          this._mainRouter.post("/participants", this._participantCreate.bind(this));
          this._mainRouter.put("/participants/:id/approve", this._participantApprove.bind(this));
- 
+
          // endpoint
          this._mainRouter.get("/participants/:id/endpoints", this._endpointsByParticipantId.bind(this));
          this._mainRouter.post("/participants/:id/endpoints", this._participantEndpointCreate.bind(this));
          this._mainRouter.put("/participants/:id/endpoints/:endpointId", this._participantEndpointChange.bind(this));
          this._mainRouter.delete("/participants/:id/endpoints/:endpointId", this._participantEndpointDelete.bind(this));
- 
+
          // account
          this._mainRouter.get("/participants/:id/accounts", this._accountsByParticipantId.bind(this));
          this._mainRouter.post("/participants/:id/accountChangeRequest", this._participantAccountCreateChangeRequest.bind(this));
          this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/approve", this._participantAccountApproveChangeRequest.bind(this));
          this._mainRouter.post("/participants/:id/accountchangerequests/:changereqid/reject", this._participantAccountRejectChangeRequest.bind(this));
-        
- 
+
+
          // funds management
          this._mainRouter.post("/participants/:id/funds", this._participantFundsMovCreate.bind(this));
          this._mainRouter.post("/participants/:id/funds/:fundsMovId/approve", this._participantFundsMovApprove.bind(this));
          this._mainRouter.post("/participants/:id/funds/:fundsMovId/reject", this._participantFundsMovReject.bind(this));
- 
+
          // net debit cap management
          this._mainRouter.post("/participants/:id/ndcChangeRequests", this._participantNetDebitCapCreate.bind(this));
          this._mainRouter.post("/participants/:id/ndcchangerequests/:ndcReqId/approve",this._participantNetDebitCapApprove.bind(this));
          this._mainRouter.post("/participants/:id/ndcchangerequests/:ndcReqId/reject",this._participantNetDebitCapReject.bind(this));
- 
+
          // particpant's sourceIPs
          this._mainRouter.get("/participants/:id/sourceIps", this._sourceIpsByParticipantId.bind(this));
          this._mainRouter.post("/participants/:id/sourceIpChangeRequests", this._participantSourceIpChangeRequestCreate.bind(this));
          this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/approve", this._participantSourceIpChangeRequestApprove.bind(this));
          this._mainRouter.post("/participants/:id/SourceIpChangeRequests/:changereqid/reject", this._participantSourceIpChangeRequestReject.bind(this));
- 
+
          // participant's contactInfo
          this._mainRouter.get("/participants/:id/contactInfo", this._contactInfoByParticipantId.bind(this));
          this._mainRouter.post("/participants/:id/contactInfoChangeRequests", this._participantContactInfoChangeRequestCreate.bind(this));
          this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/approve", this._participantContactInfoChangeRequestApprove.bind(this));
          this._mainRouter.post("/participants/:id/contactInfoChangeRequests/:changereqid/reject", this._participantContactInfoChangeRequestReject.bind(this));
- 
+
          // participant's status (isActive)
          this._mainRouter.post("/participants/:id/statusChangeRequests", this._participantStatusChangeRequestCreate.bind(this));
          this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/approve", this._participantStatusChangeRequestApprove.bind(this));
          this._mainRouter.post("/participants/:id/statusChangeRequests/:changereqid/reject", this._participantStatusChangeRequestReject.bind(this));
- 
+
          this._mainRouter.get("/searchKeywords/", this._getSearchKeywords.bind(this));
- 
+
          // liquidity balance adjust file import
          this._mainRouter.post("/participants/liquidityCheckValidate", uploadfile.single("settlementInitiation"), this._participantLiquidityCheckValidate.bind(this));
          this._mainRouter.post("/participants/liquidityCheckRequestAdjustment", this._participantLiquidityCheckRequestAdjustment.bind(this));
 
         // Certificate Key Management
-        this._mainRouter.get("/participants/:id/certificates/csr", this._participantCsrPendingRequestsGet.bind(this));
         this._mainRouter.post("/participants/:id/certificates/csr", this._participantCsrRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/certificates/csr/:csrId/approve", this._participantCsrRequestApprove.bind(this));
         this._mainRouter.post("/participants/:id/certificates/csr/:csrId/reject", this._participantCsrRequestReject.bind(this));
      }
- 
+
      private async _authenticationMiddleware(
          req: express.Request,
          res: express.Response,
          next: express.NextFunction
      ) {
          const authorizationHeader = req.headers["authorization"];
- 
+
          if (!authorizationHeader) return res.sendStatus(401);
- 
+
          const bearer = authorizationHeader.trim().split(" ");
          if (bearer.length != 2) {
              return res.sendStatus(401);
          }
- 
+
          const bearerToken = bearer[1];
          const callSecCtx:  CallSecurityContext | null = await this._tokenHelper.getCallSecurityContextFromAccessToken(bearerToken);
- 
+
          if(!callSecCtx){
              return res.sendStatus(401);
          }
- 
+
          req.securityContext = callSecCtx;
          return next();
      }
- 
+
      get MainRouter(): express.Router {
          return this._mainRouter;
      }
- 
+
      private _handleUnauthorizedError(err: Error, res: express.Response): boolean {
          let handled = false;
          if (err instanceof UnauthorizedError) {
@@ -222,26 +221,26 @@
              });
              handled = true;
          }
- 
+
          return handled;
      }
- 
+
      private async _getAllParticipants(req: express.Request, res: express.Response): Promise<void> {
          try {
              const id = req.query.id as string || null;
              const name = req.query.name as string || null;
              const state = req.query.state as string || null;
- 
- 
+
+
              // optional pagination
              const pageIndexStr = req.query.pageIndex as string || req.query.pageindex as string;
              const pageIndex = pageIndexStr ? parseInt(pageIndexStr) : undefined;
- 
+
              const pageSizeStr = req.query.pageSize as string || req.query.pagesize as string;
              const pageSize = pageSizeStr ? parseInt(pageSizeStr) : undefined;
- 
+
              this._logger.debug("Fetching all participants");
- 
+
              const fetched:ParticipantSearchResults = await this._participantsAgg.searchParticipants(
                  req.securityContext!,
                  id,
@@ -250,11 +249,11 @@
                  pageIndex,
                  pageSize
              );
- 
+
              res.send(fetched);
          } catch (err: unknown) {
              if (this._handleUnauthorizedError((err as Error), res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -262,12 +261,12 @@
              });
          }
      }
- 
+
      private async _getParticipantsByIds(req: express.Request, res: express.Response): Promise<void> {
          const ids = req.params["ids"] ?? null;
          const idSplit: string[] = ids == null ? [] : ids.split(",");
          this._logger.debug(`Fetching Participant [${ids}].`);
- 
+
          try {
              const fetched = await this._participantsAgg.getParticipantsByIds(
                  req.securityContext!,
@@ -276,7 +275,7 @@
              res.send(fetched);
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -284,11 +283,11 @@
              });
          }
      }
- 
+
      private async _participantById(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          this._logger.debug(`Fetching Participant [${id}].`);
- 
+
          try {
              const fetched = await this._participantsAgg.getParticipantById(
                  req.securityContext!,
@@ -297,7 +296,7 @@
              res.send(fetched);
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -305,11 +304,11 @@
              });
          }
      }
- 
+
      private async _participantCreate(req: express.Request, res: express.Response): Promise<void> {
          const data: IParticipant = req.body;
          this._logger.debug(`Creating Participant [${JSON.stringify(data)}].`);
- 
+
          try {
              const createdId = await this._participantsAgg.createParticipant(
                  req.securityContext!,
@@ -321,7 +320,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantCreateValidationError) {
                  res.status(400).json({
                      status: "error",
@@ -337,14 +336,14 @@
              }
          }
      }
- 
+
      private async _participantApprove(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const actionNote: string | null = req.body?.note || null;
          this._logger.debug(
              `Received request to approve Participant with ID: ${id}.`
          );
- 
+
          try {
              await this._participantsAgg.approveParticipant(
                  req.securityContext!,
@@ -354,7 +353,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -362,16 +361,16 @@
              });
          }
      }
- 
-     
+
+
      /*
       * Contact Info
       * */
- 
+
      private async _contactInfoByParticipantId(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          this._logger.debug(`Fetching contacts for Participant [${id}].`);
- 
+
          try {
              const fetched = await this._participantsAgg.getContactInfoByParticipantId(
                  req.securityContext!,
@@ -380,7 +379,7 @@
              res.send(fetched);
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotFoundError) {
                  res.status(404).json({
                      status: "error",
@@ -395,14 +394,14 @@
              }
          }
      }
- 
+
      private async _participantContactInfoChangeRequestCreate(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const data: IParticipantContactInfoChangeRequest = req.body;
          this._logger.debug(
              `Received request to create contact information for participant with ID: ${id}.`
          );
- 
+
          try {
              const createdId = await this._participantsAgg.createParticipantContactInfoChangeRequest(
                  req.securityContext!,
@@ -414,7 +413,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -429,15 +428,15 @@
              }
          }
      }
- 
+
      private async _participantContactInfoChangeRequestApprove(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const changeRequestId = req.params["changereqid"] ?? null;
- 
+
          this._logger.debug(
              `Received request to approve contact info change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.approveParticipantContactInfoChangeRequest(
                  req.securityContext!,
@@ -447,7 +446,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -462,15 +461,15 @@
              }
          }
      }
- 
+
      private async _participantContactInfoChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const changeRequestId = req.params["changereqid"] ?? null;
- 
+
          this._logger.debug(
              `Received request to approve contact info change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.rejectParticipantContactInfoChangeRequest(
                  req.securityContext!,
@@ -480,7 +479,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -495,18 +494,18 @@
              }
          }
      }
- 
+
      /*
       * Participant Status
       * */
- 
+
      private async _participantStatusChangeRequestCreate(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const data: IParticipantStatusChangeRequest = req.body;
          this._logger.debug(
              `Received request to update the status of participant with ID: ${id}.`
          );
- 
+
          try {
              const createdId = await this._participantsAgg.createParticipantStatusChangeRequest(
                  req.securityContext!,
@@ -518,7 +517,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -533,14 +532,14 @@
              }
          }
      }
- 
+
      private async _participantStatusChangeRequestApprove(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const changeRequestId = req.params["changereqid"] ?? null;
          this._logger.debug(
              `Received request to approve status change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.approveParticipantStatusChangeRequest(
                  req.securityContext!,
@@ -550,7 +549,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -565,14 +564,14 @@
              }
          }
      }
- 
+
      private async _participantStatusChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const changeRequestId = req.params["changereqid"] ?? null;
          this._logger.debug(
              `Received request to reject status change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.rejectParticipantStatusChangeRequest(
                  req.securityContext!,
@@ -582,7 +581,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              this._logger.error(err);
                  res.status(500).json({
                      status: "error",
@@ -590,15 +589,15 @@
                  });
          }
      }
- 
+
      /*
       * Allowed Source Ips
       * */
- 
+
      private async _sourceIpsByParticipantId(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          this._logger.debug(`Fetching allowed sourceIps for Participant [${id}].`);
- 
+
          try {
              const fetched = await this._participantsAgg.getAllowedSourceIpsByParticipantId(
                  req.securityContext!,
@@ -607,7 +606,7 @@
              res.send(fetched);
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof NoAccountsError) {
                  res.status(404).json({
                      status: "error",
@@ -622,14 +621,14 @@
              }
          }
      }
- 
+
      private async _participantSourceIpChangeRequestCreate(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const data: IParticipantSourceIpChangeRequest = req.body;
          this._logger.debug(
              `Received request to create sourceIP record for participant with ID: ${id}.`
          );
- 
+
          try {
              const createdId = await this._participantsAgg.createParticipantSourceIpChangeRequest(
                  req.securityContext!,
@@ -641,7 +640,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -656,15 +655,15 @@
              }
          }
      }
- 
+
      private async _participantSourceIpChangeRequestApprove(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const changeRequestId = req.params["changereqid"] ?? null;
- 
+
          this._logger.debug(
              `Received request to approve sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.approveParticipantSourceIpChangeRequest(
                  req.securityContext!,
@@ -674,7 +673,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -689,15 +688,15 @@
              }
          }
      }
- 
+
      private async _participantSourceIpChangeRequestReject(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const changeRequestId = req.params["changereqid"] ?? null;
- 
+
          this._logger.debug(
              `Received request to reject sourceIP change request for participant with ID: ${id} and changeRequestId: ${changeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.rejectParticipantSourceIpChangeRequest(
                  req.securityContext!,
@@ -707,7 +706,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -722,15 +721,15 @@
              }
          }
      }
- 
+
      /*
       * Accounts
       * */
- 
+
      private async _accountsByParticipantId(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          this._logger.debug(`Fetching Accounts for Participant [${id}].`);
- 
+
          try {
              const fetched = await this._participantsAgg.getParticipantAccountsById(
                  req.securityContext!,
@@ -739,7 +738,7 @@
              res.send(fetched);
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof NoAccountsError) {
                  res.status(404).json({
                      status: "error",
@@ -754,14 +753,14 @@
              }
          }
      }
- 
+
      private async _participantAccountCreateChangeRequest(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const data: IParticipantAccountChangeRequest = req.body;
          this._logger.debug(
              `Received request to create participant account for participant with ID: ${id}.`
          );
- 
+
          try {
              const createdId = await this._participantsAgg.createParticipantAccountChangeRequest(
                  req.securityContext!,
@@ -773,7 +772,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -793,15 +792,15 @@
              }
          }
      }
- 
+
      private async _participantAccountApproveChangeRequest(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const accountChangeRequestId = req.params["changereqid"] ?? null;
- 
+
          this._logger.debug(
              `Received request to approve account change request for participant with ID: ${id} and accountChangeRequestId: ${accountChangeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.approveParticipantAccountChangeRequest(
                  req.securityContext!,
@@ -811,7 +810,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -826,15 +825,15 @@
              }
          }
      }
- 
+
      private async _participantAccountRejectChangeRequest(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const accountChangeRequestId = req.params["changereqid"] ?? null;
- 
+
          this._logger.debug(
              `Received request to reject account change request for participant with ID: ${id} and accountChangeRequestId: ${accountChangeRequestId}`
          );
- 
+
          try {
              await this._participantsAgg.rejectParticipantAccountChangeRequest(
                  req.securityContext!,
@@ -844,7 +843,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -859,18 +858,18 @@
              }
          }
      }
- 
+
      /* private async participantAccountDelete(req: express.Request, res: express.Response, next: express.NextFunction) {
           const id = req.params["id"] ?? null;
           const data: ParticipantAccount = req.body.source;
           this._logger.debug(`Removing Participant Account [${JSON.stringify(data)}] for [${id}].`);
- 
+
           try {
               await this._participantsAgg.removeParticipantAccount(req.securityContext!, id, data);
               res.send();
           } catch (err: any) {
              if(this._handleUnauthorizedError(err, res)) return;
- 
+
               this._logger.error(err);
               res.status(500).json({
                   status: "error",
@@ -878,16 +877,16 @@
               });
           }
       }*/
- 
+
      /*
       * Endpoints
       * */
- 
+
      private async _endpointsByParticipantId(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
- 
+
          this._logger.debug(`Fetching Endpoints for Participant [${id}].`);
- 
+
          try {
              const fetched = await this._participantsAgg.getParticipantEndpointsById(
                  req.securityContext!,
@@ -896,7 +895,7 @@
              res.send(fetched);
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof NoEndpointsError) {
                  res.status(404).json({
                      status: "error",
@@ -911,14 +910,14 @@
              }
          }
      }
- 
+
      private async _participantEndpointCreate(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const data: IParticipantEndpoint = req.body;
          this._logger.debug(
              `Creating Participant Endpoint [${JSON.stringify(data)}] for [${id}].`
          );
- 
+
          try {
              const endpointId = await this._participantsAgg.addParticipantEndpoint(
                  req.securityContext!,
@@ -930,7 +929,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -938,12 +937,12 @@
              });
          }
      }
- 
+
      private async _participantEndpointChange(req: express.Request, res: express.Response): Promise<void> {
          const participantId = req.params["id"] ?? null;
          const endpointId = req.params["endpointId"] ?? null;
          const data: IParticipantEndpoint = req.body;
- 
+
          if (endpointId !== data.id) {
              res.status(400).json({
                  status: "error",
@@ -951,11 +950,11 @@
              });
              return;
          }
- 
+
          this._logger.debug(
              `Changing endpoints for Participant [${participantId}].`
          );
- 
+
          try {
              await this._participantsAgg.changeParticipantEndpoint(
                  req.securityContext!,
@@ -965,7 +964,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof NoEndpointsError) {
                  res.status(404).json({
                      status: "error",
@@ -980,15 +979,15 @@
              }
          }
      }
- 
+
      private async _participantEndpointDelete(req: express.Request, res: express.Response): Promise<void> {
          const participantId = req.params["id"] ?? null;
          const endpointId = req.params["endpointId"] ?? null;
- 
+
          this._logger.debug(
              `Removing Participant Endpoint id: ${endpointId} from participant with ID: ${participantId}.`
          );
- 
+
          try {
              await this._participantsAgg.removeParticipantEndpoint(
                  req.securityContext!,
@@ -998,7 +997,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -1006,19 +1005,19 @@
              });
          }
      }
- 
+
      /*
       * Funds management
       * */
- 
+
      private async _participantFundsMovCreate(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const fundsMov: IParticipantFundsMovement = req.body;
- 
+
          this._logger.debug(
              `Received request to create a funds movement for participant with ID: ${id}`
          );
- 
+
          try {
              const createdId = await this._participantsAgg.createFundsMovement(
                  req.securityContext!,
@@ -1030,7 +1029,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1045,15 +1044,15 @@
              }
          }
      }
- 
+
      private async _participantFundsMovApprove(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const fundsMovId = req.params["fundsMovId"] ?? null;
- 
+
          this._logger.debug(
              `Received request to approve a funds movement for participant with ID: ${id} and fundsMovId: ${fundsMovId}`
          );
- 
+
          try {
              await this._participantsAgg.approveFundsMovement(
                  req.securityContext!,
@@ -1063,7 +1062,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1093,15 +1092,15 @@
              }
          }
      }
- 
+
      private async _participantFundsMovReject(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const fundsMovId = req.params["fundsMovId"] ?? null;
- 
+
          this._logger.debug(
              `Received request to reject a funds movement for participant with ID: ${id} and fundsMovId: ${fundsMovId}`
          );
- 
+
          try {
              await this._participantsAgg.rejectFundsMovement(
                  req.securityContext!,
@@ -1111,7 +1110,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1126,15 +1125,15 @@
              }
          }
      }
- 
+
      private async _participantNetDebitCapCreate(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const netDebitCapChangeRequest: IParticipantNetDebitCapChangeRequest = req.body;
- 
+
          this._logger.debug(
              `Received request to create an NDC for participant with ID: ${id}`
          );
- 
+
          try {
              const createdId = await this._participantsAgg.createParticipantNetDebitCap(
                  req.securityContext!,
@@ -1146,7 +1145,7 @@
              });
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1161,15 +1160,15 @@
              }
          }
      }
- 
+
      private async _participantNetDebitCapApprove(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const ndcReqId = req.params["ndcReqId"] ?? null;
- 
+
          this._logger.debug(
              `Received request to approve an NDC change request for participant with ID: ${id} and ndcReqId: ${ndcReqId}`
          );
- 
+
          try {
              await this._participantsAgg.approveParticipantNetDebitCap(
                  req.securityContext!,
@@ -1179,7 +1178,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1194,15 +1193,15 @@
              }
          }
      }
- 
+
      private async _participantNetDebitCapReject(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
          const ndcReqId = req.params["ndcReqId"] ?? null;
- 
+
          this._logger.debug(
              `Received request to reject an NDC change request for participant with ID: ${id} and ndcReqId: ${ndcReqId}`
          );
- 
+
          try {
              await this._participantsAgg.rejectParticipantNetDebitCap(
                  req.securityContext!,
@@ -1212,7 +1211,7 @@
              res.send();
          } catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              if (err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1227,20 +1226,20 @@
              }
          }
      }
- 
+
      private async _participantLiquidityCheckValidate(req: express.Request, res: express.Response): Promise<void> {
          this._logger.debug(
              "Received request to validate liquidity adjustment."
          );
- 
+
          try {
              if (!req.file) {
                  res.status(400).json({ error: "No file uploaded" });
                  return;
              }
- 
+
              const excelBuffer = req.file.buffer;
- 
+
              if(excelBuffer){
                  await this._extractDataFromExcel(excelBuffer).then(async (data)=> {
                      const result = await this._participantsAgg.liquidityCheckValidate(req.securityContext!, data);
@@ -1250,7 +1249,7 @@
          } catch (error: any) {
              this._logger.error(error);
              if (this._handleUnauthorizedError(error, res)) return;
- 
+
              if (error instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1265,28 +1264,28 @@
              }
          }
      }
- 
+
      //Function to read Excel file and extract data
      private async _extractDataFromExcel(buffer: Buffer): Promise<IParticipantLiquidityBalanceAdjustment[]> {
        const workbook = new ExcelJS.Workbook();
        await workbook.xlsx.load(buffer);
- 
+
        // Assuming that the data is in the first worksheet
        const worksheet = workbook.worksheets[0];
- 
+
        // Find the row index where Settlement ID is located
        let rowIndex = 1;
        while (rowIndex <= worksheet.rowCount && worksheet.getCell(rowIndex, 1).value !== "Settlement ID") {
          rowIndex++;
        }
- 
+
        // If Settlement ID is found, extract data from subsequent rows
        if (rowIndex < worksheet.rowCount) {
          const settlementId = worksheet.getCell(rowIndex, 2).value as string;
- 
+
          // Array to store extracted data
          const extractedData: IParticipantLiquidityBalanceAdjustment[] = [];
- 
+
          // Iterate over rows starting from the row after Settlement ID
          for (let i = rowIndex + 5; i <= worksheet.rowCount; i++) {
            const rowData: IParticipantLiquidityBalanceAdjustment = {
@@ -1302,16 +1301,16 @@
              settlementAccountId: "",
              isDuplicate: false,
            };
- 
+
            extractedData.push(rowData);
          }
- 
+
          return extractedData;
        } else {
          throw new Error("Settlement ID not found in the Excel file");
        }
      }
- 
+
      private async _participantLiquidityCheckRequestAdjustment(req: express.Request, res: express.Response): Promise<void> {
          this._logger.debug(
              "Received request to check and create liquidity adjustment."
@@ -1319,7 +1318,7 @@
          try {
              const ignoreDuplicate = (req.query.ignoreDuplicate !== undefined && (req.query.ignoreDuplicate as string).toUpperCase() === "TRUE");
              const liquidityBalanceAdjustments = req.body as IParticipantLiquidityBalanceAdjustment[];
- 
+
              const result = await this._participantsAgg.createLiquidityCheckRequestAdjustment(
                  req.securityContext!,
                  liquidityBalanceAdjustments,
@@ -1329,7 +1328,7 @@
          } catch (error: any) {
              this._logger.error(error);
              if (this._handleUnauthorizedError(error, res)) return;
- 
+
              if (error instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
@@ -1344,7 +1343,7 @@
              }
          }
      }
- 
+
      private async _getSearchKeywords(req: express.Request, res: express.Response){
          try{
              const ret = await this._participantsAgg.getSearchKeywords(
@@ -1353,7 +1352,7 @@
              res.send(ret);
          }   catch (err: any) {
              if (this._handleUnauthorizedError(err, res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -1361,19 +1360,19 @@
              });
          }
      }
- 
+
      private async _participantPendingApprovalsSummary(req: express.Request, res: express.Response): Promise<void> {
          try {
              this._logger.debug("Fetching pending approval summary");
- 
+
              const result = await this._participantsAgg.getPendingApprovalSummary(
                  req.securityContext!
              );
- 
+
              res.send(result);
          } catch (err: unknown) {
              if (this._handleUnauthorizedError((err as Error), res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -1381,20 +1380,20 @@
              });
          }
      }
- 
+
      private async _participantPendingApprovals(req: express.Request, res: express.Response): Promise<void> {
          try {
- 
+
              this._logger.debug("Fetching all pending approvals");
- 
+
              const pendingApprovals = await this._participantsAgg.getAllPendingApprovals(
                  req.securityContext!
              );
- 
+
              res.send(pendingApprovals);
          } catch (err: unknown) {
              if (this._handleUnauthorizedError((err as Error), res)) return;
- 
+
              this._logger.error(err);
              res.status(500).json({
                  status: "error",
@@ -1402,14 +1401,14 @@
              });
          }
      }
- 
+
      private async _participantApprovePendingApprovals(req: express.Request, res: express.Response): Promise<void> {
          try {
              this._logger.debug("Received request to approve bulk change requests.");
- 
+
              const pendingApprovals: IParticipantPendingApproval = req.body;
              const result = await this._participantsAgg.approveBulkPendingApprovalRequests(req.securityContext!, pendingApprovals);
- 
+
              res.send(result);
          } catch (err: unknown) {
              if (this._handleUnauthorizedError((err as Error), res)) return;
@@ -1420,14 +1419,14 @@
              });
          }
      }
-     
+
      private async _participantRejectPendingApprovals(req: express.Request, res: express.Response): Promise<void> {
          try {
              this._logger.debug("Received request to reject bulk change requests.");
- 
+
              const pendingApprovals: IParticipantPendingApproval = req.body;
              const result = await this._participantsAgg.rejectBulkPendingApprovalRequests(req.securityContext!, pendingApprovals);
- 
+
              res.send(result);
          } catch (err: unknown) {
              if (this._handleUnauthorizedError((err as Error), res)) return;
@@ -1438,28 +1437,11 @@
              });
          }
      }
- 
 
-     private async _participantCsrPendingRequestsGet(req: express.Request, res: express.Response): Promise<void> {
-         try {
-             this._logger.debug("Received request to get CSR requests.");
-
-             const csrRequests = await this._participantsAgg.getCSRPendingRequests(req.securityContext!);
-
-             res.send(csrRequests);
-         } catch (err: unknown) {
-             if (this._handleUnauthorizedError((err as Error), res)) return;
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: (err as Error).message,
-             });
-         }
-     }
 
      private async _participantCsrRequestCreate(req: express.Request, res: express.Response): Promise<void> {
          try {
-             this._logger.debug("Received request to create CSR request.");
+             this._logger.debug(`Received request to create CSR request: $[${JSON.stringify(req.body)}]`);
 
              if (!req.body.csr) {
                  res.status(400).json({
@@ -1471,9 +1453,9 @@
 
              const csrRequest = req.body.csr as string;
              const participantId = req.params["id"] ?? null;
-             const result = await this._participantsAgg.createCSRRequest(req.securityContext!, participantId, csrRequest);
+             const id = await this._participantsAgg.createCSRRequest(req.securityContext!, participantId, csrRequest);
 
-             res.send(result);
+             res.send(id);
          } catch (err: unknown) {
              if (this._handleUnauthorizedError((err as Error), res)) return;
              this._logger.error(err);
@@ -1481,7 +1463,7 @@
                  status: "error",
                  msg: (err as Error).message,
              });
- }
+         }
      }
 
      private async _participantCsrRequestApprove(req: express.Request, res: express.Response): Promise<void> {
@@ -1509,9 +1491,9 @@
 
             const csrId = req.params["csrId"];
             const participantId = req.params["id"] ?? null;
-            const result = await this._participantsAgg.rejectCSRRequest(req.securityContext!, participantId, csrId);
+            await this._participantsAgg.rejectCSRRequest(req.securityContext!, participantId, csrId);
 
-            res.send(result);
+            res.send();
         } catch (err: unknown) {
             if (this._handleUnauthorizedError((err as Error), res)) return;
             this._logger.error(err);
