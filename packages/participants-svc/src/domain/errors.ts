@@ -81,3 +81,5 @@ export class DuplicateRequestFoundError extends Error {}
 
 export class CSRRequestNotFoundError extends Error {}
 export class CSRRequestAlreadyProcessed extends Error {}
+export class CertificateNotFoundError extends Error {}
+export class CertificateAlreadyRevokedError extends Error {}

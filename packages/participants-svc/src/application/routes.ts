@@ -167,6 +167,7 @@
         this._mainRouter.post("/participants/:id/certificates/csr", this._participantCsrRequestCreate.bind(this));
         this._mainRouter.post("/participants/:id/certificates/csr/:csrId/approve", this._participantCsrRequestApprove.bind(this));
         this._mainRouter.post("/participants/:id/certificates/csr/:csrId/reject", this._participantCsrRequestReject.bind(this));
+
      }
 
      private async _authenticationMiddleware(

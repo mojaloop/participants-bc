@@ -86,6 +86,7 @@ export declare interface IParticipant {
 
 export declare interface IParticipantCSRRequest {
     csrId: string; // CSR ID from the security-bc
+    subject: string;
     requestState: ApprovalRequestState;
     createdBy: string;
     createdDate: number;
@@ -97,8 +98,13 @@ export declare interface IParticipantCSRRequest {
 
 export declare interface IParticipantCertificate {
     certId: string; // certificate ID in the security bounded context
-    keyFingerprint: string; // Key fingerprint from the security-bc
+    fingerprint: string; // fingerprint of the certificate
+    subject: string;
+    validFrom: string;
+    validTo: string;
+    createdBy: string;
     usedFor: "MTLS" | "JWS" | "JWE"     // how keypair is used for
+    createdDate: number;
 }
 
 export declare interface IParticipantNetDebitCap {
