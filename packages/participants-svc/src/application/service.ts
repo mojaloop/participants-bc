@@ -211,7 +211,8 @@ export class Service {
             configProvider = new DefaultConfigProvider(logger, authRequester, messageConsumer);
         }
 
-        this.configClient = GetParticipantsConfigs(configProvider, BC_NAME, APP_NAME, APP_VERSION);
+        this.configClient = GetParticipantsConfigs(BC_NAME, configProvider);
+
         await this.configClient.init();
         await this.configClient.bootstrap(true);
         await this.configClient.fetch();
@@ -250,8 +251,10 @@ export class Service {
 
             // setup privileges - bootstrap app privs and get priv/role associations
             authorizationClient = new AuthorizationClient(
-                BC_NAME, APP_NAME, APP_VERSION,
-                AUTH_Z_SVC_BASEURL, logger.createChild("AuthorizationClient"),
+                BC_NAME, 
+                APP_VERSION,
+                AUTH_Z_SVC_BASEURL, 
+                logger.createChild("AuthorizationClient"),
                 authRequester,
                 messageConsumer
             );

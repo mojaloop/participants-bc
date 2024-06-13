@@ -327,7 +327,7 @@
              {
                  userId: userAndRole,
                  role: userAndRole,
-                 appId: this._configClient.applicationName,
+                 appId: this._configClient.boundedContextName,
              },
              [{ key: "participantId", value: hubParticipant.id }]
          );
