@@ -82,7 +82,7 @@ import crypto from "crypto";
 
 const APP_NAME = "participants-svc";
 const BC_NAME = "participants-bc";
-const APP_VERSION = packageJSON.version;
+const BC_VERSION = packageJSON.version;
 const PRODUCTION_MODE = process.env["PRODUCTION_MODE"] || false;
 const LOG_LEVEL: LogLevel = process.env["LOG_LEVEL"] as LogLevel || LogLevel.DEBUG;
 
@@ -189,7 +189,7 @@ export class Service {
             logger = new KafkaLogger(
                 BC_NAME,
                 APP_NAME,
-                APP_VERSION,
+                BC_VERSION,
                 kafkaProducerOptions,
                 KAFKA_LOGS_TOPIC,
                 LOG_LEVEL
@@ -211,7 +211,8 @@ export class Service {
             configProvider = new DefaultConfigProvider(logger, authRequester, messageConsumer);
         }
 
-        this.configClient = GetParticipantsConfigs(configProvider, BC_NAME, APP_NAME, APP_VERSION);
+        this.configClient = GetParticipantsConfigs(BC_NAME, configProvider);
+
         await this.configClient.init();
         await this.configClient.bootstrap(true);
         await this.configClient.fetch();
@@ -229,7 +230,7 @@ export class Service {
             const cryptoProvider = new LocalAuditClientCryptoProvider(AUDIT_KEY_FILE_PATH);
             const auditDispatcher = new KafkaAuditClientDispatcher(kafkaProducerOptions, KAFKA_AUDITS_TOPIC, auditLogger);
             // NOTE: to pass the same kafka logger to the audit client, make sure the logger is started/initialised already
-            auditClient = new AuditClient(BC_NAME, APP_NAME, APP_VERSION, cryptoProvider, auditDispatcher);
+            auditClient = new AuditClient(BC_NAME, APP_NAME, BC_VERSION, cryptoProvider, auditDispatcher);
             await auditClient.init();
         }
         this.auditClient = auditClient;
@@ -250,8 +251,10 @@ export class Service {
 
             // setup privileges - bootstrap app privs and get priv/role associations
             authorizationClient = new AuthorizationClient(
-                BC_NAME, APP_NAME, APP_VERSION,
-                AUTH_Z_SVC_BASEURL, logger.createChild("AuthorizationClient"),
+                BC_NAME, 
+                BC_VERSION,
+                AUTH_Z_SVC_BASEURL, 
+                logger.createChild("AuthorizationClient"),
                 authRequester,
                 messageConsumer
             );
@@ -288,7 +291,7 @@ export class Service {
             const labels: Map<string, string> = new Map<string, string>();
             labels.set("bc", BC_NAME);
             labels.set("app", APP_NAME);
-            labels.set("version", APP_VERSION);
+            labels.set("version", BC_VERSION);
             PrometheusMetrics.Setup({prefix:"", defaultLabels: labels}, this.logger);
             metrics = PrometheusMetrics.getInstance();
         }
@@ -383,7 +386,7 @@ export class Service {
 
             this.expressServer = this.app.listen(portNum, () => {
                 this.logger.info(`🚀 Server ready at port: ${portNum}`);
-                this.logger.info(`Participants service v: ${APP_VERSION} started`);
+                this.logger.info(`Participants service v: ${BC_VERSION} started`);
                 resolve();
             });
         });
