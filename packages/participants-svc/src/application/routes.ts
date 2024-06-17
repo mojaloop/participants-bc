@@ -67,7 +67,7 @@
      CallSecurityContext,
      ITokenHelper,
  } from "@mojaloop/security-bc-public-types-lib";
- import { ParticipantSearchResults } from "../domain/server_types";
+ import { ParticipantSearchResults } from "@mojaloop/participant-bc-public-types-lib";
  import multer from "multer";
  import ExcelJS from "exceljs";
  

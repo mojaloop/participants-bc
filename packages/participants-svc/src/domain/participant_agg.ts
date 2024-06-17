@@ -115,7 +115,7 @@
  import {ParticipantPrivilegeNames} from "./privilege_names";
  import {IParticipantsRepository} from "./repo_interfaces";
  import {IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
- import { ParticipantSearchResults, BulkApprovalRequestResults } from "./server_types";
+ import { ParticipantSearchResults, BulkApprovalRequestResults } from "@mojaloop/participant-bc-public-types-lib";
  
  enum AuditedActionNames {
      PARTICIPANT_CREATED = "PARTICIPANT_CREATED",

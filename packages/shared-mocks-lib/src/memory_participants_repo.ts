@@ -30,9 +30,8 @@
 
 import { IParticipantsRepository } from "@mojaloop/participants-bc-participants-svc/src/domain/repo_interfaces";
 import { 
-    IParticipant
+    IParticipant, ParticipantSearchResults
 } from "@mojaloop/participant-bc-public-types-lib";
-import { ParticipantSearchResults } from "@mojaloop/participants-bc-participants-svc/src/domain/server_types";
 import { mockedParticipantHub } from "./mocked_data";
 
 
