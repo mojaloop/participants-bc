@@ -22,11 +22,16 @@
  * Coil
  - Jason Bruwer <jason.bruwer@coil.com>
 
+ * Arg Software
+ - José Antunes <jose.antunes@arg.software>
+ - Rui Rocha <rui.rocha@arg.software>
+
  --------------
  ******/
 
 "use strict";
 
+import crypto from "crypto";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {
     IParticipant,
@@ -35,8 +40,17 @@ import {
 import {
     UnableToGetParticipantsError,
 } from "./errors";
-import {IAuthenticatedHttpRequester} from "@mojaloop/security-bc-public-types-lib";
+import { IAuthenticatedHttpRequester } from "@mojaloop/security-bc-public-types-lib";
 import { ParticipantSearchResults } from "@mojaloop/participants-bc-participants-svc/src/domain/server_types";
+import {
+    IMessage,
+    IMessageConsumer,
+    MessageTypes
+} from "@mojaloop/platform-shared-lib-messaging-types-lib";
+import { 
+    ParticipantChangedEvt,
+    ParticipantsBCTopics
+} from "@mojaloop/platform-shared-lib-public-messages-lib";
 
 // default 1 minute cache
 const DEFAULT_CACHE_TIMEOUT_MS = 1*60*1000;
@@ -48,25 +62,76 @@ export class ParticipantsHttpClient {
     private readonly _baseUrlHttpService: string;
     private readonly _authRequester: IAuthenticatedHttpRequester;
     private readonly _cacheTimeoutMs: number;
+    private readonly _messageConsumer:IMessageConsumer | null;
 
     private _participantsCache: Map<string, { participant: IParticipant, timestamp: number }> = new Map<string, {
         participant: IParticipant;
         timestamp: number
     }>();
+    
+    private _refreshTimer: NodeJS.Timeout | null = null;
 
     constructor(
         logger: ILogger,
         baseUrlHttpService: string,
         authRequester: IAuthenticatedHttpRequester,
-        cacheTimeoutMs: number = DEFAULT_CACHE_TIMEOUT_MS
+        cacheTimeoutMs: number = DEFAULT_CACHE_TIMEOUT_MS,
+        messageConsumer:IMessageConsumer|null = null
     ) {
         this._logger = logger.createChild(this.constructor.name);
         this._baseUrlHttpService = baseUrlHttpService;
         this._authRequester = authRequester;
         this._cacheTimeoutMs = cacheTimeoutMs;
+        this._messageConsumer = messageConsumer;
     }
 
-    async _cacheSet(arg:IParticipant):Promise<void>{
+    async init(): Promise<void> {
+        this._logger.info("Initializing ParticipantsHttpClient");
+        try {
+            const allParticipants = await this.getAllParticipants();
+            this._logger.info(`Fetched and cached ${allParticipants.items.length} participants.`);
+            this._startRefreshTimer();
+
+            if(this._messageConsumer){
+                this._messageConsumer.setTopics([ParticipantsBCTopics.DomainEvents]);
+                this._messageConsumer.setCallbackFn(this._messageHandler.bind(this));
+                await this._messageConsumer.connect();
+                await this._messageConsumer.startAndWaitForRebalance();
+            }
+
+            this._logger.info("Initialized ParticipantsHttpClient completed");
+
+        } catch (e) {
+            this._logger.error("Failed to initialize ParticipantsHttpClient", e);
+            throw e;
+        }
+    }
+
+
+    async destroy(): Promise<void> {
+        this._logger.info("Destroying ParticipantsHttpClient");
+        try {
+            if(this._refreshTimer) {
+                clearInterval(this._refreshTimer);
+            }
+            this._logger.info("ParticipantsHttpClient destroy completed");
+        } catch (e) {
+            this._logger.error("Failed to destroy ParticipantsHttpClient", e);
+            throw e;
+        }
+    }
+
+    private _startRefreshTimer(): void {
+        if (this._refreshTimer) {
+            clearTimeout(this._refreshTimer);
+        }
+
+        this._refreshTimer = setInterval(() => {
+            this.refreshParticipants().catch(err => this._logger.error("Failed to refresh participants", err));
+        }, this._cacheTimeoutMs);
+    }
+
+    async _cacheSet(arg:IParticipant|IParticipant[]):Promise<void>{
         const now = Date.now();
         if(Array.isArray(arg)){
             for(const item of arg){
@@ -76,6 +141,7 @@ export class ParticipantsHttpClient {
             this._participantsCache.set(arg.id, {participant:arg, timestamp:now});
         }
     }
+
     async _cacheGet(id:string):Promise<IParticipant|null>{
         const found = this._participantsCache.get(id);
         if(!found) return null;
@@ -89,14 +155,17 @@ export class ParticipantsHttpClient {
     }
 
     async getAllParticipants(): Promise<ParticipantSearchResults> {
-        // not cacheable
         try {
             const url = new URL("/participants", this._baseUrlHttpService).toString();
             const resp = await this._authRequester.fetch(url);
 
             if(resp.status === 200){
-                const data = await resp.json();
-                await this._cacheSet(data);
+                const data:ParticipantSearchResults = await resp.json();
+
+                for (const participant of data.items) {
+                    await this._cacheSet(participant);
+                }
+
                 return data;
             }
 
@@ -131,30 +200,41 @@ export class ParticipantsHttpClient {
             return participants;
         }
 
-        try {
-            const url = new URL(
-                `/participants/${notFoundIds.join(",")}/multi`,
-                this._baseUrlHttpService
-            ).toString();
-            const resp = await this._authRequester.fetch(url);
+        const maxRetries = 3;
+        const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+        
+        for(let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const url = new URL(
+                    `/participants/${notFoundIds.join(",")}/multi`,
+                    this._baseUrlHttpService
+                ).toString();
+                const resp = await this._authRequester.fetch(url);
 
-            if(resp.status === 200){
-                const data = await resp.json();
-                await this._cacheSet(data);
-                participants.push(...data);
-                return participants;
+                if(resp.status === 200){
+                    const data: IParticipant[] = await resp.json();
+                    await this._cacheSet(data);
+                    participants.push(...data);
+                    return participants;
+                }
+
+                if (resp.status == 404) {
+                    return participants;
+                }
+
+                throw new UnableToGetParticipantsError();
+            } catch (e: unknown) {
+                if (attempt < maxRetries - 1) {
+                    this._logger.warn(`Attempt ${attempt + 1} to fetch participants failed. Retrying...`);
+                    await delay(500 * Math.pow(2, attempt));
+                } else {
+                    this._logger.error("Failed to fetch participants after multiple retries", e);
+                    if (e instanceof Error) throw e;
+                    throw new UnableToGetParticipantsError();
+                }
             }
-
-            if (resp.status == 404) {
-                return [];
-            }
-
-            throw new UnableToGetParticipantsError();
-        } catch (e: unknown) {
-            if (e instanceof Error) throw e;
-            // handle everything else
-            throw new UnableToGetParticipantsError();
         }
+        return participants;
     }
 
     async getParticipantById(participantId: string): Promise<IParticipant | null> {
@@ -211,6 +291,52 @@ export class ParticipantsHttpClient {
             // handle everything else
             throw new UnableToGetParticipantsError();
         }
+    }
+
+    async refreshParticipants(): Promise<string[]> {
+        const expiredParticipantIds: string[] = [];
+        const now = Date.now();
+
+        for (const [id, { timestamp }] of this._participantsCache.entries()) {
+            if (now - timestamp > this._cacheTimeoutMs) {
+                expiredParticipantIds.push(id);
+                this._participantsCache.delete(id);
+            }
+        }
+
+        if (expiredParticipantIds.length > 0) {
+            try {
+                await this.getParticipantsByIds(expiredParticipantIds);
+            } catch (error) {
+                this._logger.error("Failed to refresh participants from remote", error);
+            }
+        }
+
+        return expiredParticipantIds;
+    }
+
+    private async _messageHandler(message:IMessage):Promise<void>{
+        if(message.msgType !== MessageTypes.DOMAIN_EVENT) return;
+        if(message.msgName !== ParticipantChangedEvt.name) return;
+
+        // for now, simply fetch everything
+        this._logger.info("ParticipantChangedEvt received, fetching updated Role privileges associations...");
+
+        // randomize wait time, so we don't have all clients fetching at the exact same time
+        setTimeout(async () => {
+            const participantChangedEvt = message as ParticipantChangedEvt;
+
+            try {
+                const participantId = participantChangedEvt.payload.participantId;
+                const updatedParticipant = await this.getParticipantById(participantId);
+
+                if (updatedParticipant) {
+                    this._logger.info(`Updated participant with ID ${participantId} cached successfully.`);
+                }
+            } catch (error) {
+                this._logger.error("Failed to update participant cache from event", error);
+            }
+        }, crypto.randomInt(0, 5000));
     }
 
 }
