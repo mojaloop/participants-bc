@@ -31,7 +31,7 @@
 "use strict";
 
 import { IParticipant } from "@mojaloop/participant-bc-public-types-lib";
-import { ParticipantSearchResults } from "./server_types";
+import { ParticipantSearchResults } from "@mojaloop/participant-bc-public-types-lib";
 
 export interface IParticipantsRepository {
     init(): Promise<void>;

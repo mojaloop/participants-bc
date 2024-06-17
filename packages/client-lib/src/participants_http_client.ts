@@ -41,7 +41,7 @@ import {
     UnableToGetParticipantsError,
 } from "./errors";
 import { IAuthenticatedHttpRequester } from "@mojaloop/security-bc-public-types-lib";
-import { ParticipantSearchResults } from "@mojaloop/participants-bc-participants-svc/src/domain/server_types";
+import { ParticipantSearchResults } from "@mojaloop/participant-bc-public-types-lib";
 import {
     IMessage,
     IMessageConsumer,
@@ -112,7 +112,14 @@ export class ParticipantsHttpClient {
         this._logger.info("Destroying ParticipantsHttpClient");
         try {
             if(this._refreshTimer) {
+                this._logger.info("Clearing refresh timer interval");
                 clearInterval(this._refreshTimer);
+            }
+
+
+            if (this._messageConsumer) {
+                this._logger.info("Tearing down message consumer");
+                await this._messageConsumer.destroy(true);
             }
             this._logger.info("ParticipantsHttpClient destroy completed");
         } catch (e) {

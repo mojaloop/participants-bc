@@ -34,7 +34,7 @@ import {IParticipantsRepository} from "../domain/repo_interfaces";
 import {IParticipant} from "@mojaloop/participant-bc-public-types-lib";
 import {ILogger} from "@mojaloop/logging-bc-public-types-lib";
 import {Collection, MongoClient} from "mongodb";
-import { ParticipantSearchResults } from "../domain/server_types";
+import { ParticipantSearchResults } from "@mojaloop/participant-bc-public-types-lib";
 
 const MAX_ENTRIES_PER_PAGE = 100;
 

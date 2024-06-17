@@ -256,3 +256,16 @@ export declare interface IParticipantPendingApproval {
   contactInfoChangeRequests: (IParticipantContactInfoChangeRequest & { participantId: string; participantName: string })[];
   statusChangeRequests: (IParticipantStatusChangeRequest & { participantId: string; participantName: string })[];
 }
+
+export declare type ParticipantSearchResults = {
+  pageSize: number;
+  totalPages: number;
+  pageIndex: number;
+  items: IParticipant[];
+}
+
+export declare type BulkApprovalRequestResults = {
+  reqId: string;
+  status: "success" | "error";
+  message: string;
+}
