@@ -30,7 +30,7 @@
  
 import { ConsoleLogger, ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import { IAuthenticatedHttpRequester } from "@mojaloop/security-bc-public-types-lib";
-import { ParticipantsHttpClient } from "../../src/participants_http_client";
+import { ParticipantsHttpClient } from "../../src/index";
 import { mockedParticipant1, mockedParticipant2, MemoryMessageConsumer } from "@mojaloop/participants-bc-shared-mocks-lib";
 import {
     IMessage,
@@ -40,7 +40,6 @@ import {
 import { ParticipantChangedEvt } from "@mojaloop/platform-shared-lib-public-messages-lib";
 import { UnableToGetParticipantsError } from "../../src/errors";
 
-// Mock ILogger and IAuthenticatedHttpRequester for testing
 const mockLogger: ILogger = new ConsoleLogger();
 
 type MockedIAuthenticatedHttpRequester = IAuthenticatedHttpRequester & {

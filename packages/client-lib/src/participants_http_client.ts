@@ -127,6 +127,7 @@ export class ParticipantsHttpClient {
         }
 
         this._refreshTimer = setInterval(() => {
+            /* istanbul ignore next */
             this.refreshParticipants().catch(err => this._logger.error("Failed to refresh participants", err));
         }, this._cacheTimeoutMs);
     }
