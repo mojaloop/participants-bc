@@ -122,7 +122,7 @@ export declare interface IParticipantFundsMovement {
   type: ParticipantFundsMovementTypes;
   currencyCode: string;
   amount: string;
-  transferId: string | null;
+  journalEntryId: string | null;
   extReference: string | null;
   note: string | null;
 }
