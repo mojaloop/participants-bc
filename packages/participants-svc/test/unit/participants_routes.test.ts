@@ -1619,7 +1619,7 @@ describe("Participants Routes - Unit Test", () => {
             type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
-            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
             extReference: null,
             note: null
         }
@@ -1653,7 +1653,7 @@ describe("Participants Routes - Unit Test", () => {
             type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
-            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
             extReference: null,
             note: null
         }
@@ -1693,7 +1693,7 @@ describe("Participants Routes - Unit Test", () => {
             type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
-            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
             extReference: null,
             note: null
         }
@@ -1733,7 +1733,7 @@ describe("Participants Routes - Unit Test", () => {
                 type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                 currencyCode: "USD",
                 amount: "15000",
-                transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
                 extReference: null,
                 note: null
             }]
@@ -1770,7 +1770,7 @@ describe("Participants Routes - Unit Test", () => {
                     type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "15000",
-                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
                     extReference: null,
                     note: null
                 }
@@ -1814,7 +1814,7 @@ describe("Participants Routes - Unit Test", () => {
             type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
             currencyCode: "USD",
             amount: "15000",
-            transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+            journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
             extReference: null,
             note: null
         }
@@ -2461,7 +2461,7 @@ describe("Participants Routes - Unit Test", () => {
                     type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "1000",
-                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
+                    journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
                     extReference: null,
                     note: null,
                     participantId: "1",
@@ -2601,7 +2601,7 @@ describe("Participants Routes - Unit Test", () => {
                     type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "1000",
-                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
+                    journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1b3",
                     extReference: null,
                     note: null,
                     participantId: "1",
@@ -3032,7 +3032,7 @@ describe("Participants Routes - Unit Test", () => {
                     type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "200000",
-                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
                     extReference: null,
                     note: null
                 }
@@ -3074,7 +3074,7 @@ describe("Participants Routes - Unit Test", () => {
                     type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "200000",
-                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
                     extReference: null,
                     note: null
                 }
@@ -3111,7 +3111,7 @@ describe("Participants Routes - Unit Test", () => {
                     type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
                     currencyCode: "USD",
                     amount: "200000",
-                    transferId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
+                    journalEntryId: "0bc1f9cc-2ad1-4606-8aec-ed284563d1a3",
                     extReference: null,
                     note: null
                 }

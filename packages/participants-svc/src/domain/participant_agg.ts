@@ -3112,8 +3112,7 @@
          const now = Date.now();
  
          for (const participant of participants) {
-             if (!participant.netDebitCaps || participant.netDebitCaps.length <= 0) continue;
- 
+             if (participant.netDebitCaps?.length >= 0) {
              let changed = false;
  
              for (const ndcDefinition of participant.netDebitCaps) {
@@ -3127,7 +3126,7 @@
                  if (!abAccount) {
                      throw new Error(`Cannot get participant account with id: ${partAccount.id} from accounts and balaces for _updateNdcForParticipants()`);
                  }
- 
+
                  ndcDefinition.currentValue = this._calculateNdcAmount(
                      ndcDefinition.currentValue,
                      ndcDefinition.percentage,
@@ -3136,20 +3135,21 @@
                  );
                  changed = true;
              }
- 
+
              if (!changed) continue;
- 
+
              participant.changeLog.push({
                  changeType: ParticipantChangeTypes.NDC_RECALCULATED,
                  user: this._systemActorName,
                  timestamp: now,
                  notes: "NDC recalculated - for: " + reason,
              });
- 
-             await this._repo.store(participant);
- 
+
              this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
- 
+            }
+            
+             await this._repo.store(participant);
+
              //create event for NDC recalculated
              const payload: ParticipantChangedEvtPayload = {
                  participantId: participant.id,
