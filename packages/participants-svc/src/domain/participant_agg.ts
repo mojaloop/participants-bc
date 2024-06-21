@@ -2401,7 +2401,7 @@
              rejectedDate: null,
              approvedBy: null,
              approvedDate: null,
-             transferId: null,
+             journalEntryId: null,
          });
  
          const updateSuccess = await this._repo.store(participant);
@@ -2530,7 +2530,7 @@
          const now = Date.now();
  
          this._accBal.setToken(secCtx.accessToken);
-         fundsMov.transferId = await this._accBal.createJournalEntry(
+         fundsMov.journalEntryId = await this._accBal.createJournalEntry(
              randomUUID(),
              fundsMov.id,
              fundsMov.currencyCode,
@@ -2955,6 +2955,9 @@
             creditedAccountId: string
         }[] = [];
 
+        // Map to store the relationship between requestedId and fundMovement
+        const requestedIdToFundMov: Record<string, IParticipantFundsMovement> = {};
+
         for (const participantItem of msg.payload.participantList) {
             const participant = participants.find(participant => participant.id === participantItem.participantId);
             if (!participant) throw retParticipantsNotFoundError();
@@ -2971,9 +2974,10 @@
 
             const now = Date.now();
             if (Number(participantItem.settledCreditBalance) > 0) {
+                const requestedId = randomUUID();
 
                 ledgerEntriesToCreate.push({
-                    requestedId: randomUUID(),
+                    requestedId: requestedId,
                     ownerId: msg.payload.settlementMatrixId,
                     currencyCode: participantItem.currencyCode,
                     amount: participantItem.settledCreditBalance,
@@ -2994,7 +2998,7 @@
                     type: ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_CREDIT,
                     currencyCode:  participantItem.currencyCode,
                     amount:  participantItem.settledCreditBalance,
-                    transferId: null,
+                    journalEntryId: null,
                     extReference: msg.payload.settlementMatrixId,
                     note: msg.payload.settlementMatrixId
                 };
@@ -3008,13 +3012,15 @@
                 });
 
                 participant.fundsMovements.push(fundMov);
+                requestedIdToFundMov[requestedId] = fundMov;
             }
 
             // if we got a debit -> debit liquidity and credit position
             if (Number(participantItem.settledDebitBalance) > 0) {
+                const requestedId = randomUUID();
 
                 ledgerEntriesToCreate.push({
-                    requestedId: randomUUID(),
+                    requestedId: requestedId,
                     ownerId: msg.payload.settlementMatrixId,
                     currencyCode: participantItem.currencyCode,
                     amount: participantItem.settledDebitBalance,
@@ -3035,7 +3041,7 @@
                     type: ParticipantFundsMovementTypes.MATRIX_SETTLED_AUTOMATIC_ADJUSTMENT_DEBIT,
                     currencyCode:  participantItem.currencyCode,
                     amount:  participantItem.settledDebitBalance,
-                    transferId: null,
+                    journalEntryId: null,
                     extReference: msg.payload.settlementMatrixId,
                     note: msg.payload.settlementMatrixId
                 };
@@ -3049,6 +3055,7 @@
                 });
 
                 participant.fundsMovements.push(fundMov);
+                requestedIdToFundMov[requestedId] = fundMov;
             }
         }
 
@@ -3064,6 +3071,15 @@
             const error = new Error("List of created ledger entries ids, doesn't match request to create in handleSettlementMatrixSettledEvt()");
             this._logger.error(error);
             throw error;
+        }
+
+        // Update journalEntryId in fundMovements
+        for (let i = 0; i < ledgerEntriesToCreate.length; i++) {
+            const { requestedId } = ledgerEntriesToCreate[i];
+            const fundMov = requestedIdToFundMov[requestedId];
+            if (fundMov) {
+                fundMov.journalEntryId = respIds[i];
+            }
         }
 
         for (const participantIdObj of msg.payload.participantList) {
@@ -3096,8 +3112,7 @@
          const now = Date.now();
  
          for (const participant of participants) {
-             if (!participant.netDebitCaps || participant.netDebitCaps.length <= 0) continue;
- 
+             if (participant.netDebitCaps?.length >= 0) {
              let changed = false;
  
              for (const ndcDefinition of participant.netDebitCaps) {
@@ -3111,7 +3126,7 @@
                  if (!abAccount) {
                      throw new Error(`Cannot get participant account with id: ${partAccount.id} from accounts and balaces for _updateNdcForParticipants()`);
                  }
- 
+
                  ndcDefinition.currentValue = this._calculateNdcAmount(
                      ndcDefinition.currentValue,
                      ndcDefinition.percentage,
@@ -3120,20 +3135,21 @@
                  );
                  changed = true;
              }
- 
+
              if (!changed) continue;
- 
+
              participant.changeLog.push({
                  changeType: ParticipantChangeTypes.NDC_RECALCULATED,
                  user: this._systemActorName,
                  timestamp: now,
                  notes: "NDC recalculated - for: " + reason,
              });
- 
-             await this._repo.store(participant);
- 
+
              this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
- 
+            }
+            
+             await this._repo.store(participant);
+
              //create event for NDC recalculated
              const payload: ParticipantChangedEvtPayload = {
                  participantId: participant.id,
@@ -3347,7 +3363,7 @@
                      type: obj.type as ParticipantFundsMovementTypes,
                      currencyCode: obj.currencyCode,
                      amount: obj.updateAmount ?? "0",
-                     transferId: null,
+                     journalEntryId: null,
                      extReference: obj.matrixId,
                      note: `LiquidityBalanceAdjustments for matrixId:${obj.matrixId}`
                  };
