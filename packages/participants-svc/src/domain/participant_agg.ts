@@ -3136,16 +3136,18 @@
                  changed = true;
              }
 
-             if (!changed) continue;
+             if(changed){
+                participant.changeLog.push({
+                    changeType: ParticipantChangeTypes.NDC_RECALCULATED,
+                    user: this._systemActorName,
+                    timestamp: now,
+                    notes: "NDC recalculated - for: " + reason,
+                });
+   
+                this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
+             }
 
-             participant.changeLog.push({
-                 changeType: ParticipantChangeTypes.NDC_RECALCULATED,
-                 user: this._systemActorName,
-                 timestamp: now,
-                 notes: "NDC recalculated - for: " + reason,
-             });
-
-             this._logger.info(`Participant id: ${participant.id} NDC recalculated - for: ${reason}`);
+             
             }
             
              await this._repo.store(participant);
