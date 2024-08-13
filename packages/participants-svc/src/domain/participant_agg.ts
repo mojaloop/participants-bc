@@ -3268,13 +3268,15 @@ import { bigintToString, stringToBigint } from "./converters";
                 const bankBalanceBigInt = stringToBigint(obj.bankBalance, currencyDecimals);
                 const settlementAccountBalanceBigInt = stringToBigint(settlementAccount.balance, currencyDecimals);
 
-                 const amount = bankBalanceBigInt - settlementAccountBalanceBigInt;
-                 obj.updateAmount = bigintToString(amount, currencyDecimals);
-                 if (amount > 0) {
-                    obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT;//Deposit
-                 } else {
-                    obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT;//Withdrwal
-                 }
+                const amount = bankBalanceBigInt - settlementAccountBalanceBigInt;
+
+                const absAmount = amount < 0 ? -amount : amount;
+                obj.updateAmount = bigintToString(absAmount, currencyDecimals);
+                if (amount > 0) {
+                   obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT;//Deposit
+                } else {
+                   obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT;//Withdrwal
+                }
              }
  
  
