@@ -28,7 +28,7 @@
 
 export function stringToBigint(stringValue: string, decimals: number): bigint {
     const num = Number(stringValue);
-    const floatNum = num * (10**decimals);
+    const floatNum = +(num * (10**decimals)).toFixed(8);
     const intNum = Math.trunc(floatNum);
     if(intNum != floatNum)
         throw new Error("Provided string number has more decimals than the decimals param, stringToBigint() would lose precision");
