@@ -2724,13 +2724,13 @@
 
      }
 
-     private _calculateNdcAmount(ndcFixed: number, ndcPercentage: number | null, liqAccBalance: number, type: "ABSOLUTE" | "PERCENTAGE"): number {
+     private _calculateNdcAmount(ndcFixed: number, ndcPercentage: number | null, liqAccBalance: number, currencyDecimals: number, type: "ABSOLUTE" | "PERCENTAGE"): number {
          let finalNDCAmount: number;
          if (type === ParticipantNetDebitCapTypes.ABSOLUTE && ndcFixed !== null) {
              finalNDCAmount = Math.max(ndcFixed, 0); // min is 0
          } else if (type === ParticipantNetDebitCapTypes.PERCENTAGE && ndcPercentage !== null) {
              // we cannot have negative NDC value, if the current value is <0, then NDC is 0
-             finalNDCAmount = Math.max(Math.floor((ndcPercentage / 100) * liqAccBalance), 0);
+             finalNDCAmount = Math.max(parseFloat(((ndcPercentage / 100) * liqAccBalance).toFixed(currencyDecimals)), 0);
          } else {
              throw new InvalidNdcChangeRequest("Invalid participant's NDC definition");
          }
@@ -3127,13 +3127,19 @@
                      throw new Error(`Cannot get participant account with id: ${partAccount.id} from accounts and balaces for _updateNdcForParticipants()`);
                  }
 
-                 ndcDefinition.currentValue = this._calculateNdcAmount(
-                     ndcDefinition.currentValue,
-                     ndcDefinition.percentage,
-                     Math.min(Number(abAccount.balance ?? 0)),
-                     ndcDefinition.type
-                 );
-                 changed = true;
+                const currencyDecimals = this._currencyList.find((value: Currency) => value.code === ndcDefinition.currencyCode)?.decimals ?? -1;
+                if (currencyDecimals === -1) {
+                    throw new Error(`NDC's Currency code ${ndcDefinition.currencyCode} not found in currency list.`);
+                }
+
+                ndcDefinition.currentValue = this._calculateNdcAmount(
+                    ndcDefinition.currentValue,
+                    ndcDefinition.percentage,
+                    Math.min(Number(abAccount.balance ?? 0)),
+                    currencyDecimals,
+                    ndcDefinition.type
+                );
+                changed = true;
              }
 
              if(changed){
@@ -3897,10 +3903,15 @@
          }
 
          
+        const currencyDecimals = this._currencyList.find((value: Currency) => value.code === netDebitCapChangeRequest.currencyCode)?.decimals ?? -1;
+        if (currencyDecimals === -1) {
+            throw new Error(`ndcChangeRequest's Currency code ${netDebitCapChangeRequest.currencyCode} not found in currency list.`);
+        }
          const ndcAmount = this._calculateNdcAmount(
             netDebitCapChangeRequest.fixedValue ?? 0,
             netDebitCapChangeRequest.percentage ?? 0,
             accBalSettlementAccountBalance,
+            currencyDecimals,
             netDebitCapChangeRequest.type
         );
 
