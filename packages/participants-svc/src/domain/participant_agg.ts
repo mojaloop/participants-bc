@@ -116,6 +116,7 @@
  import {IParticipantsRepository} from "./repo_interfaces";
  import {IMessageProducer} from "@mojaloop/platform-shared-lib-messaging-types-lib";
  import { ParticipantSearchResults, BulkApprovalRequestResults } from "@mojaloop/participant-bc-public-types-lib";
+import { bigintToString, stringToBigint } from "./converters";
  
  enum AuditedActionNames {
      PARTICIPANT_CREATED = "PARTICIPANT_CREATED",
@@ -3266,14 +3267,22 @@
                      );
                  }
 
- 
-                 const amount = parseFloat(obj.bankBalance) - parseFloat(settlementAccount.balance);
-                 obj.updateAmount = Math.abs(amount).toString();
-                 if (amount > 0) {
-                    obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT;//Deposit
-                 } else {
-                    obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT;//Withdrwal
-                 }
+                const currencyDecimals = this._currencyList.find((value: Currency) => value.code === obj.currencyCode)?.decimals ?? -1;
+                if (currencyDecimals === -1) {
+                    throw new Error(`Currency code ${obj.currencyCode} not found in currency list.`);
+                }
+                const bankBalanceBigInt = stringToBigint(obj.bankBalance, currencyDecimals);
+                const settlementAccountBalanceBigInt = stringToBigint(settlementAccount.balance, currencyDecimals);
+
+                const amount = bankBalanceBigInt - settlementAccountBalanceBigInt;
+
+                const absAmount = amount < 0 ? -amount : amount;
+                obj.updateAmount = bigintToString(absAmount, currencyDecimals);
+                if (amount > 0) {
+                   obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_CREDIT;//Deposit
+                } else {
+                   obj.type = ParticipantFundsMovementTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT;//Withdrwal
+                }
              }
  
  
