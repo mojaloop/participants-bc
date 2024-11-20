@@ -1,12 +1,13 @@
 import { ParticipantAggregate } from "../../src/domain/participant_agg";
-import { ILogger } from "@mojaloop/logging-bc-public-types-lib";
+import { ConsoleLogger, ILogger } from "@mojaloop/logging-bc-public-types-lib";
 import { IConfigurationClient } from "@mojaloop/platform-configuration-bc-public-types-lib";
 import { IParticipantsRepository } from "../../src/domain/repo_interfaces";
 import { IAccountsBalancesAdapter } from "../../src/domain/iparticipant_account_balances_adapter";
 import { IAuditClient } from "@mojaloop/auditing-bc-public-types-lib";
 import { IAuthorizationClient } from "@mojaloop/security-bc-public-types-lib";
 import { IMessageProducer } from "@mojaloop/platform-shared-lib-messaging-types-lib";
-import { IMetrics, IHistogram } from "@mojaloop/platform-shared-lib-observability-types-lib";
+import { IMetrics, IHistogram, MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-lib";
+import { AccountsBalancesAdapterMock, AuditClientMock, AuthorizationClientMock, MemoryConfigClientMock, MemoryMessageProducer, ParticipantsRepoMock, TokenHelperMock } from "@mojaloop/participants-bc-shared-mocks-lib";
 
 // Mocks
 const mockLogger: ILogger = {
@@ -36,6 +37,7 @@ const mockRepo: IParticipantsRepository = {
     fetchWhereId: jest.fn().mockResolvedValue(null),
     create: jest.fn().mockResolvedValue(true),
     store: jest.fn().mockResolvedValue(true),
+    fetchAll: jest.fn().mockResolvedValue([])
 } as unknown as IParticipantsRepository;
 
 const mockAccBal: IAccountsBalancesAdapter = {
@@ -124,4 +126,6 @@ describe("ParticipantAggregate", () => {
         // Ensure logger captures the error
         expect(mockLogger.error).toHaveBeenCalledWith(expect.any(Error));
     });
+
+    
 });
