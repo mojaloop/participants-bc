@@ -526,14 +526,16 @@ describe("getAllParticipants", () => {
         // Act 
         mockRepo.fetchWhereIds.mockResolvedValueOnce(mockParticipants);
     
-        //Assert
+        // Assert
         await expect(participantAgg.handleSettlementMatrixSettledEvt(secCtx, mockMsg))
             .rejects
             .toThrow("Could not get all participants' accounts for handleSettlementMatrixSettledEvt()");
     });
     
+    /**
+     * _calculateNdcAmount()
+     * */
     
-
 
     /**
      * getParticipantChangeType()
