@@ -2498,7 +2498,7 @@ import { bigintToString, stringToBigint } from "./converters";
          );
          if (!settlementAccount) {
              throw new AccountNotFoundError(
-                 `Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`
+                 `Cannot find a participant's settlement account for currency: ${fundsMov.currencyCode}`
              );
          }
  
