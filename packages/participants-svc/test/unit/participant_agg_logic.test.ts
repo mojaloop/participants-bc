@@ -7,7 +7,7 @@ import {
 } from "@mojaloop/security-bc-public-types-lib";
 import { AccountsBalancesAdapterMock, AuditClientMock, AuthorizationClientMock, MemoryConfigClientMock, MemoryMessageProducer, mockedParticipant1, mockedParticipant2, mockedParticipantHub, TokenHelperMock } from "@mojaloop/participants-bc-shared-mocks-lib";
 import { MetricsMock } from "@mojaloop/platform-shared-lib-observability-types-lib";
-import { IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCap, ParticipantChangeTypes, ParticipantFundsMovementTypes, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
+import { ApprovalRequestState, IParticipantLiquidityBalanceAdjustment, IParticipantNetDebitCap, IParticipantStatusChangeRequest, ParticipantChangeTypes, ParticipantFundsMovementTypes, ParticipantNetDebitCapTypes } from "@mojaloop/participant-bc-public-types-lib";
 import { AccountsAndBalancesAccount } from "@mojaloop/accounts-and-balances-bc-public-types-lib";
 import { SettlementMatrixSettledEvt } from "@mojaloop/platform-shared-lib-public-messages-lib";
 import { MessageTypes } from "@mojaloop/platform-shared-lib-messaging-types-lib";
@@ -21,7 +21,7 @@ const secCtx: CallSecurityContext = {
     accessToken: 'mockToken',
 };
 
-describe("getAllParticipants", () => {
+describe("Participants Aggregate", () => {
     let participantAgg: ParticipantAggregate;
 
     const logger: ILogger = new ConsoleLogger();
@@ -38,6 +38,7 @@ describe("getAllParticipants", () => {
     const mockRepo = {
         fetchAll: jest.fn(),
         fetchWhereIds: jest.fn(),
+        fetchWhereId: jest.fn(),
         store: jest.fn()
     };
 
@@ -194,7 +195,7 @@ describe("getAllParticipants", () => {
             }
         ]);
 
-        
+
     });
 
     it("should throw an error when liquidityBalanceAdjustments is null", async () => {
@@ -382,7 +383,7 @@ describe("getAllParticipants", () => {
      * handleSettlementMatrixSettledEvt()
      * */
     it("should throw an error when msg null", async () => {
-        
+
         await expect(participantAgg.handleSettlementMatrixSettledEvt(secCtx, null as any))
             .rejects.toThrow("Invalid participantList in SettlementMatrixSettledEvt message in handleSettlementMatrixSettledEvt()");
     });
@@ -405,7 +406,7 @@ describe("getAllParticipants", () => {
                 }]
             }
         }
-        
+
         //Act
         mockRepo.fetchWhereIds.mockResolvedValue([mockedParticipant1]);
 
@@ -447,7 +448,7 @@ describe("getAllParticipants", () => {
 
         //Assert
         await expect(participantAgg.handleSettlementMatrixSettledEvt(secCtx, mockMsg as any)).rejects
-        .toThrow("Cannot get settlement account for participant with id: participant1 and currency: EUR for _updateNdcForParticipants()");
+            .toThrow("Cannot get settlement account for participant with id: participant1 and currency: EUR for _updateNdcForParticipants()");
     });
 
     it("should throw an error when cannot find the participant's account in COA", async () => {
@@ -486,7 +487,7 @@ describe("getAllParticipants", () => {
 
         //Assert
         await expect(participantAgg.handleSettlementMatrixSettledEvt(secCtx, mockMsg as any)).rejects
-        .toThrow("Cannot get participant account with id: 2 from accounts and balaces for _updateNdcForParticipants()");
+            .toThrow("Cannot get participant account with id: 2 from accounts and balaces for _updateNdcForParticipants()");
     });
 
     it("should throw an error when a participant does not have required accounts (SETTLEMENT or POSITION)", async () => {
@@ -510,7 +511,7 @@ describe("getAllParticipants", () => {
                 ]
             }
         };
-    
+
         const mockParticipants = [
             {
                 id: "participant1",
@@ -525,17 +526,119 @@ describe("getAllParticipants", () => {
         ];
         // Act 
         mockRepo.fetchWhereIds.mockResolvedValueOnce(mockParticipants);
-    
+
         // Assert
         await expect(participantAgg.handleSettlementMatrixSettledEvt(secCtx, mockMsg))
             .rejects
             .toThrow("Could not get all participants' accounts for handleSettlementMatrixSettledEvt()");
     });
-    
+
     /**
-     * _calculateNdcAmount()
+     * activateParticipant()
      * */
-    
+
+    it("should throw an error when participantId is null or empty", async () => {
+
+
+        // Assert
+        await expect(participantAgg.activateParticipant(secCtx, "", ""))
+            .rejects
+            .toThrow("[id] cannot be empty");
+    });
+
+    it("should throw an error when participantId is hub", async () => {
+
+        // Assert
+        await expect(participantAgg.activateParticipant(secCtx, "hub", ""))
+            .rejects
+            .toThrow("Cannot perform this action on the hub participant");
+    });
+
+
+    it("should log warning if the participant is already active", async () => {
+
+        //Arrange 
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+
+        // Assert
+        expect(participantAgg.activateParticipant(secCtx, "participant1", "")).resolves;
+    });
+
+
+    /**
+     * deactivateParticipant()
+     * */
+
+    it("should throw an error when participantId is null or empty", async () => {
+
+
+        // Assert
+        await expect(participantAgg.deactivateParticipant(secCtx, "", ""))
+            .rejects
+            .toThrow("[id] cannot be empty");
+    });
+
+    it("should throw an error when participantId is hub", async () => {
+
+        // Assert
+        await expect(participantAgg.deactivateParticipant(secCtx, "hub", ""))
+            .rejects
+            .toThrow("Cannot perform this action on the hub participant");
+    });
+
+    it("should throw an error when the participant has not found", async () => {
+        //Arrange
+        mockRepo.fetchWhereId.mockResolvedValue(null);
+
+        // Assert
+        await expect(participantAgg.deactivateParticipant(secCtx, "P01", ""))
+            .rejects
+            .toThrow("Participant with ID: 'P01' not found.");
+    });
+
+    it("should deactivate a participant and trigger related actions", async () => {
+        const participantId = "participant1";
+        const note = "Deactivating due to inactivity";
+
+
+        let existingParticipant = mockedParticipant1;
+        existingParticipant.isActive = true;
+
+        // Mock repository to return the existing participant
+        mockRepo.fetchWhereId.mockResolvedValue(existingParticipant);
+        // Mock repository to simulate successful store
+        mockRepo.store.mockResolvedValue(true);
+
+        const auditSpy = jest.spyOn(auditClientMock, "audit");
+        const loggerSpy = jest.spyOn(logger, "info");
+
+        // Act
+        await participantAgg.deactivateParticipant(secCtx, participantId, note);
+
+        // Assert
+        expect(existingParticipant.isActive).toBe(false);
+
+        const changeLogForDeactive = existingParticipant.changeLog.filter((log) => log.changeType === ParticipantChangeTypes.DEACTIVATE);
+        expect(changeLogForDeactive).toBeTruthy;
+
+        expect(mockRepo.store).toHaveBeenCalledWith(existingParticipant);
+
+
+
+        expect(auditSpy).toHaveBeenCalledWith(
+            "PARTICIPANT_DISABLED",
+            true,
+            expect.anything(),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        expect(loggerSpy).toHaveBeenCalledWith(
+            `Successfully deactivated participant with ID: '${participantId}'`
+        );
+    });
 
     /**
      * getParticipantChangeType()
@@ -560,4 +663,562 @@ describe("getAllParticipants", () => {
         expect(result).toBe(ParticipantChangeTypes.OPERATOR_LIQUIDITY_ADJUSTMENT_DEBIT);
     });
 
+
+    /**
+     * approveParticipantContactInfoChangeRequest()
+     * */
+    it("should throw an error when participantId is null or empty", async () => {
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "", ""))
+            .rejects
+            .toThrow("[id] cannot be empty");
+    });
+
+    it("should throw an error when participantId is hub", async () => {
+
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "hub", ""))
+            .rejects
+            .toThrow("Cannot perform this action on the hub participant");
+    });
+
+    it("should throw an error for the contact info change request if the contact name already exists", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantContacts = [{
+            id: "contact1",
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            role: "staff"
+        }];
+
+        mockRepo.store(mockParticipant);
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "ADD_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Same contact name already exists.");
+    });
+
+    it("should throw an error for the contact info change request if the contact email already exists", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantContacts = [{
+            id: "contact1",
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            role: "staff"
+        }];
+
+        mockRepo.store(mockParticipant);
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "ADD_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "Aung Aung",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Same contact email already exists.");
+    });
+
+    it("should throw an error for the contact info change request if Same contact information already exists.", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantContacts = [{
+            id: "contact1",
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            role: "staff"
+        }];
+
+        mockRepo.store(mockParticipant);
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Same contact information already exists.");
+    });
+
+    it("should throw an error if contact info change request failed to save", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantContacts = [];
+
+        
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+
+        mockRepo.store.mockResolvedValue(false);
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Could not update participant on adding participant's contact info.");
+    });
+
+    /**
+     * rejectParticipantContactInfoChangeRequest()
+     * */
+
+    it("should throw an error when participantId is null or empty", async () => {
+        // Assert
+        await expect(participantAgg.rejectParticipantContactInfoChangeRequest(secCtx, "", ""))
+            .rejects
+            .toThrow("[id] cannot be empty");
+    });
+
+    it("should throw an error when participantId is hub", async () => {
+
+        // Assert
+        await expect(participantAgg.rejectParticipantContactInfoChangeRequest(secCtx, "hub", ""))
+            .rejects
+            .toThrow("Cannot perform this action on the hub participant");
+    });
+
+    it("should throw an error when the participant has not found", async () => {
+        //Arrange
+        mockRepo.fetchWhereId.mockResolvedValue(null);
+
+        // Assert
+        await expect(participantAgg.rejectParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Participant with ID: 'participant1' not found.");
+    });
+
+    it("should throw an error if contact info change request not found", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantContacts = [];
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+        
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+
+        // Assert
+        await expect(participantAgg.rejectParticipantContactInfoChangeRequest(secCtx, "participant1", "non-existing"))
+            .rejects
+            .toThrow("Cannot find a participant's contact info change request with id: non-existing");
+    });
+
+    it("should throw an error if contact info change request is already rejected", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantContacts = [];
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.REJECTED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+        
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+
+        // Assert
+        await expect(participantAgg.rejectParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Participant's contact info change request with id: 12345 is already rejected");
+    });
+
+
+    /**
+     * createParticipantStatusChangeRequest()
+     * */
+
+    it("should throw an error when participantId is null or empty", async () => {
+        // Assert
+        await expect(participantAgg.createParticipantStatusChangeRequest(secCtx, "", null as any))
+            .rejects
+            .toThrow("[id] cannot be empty");
+    });
+
+    it("should throw an error when participantId is hub", async () => {
+
+        // Assert
+        await expect(participantAgg.createParticipantStatusChangeRequest(secCtx, "hub", null as any))
+            .rejects
+            .toThrow("Cannot perform this action on the hub participant");
+    });
+
+    it("should throw an error when the participant has not found", async () => {
+        //Arrange
+        mockRepo.fetchWhereId.mockResolvedValue(null);
+
+        // Assert
+        await expect(participantAgg.createParticipantStatusChangeRequest(secCtx, "participant1", null as any))
+            .rejects
+            .toThrow("Participant with ID: 'participant1' not found.");
+    });
+
+    it("should throw an error when updating participant status change request failed.", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = null as any;
+
+        const mockStatusChangeRequest: IParticipantStatusChangeRequest = {
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.REJECTED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        };
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        mockRepo.store.mockResolvedValue(false);
+
+        // Assert
+        await expect(participantAgg.createParticipantStatusChangeRequest(secCtx, "participant1", mockStatusChangeRequest))
+            .rejects
+            .toThrow("Could not update participant's status on change request.");
+    });
+
+    /**
+     * approveParticipantStatusChangeRequest()
+     * */
+
+    it("should throw an error when participantId is null or empty", async () => {
+        // Assert
+        await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "", null as any))
+            .rejects
+            .toThrow("[id] cannot be empty");
+    });
+
+    it("should throw an error when participantId is hub", async () => {
+
+        // Assert
+        await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "hub", null as any))
+            .rejects
+            .toThrow("Cannot perform this action on the hub participant");
+    });
+
+    it("should throw an error when the participant has not found", async () => {
+        //Arrange
+        mockRepo.fetchWhereId.mockResolvedValue(null);
+
+        // Assert
+        await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "participant1", null as any))
+            .rejects
+            .toThrow("Participant with ID: 'participant1' not found.");
+    });
+
+    it("should throw an error if status change request not found", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = [];
+
+        mockParticipant.participantStatusChangeRequests = [{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.APPROVED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        
+        // Assert
+        await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "participant1", "111"))
+            .rejects
+            .toThrow("Cannot find a participant's status change request with id: 111");
+    });
+
+    it("should throw an error if status change request already approved", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = [];
+
+        mockParticipant.participantStatusChangeRequests = [{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.APPROVED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        
+        // Assert
+        await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Participant's status change request with id: 12345 is already approved.");
+    });
+
+    it("should throw an error when updating participant status change request failed.", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = null as any;
+
+        mockParticipant.participantStatusChangeRequests =[{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.REJECTED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        mockRepo.store.mockResolvedValue(false);
+
+        // Assert
+        await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Could not approve participant status change request.");
+    });
+
+
+    /**
+     * rejectParticipantStatusChangeRequest()
+     * */
+
+    it("should throw an error when participantId is null or empty", async () => {
+        // Assert
+        await expect(participantAgg.rejectParticipantStatusChangeRequest(secCtx, "", null as any))
+            .rejects
+            .toThrow("[id] cannot be empty");
+    });
+
+    it("should throw an error when participantId is hub", async () => {
+
+        // Assert
+        await expect(participantAgg.rejectParticipantStatusChangeRequest(secCtx, "hub", null as any))
+            .rejects
+            .toThrow("Cannot perform this action on the hub participant");
+    });
+
+    it("should throw an error when the participant has not found", async () => {
+        //Arrange
+        mockRepo.fetchWhereId.mockResolvedValue(null);
+
+        // Assert
+        await expect(participantAgg.rejectParticipantStatusChangeRequest(secCtx, "participant1", null as any))
+            .rejects
+            .toThrow("Participant with ID: 'participant1' not found.");
+    });
+
+    it("should throw an error if status change request not found", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = [];
+
+        mockParticipant.participantStatusChangeRequests = [{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.APPROVED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        
+        // Assert
+        await expect(participantAgg.rejectParticipantStatusChangeRequest(secCtx, "participant1", "111"))
+            .rejects
+            .toThrow("Cannot find a participant's status change request with id: 111");
+    });
+
+    it("should throw an error if status change request already approved", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = [];
+
+        mockParticipant.participantStatusChangeRequests = [{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.APPROVED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        
+        // Assert
+        await expect(participantAgg.rejectParticipantStatusChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Participant's status change request with id: 12345 is already approved.");
+    });
+
+
+    it("should throw an error if status change request already rejected", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = [];
+
+        mockParticipant.participantStatusChangeRequests = [{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.REJECTED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        
+        // Assert
+        await expect(participantAgg.rejectParticipantStatusChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Participant's status change request with id: 12345 is already rejected.");
+    });
+    
+
+    it("should throw an error when updating participant status change request failed.", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantStatusChangeRequests = null as any;
+
+        mockParticipant.participantStatusChangeRequests =[{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: true,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        mockRepo.store.mockResolvedValue(false);
+
+        // Assert
+        await expect(participantAgg.rejectParticipantStatusChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Could not reject participant status change request.");
+    });
 });

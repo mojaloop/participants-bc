@@ -710,64 +710,71 @@ import { bigintToString, stringToBigint } from "./converters";
              secCtx,
              ParticipantPrivilegeNames.ENABLE_PARTICIPANT
          );
- 
-         if (!participantId)
-             throw new ParticipantNotFoundError("[id] cannot be empty");
- 
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!existing)
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
- 
-         if (!existing.isActive) {
-             this._logger.warn(
-                 `Trying to deactivate an already active participant with id: ${participantId}`
-             );
-             return;
+
+         try{
+            if (!participantId)
+                throw new ParticipantNotFoundError("[id] cannot be empty");
+    
+            if(participantId === HUB_PARTICIPANT_ID)
+                throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+    
+            const existing: IParticipant | null = await this._repo.fetchWhereId(
+                participantId
+            );
+            if (!existing)
+                throw new ParticipantNotFoundError(
+                    `Participant with ID: '${participantId}' not found.`
+                );
+    
+            if (!existing.isActive) {
+                this._logger.warn(
+                    `Trying to deactivate an already active participant with id: ${participantId}`
+                );
+                return;
+            }
+    
+            existing.isActive = false;
+            existing.changeLog.push({
+                changeType: ParticipantChangeTypes.DEACTIVATE,
+                user: secCtx.username!,
+                timestamp: Date.now(),
+                notes: note,
+            });
+    
+            if (!(await this._repo.store(existing))) {
+                const err = new CouldNotStoreParticipant(
+                    "Could not update participant on deactivateParticipant"
+                );
+                this._logger.error(err);
+                throw err;
+            }
+    
+            await this._auditClient.audit(
+                AuditedActionNames.PARTICIPANT_DISABLED,
+                true,
+                this._getAuditSecCtx(secCtx),
+                [{ key: "participantId", value: participantId }]
+            );
+    
+            this._logger.info(
+                `Successfully deactivated participant with ID: '${existing.id}'`
+            );
+    
+            //create event for participant deactivate
+            const payload: ParticipantChangedEvtPayload = {
+                participantId: participantId,
+                actionName: AuditedActionNames.PARTICIPANT_DISABLED
+            };
+    
+            const event = new ParticipantChangedEvt(payload);
+    
+            await this._messageProducer.send(event);
          }
+         catch (err: any) {
+            throw new Error(err.message);
+        }
  
-         existing.isActive = false;
-         existing.changeLog.push({
-             changeType: ParticipantChangeTypes.DEACTIVATE,
-             user: secCtx.username!,
-             timestamp: Date.now(),
-             notes: note,
-         });
- 
-         if (!(await this._repo.store(existing))) {
-             const err = new CouldNotStoreParticipant(
-                 "Could not update participant on deactivateParticipant"
-             );
-             this._logger.error(err);
-             throw err;
-         }
- 
-         await this._auditClient.audit(
-             AuditedActionNames.PARTICIPANT_DISABLED,
-             true,
-             this._getAuditSecCtx(secCtx),
-             [{ key: "participantId", value: participantId }]
-         );
- 
-         this._logger.info(
-             `Successfully deactivated participant with ID: '${existing.id}'`
-         );
- 
-         //create event for participant deactivate
-         const payload: ParticipantChangedEvtPayload = {
-             participantId: participantId,
-             actionName: AuditedActionNames.PARTICIPANT_DISABLED
-         };
- 
-         const event = new ParticipantChangedEvt(payload);
- 
-         await this._messageProducer.send(event);
+         
      }
  
      /*
