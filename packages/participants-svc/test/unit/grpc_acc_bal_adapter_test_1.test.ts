@@ -196,5 +196,5 @@ describe("GrpcAccountsAndBalancesAdapter", () => {
             expect(mockGrpcClient.destroy).toHaveBeenCalled();
         });
     });
-
+    
 });
