@@ -19,13 +19,69 @@ jest.mock("@mojaloop/security-bc-client-lib", () => ({
     })),
     TokenHelper: jest.fn().mockImplementation(() => ({
         init: jest.fn().mockResolvedValue(undefined),
+    })),
+    AuthenticatedHttpRequester :jest.fn().mockImplementation(() => ({
+        setAppCredentials: jest.fn().mockResolvedValue(undefined),
+    })),
+    AuthorizationClient :jest.fn().mockImplementation(() => ({
+        init: jest.fn(),
+        addPrivilegesArray: jest.fn(),
+        bootstrap: jest.fn(),
+        fetch: jest.fn()
+    })),
+}));
+
+jest.mock("@mojaloop/auditing-bc-client-lib", () => {
+    const createRsaPrivateKeyFileSyncMock = jest.fn(); // Mock static method
+
+    const LocalAuditClientCryptoProviderMock = jest.fn().mockImplementation(() => ({
+        // Mock instance methods
+        someInstanceMethod: jest.fn(),
+    }));
+
+    return {
+        LocalAuditClientCryptoProvider: Object.assign(LocalAuditClientCryptoProviderMock, {
+            createRsaPrivateKeyFileSync: createRsaPrivateKeyFileSyncMock,
+        }),
+        KafkaAuditClientDispatcher: jest.fn().mockImplementation(() => ({
+            init: jest.fn(),
+            destroy: jest.fn(),
+            dispatch: jest.fn(),
+        })),
+        AuditClient: jest.fn().mockImplementation(() => ({
+            logAuditMessage: jest.fn(),
+            audit: jest.fn(),
+            init: jest.fn()
+        })),
+    };
+});
+
+jest.mock("@mojaloop/platform-shared-lib-nodejs-kafka-client-lib", () => ({
+    MLKafkaJsonConsumer: jest.fn().mockImplementation(() => ({
+        setTopics: jest.fn(),
+        setCallbackFn: jest.fn(),
+        connect: jest.fn(),
+        startAndWaitForRebalance: jest.fn()
+    })),
+    MLKafkaJsonProducer: jest.fn().mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue("mock-connected"),
     }))
 }));
+
+jest.mock("../../src/implementations/grpc_acc_bal_adapter", () => ({
+    GrpcAccountsAndBalancesAdapter: jest.fn().mockImplementation(() => ({
+        init: jest.fn().mockResolvedValue(undefined),
+        createAccount: jest.fn().mockResolvedValueOnce("acc-001")
+    }))
+}));
+
+
 
 import { GetParticipantsConfigs } from "../../src/application/configset";
 import { TokenHelper } from "@mojaloop/security-bc-client-lib";
 
 describe("Service Unit Tests", () => {
+
     let mockLogger: jest.Mocked<ILogger>;
     let mockAuditClient: jest.Mocked<IAuditClient>;
     let mockAuthorizationClient: jest.Mocked<IAuthorizationClient>;
@@ -37,7 +93,15 @@ describe("Service Unit Tests", () => {
     let mockConfigClient: jest.Mocked<ConfigurationClient>;
     let mockMetrics: jest.Mocked<IMetrics>;
 
+
+    let mockExit: jest.SpyInstance;
+    let mockConsoleInfo: jest.SpyInstance;
+    let mockConsoleLog: jest.SpyInstance;
+    let mockSetTimeout: jest.SpyInstance;
+    const originalProcess = process;
+
     beforeEach(() => {
+        
         // Mock ILogger
         mockLogger = {
             info: jest.fn(),
@@ -47,6 +111,7 @@ describe("Service Unit Tests", () => {
             createChild: jest.fn().mockReturnThis(),
             destroy: jest.fn(),
             isInfoEnabled: jest.fn(),
+            setLogLevel: jest.fn()
         } as unknown as jest.Mocked<ILogger>;
 
         // Mock IAuditClient
@@ -141,7 +206,44 @@ describe("Service Unit Tests", () => {
         } as unknown as jest.Mocked<IConfigProvider>;
     });
 
+    afterEach(() => {
+        
+        jest.clearAllMocks();
+        
+    });
+
     it("should start the service successfully", async () => {
+            (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+
+            mockRepoPart.create.mockResolvedValueOnce(true);
+            mockAccAndBalAdapter.createAccount.mockResolvedValueOnce("acc-001");
+            mockRepoPart.store.mockResolvedValueOnce(true);
+            mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+            await Service.start(
+                mockLogger,
+                mockAuditClient,
+                mockAuthorizationClient,
+                mockRepoPart,
+                mockAccAndBalAdapter,
+                mockMessageProducer,
+                mockConfigProvider,
+                mockMetrics,
+                mockMessageConsumer
+            );
+
+        expect(TokenHelper).toHaveBeenCalledWith(
+            "http://localhost:3201/.well-known/jwks.json",
+            mockLogger,
+            "mojaloop.vnext.dev.default_issuer",
+            "mojaloop.vnext.dev.default_audience",
+            expect.anything()
+        );
+
+        await Service.stop();
+    });
+
+    it("should initiate audit client if not defined", async () => {
         (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
         mockRepoPart.create.mockResolvedValueOnce(true);
@@ -151,7 +253,7 @@ describe("Service Unit Tests", () => {
 
         await Service.start(
             mockLogger,
-            mockAuditClient,
+            undefined,  
             mockAuthorizationClient,
             mockRepoPart,
             mockAccAndBalAdapter,
@@ -168,16 +270,175 @@ describe("Service Unit Tests", () => {
             "mojaloop.vnext.dev.default_audience",
             expect.anything()
         );
+
+        await Service.stop();
+    });
+
+    it("should initiate authorization client if not defined", async () => {
+        (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+
+        mockRepoPart.create.mockResolvedValueOnce(true);
+        mockAccAndBalAdapter.createAccount.mockResolvedValueOnce("acc-001");
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+        await Service.start(
+            mockLogger,
+            mockAuditClient,  
+            undefined,
+            mockRepoPart,
+            mockAccAndBalAdapter,
+            mockMessageProducer,
+            mockConfigProvider,
+            mockMetrics,
+            mockMessageConsumer
+        );
+
+        expect(TokenHelper).toHaveBeenCalledWith(
+            "http://localhost:3201/.well-known/jwks.json",
+            mockLogger,
+            "mojaloop.vnext.dev.default_issuer",
+            "mojaloop.vnext.dev.default_audience",
+            expect.anything()
+        );
+
+        await Service.stop();
+    });
+
+    it("should initiate GrpcAccountsAndBalancesAdapter if not defined", async () => {
+        (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+
+        mockRepoPart.create.mockResolvedValueOnce(true);
+       
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+        await Service.start(
+            mockLogger,
+            mockAuditClient,  
+            mockAuthorizationClient,
+            mockRepoPart,
+            undefined,
+            mockMessageProducer,
+            mockConfigProvider,
+            mockMetrics,
+            mockMessageConsumer
+        );
+
+        expect(TokenHelper).toHaveBeenCalledWith(
+            "http://localhost:3201/.well-known/jwks.json",
+            mockLogger,
+            "mojaloop.vnext.dev.default_issuer",
+            "mojaloop.vnext.dev.default_audience",
+            expect.anything()
+        );
+
+        await Service.stop();
+    });
+
+    it("should setup PrometheusMetrics if metrics were not defined", async () => {
+        (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+
+        mockRepoPart.create.mockResolvedValueOnce(true);
+       
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+        await Service.start(
+            mockLogger,
+            mockAuditClient,  
+            mockAuthorizationClient,
+            mockRepoPart,
+            mockAccAndBalAdapter,
+            undefined,
+            mockConfigProvider,
+            mockMetrics,
+            mockMessageConsumer
+        );
+
+        expect(TokenHelper).toHaveBeenCalledWith(
+            "http://localhost:3201/.well-known/jwks.json",
+            mockLogger,
+            "mojaloop.vnext.dev.default_issuer",
+            "mojaloop.vnext.dev.default_audience",
+            expect.anything()
+        );
+
+        await Service.stop();
+    });
+
+    it("should setup MLKafkaJsonConsumer if it was not defined", async () => {
+        (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+
+        mockRepoPart.create.mockResolvedValueOnce(true);
+       
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+        await Service.start(
+            mockLogger,
+            mockAuditClient,  
+            mockAuthorizationClient,
+            mockRepoPart,
+            mockAccAndBalAdapter,
+            mockMessageProducer,
+            mockConfigProvider,
+            mockMetrics,
+            undefined
+        );
+
+        expect(TokenHelper).toHaveBeenCalledWith(
+            "http://localhost:3201/.well-known/jwks.json",
+            mockLogger,
+            "mojaloop.vnext.dev.default_issuer",
+            "mojaloop.vnext.dev.default_audience",
+            expect.anything()
+        );
+
+        await Service.stop();
     });
 
     it("should stop the service successfully", async () => {
         await Service.stop();
 
-        
         expect(true)
     });
 
-    afterEach(() => {
-        jest.clearAllMocks();
+    it("should handle SIGINT signal correctly", async () => {
+        // Mock process.exit
+        mockExit = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+        
+        // Mock console.info and console.log
+        mockConsoleInfo = jest.spyOn(console, 'info').mockImplementation(() => {});
+        mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+        
+        // Mock setTimeout
+        mockSetTimeout = jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
+            return undefined as any;
+        });
+
+        // Mock Service.stop
+        jest.spyOn(Service, 'stop').mockResolvedValue();
+        // Get the SIGINT handler
+        const sigintHandler = process.listeners('SIGINT')[0] as (signal: NodeJS.Signals) => Promise<void>;
+        
+        // Call the handler
+        await sigintHandler('SIGINT');
+
+        // Verify behaviors
+        expect(mockConsoleInfo).toHaveBeenCalledWith('Service - SIGINT received - cleaning up...');
+        expect(Service.stop).toHaveBeenCalled();
+        expect(mockSetTimeout).toHaveBeenCalled();
+        expect(mockExit).toHaveBeenCalled();
+
+        mockExit.mockRestore();
+        mockConsoleInfo.mockRestore();
+        mockConsoleLog.mockRestore();
+        mockSetTimeout.mockRestore();
     });
+
+    
+
 });
+
+
