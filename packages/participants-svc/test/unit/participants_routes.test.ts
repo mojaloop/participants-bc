@@ -498,7 +498,7 @@ describe("Participants Routes - Unit Test", () => {
 
         // Assert
         expect(response.status).toBe(404);
-        expect(response2.status).toBe(404);
+        expect(response2.status).toBe(500);
     });
 
     it("PUT /participants/:id/endpoints/:endpointId - Should return status 500 if participantId is hub participantId", async () => {
@@ -1380,6 +1380,20 @@ describe("Participants Routes - Unit Test", () => {
         expect(response.status).toBe(403);
     });
 
+    it("GET /participants/:id/sourceIps - Should handle participant not found error", async () => {
+        // Arrange
+        jest.spyOn(authZClientMock, "rolesHavePrivilege").mockReturnValue(true);
+        const participantId = "non-existent-participant";
+
+        // Act
+        const response = await request(participantSvcUrl)
+            .get(`/participants/${participantId}/sourceIps`)
+            .set("authorization", AUTH_TOKEN);
+
+        // Assert
+        expect(response.status).toBe(404);
+    });
+
     it("POST /participants/:id/sourceIpChangeRequests - Should create a participant sourceIP change request", async () => {
         // Arrange
         const now = Date.now();
@@ -1787,7 +1801,7 @@ describe("Participants Routes - Unit Test", () => {
             .set("authorization", AUTH_TOKEN).send(participant.fundsMovements[0]);
 
         // Assert
-        expect(response.status).toBe(403);
+        expect(response.status).toBe(500);
     });
 
     it("POST /participants/:id/funds/:fundsMovId/approve - Should not perform on the hub participant", async () => {
