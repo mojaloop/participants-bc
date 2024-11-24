@@ -12,6 +12,7 @@ import { AccountsAndBalancesAccount } from "@mojaloop/accounts-and-balances-bc-p
 import { SettlementMatrixSettledEvt } from "@mojaloop/platform-shared-lib-public-messages-lib";
 import { MessageTypes } from "@mojaloop/platform-shared-lib-messaging-types-lib";
 import { mock } from "node:test";
+import { create } from "domain";
 
 const authTokenUrl = "mocked_auth_url";
 const hasPrivilege = true;
@@ -2155,4 +2156,46 @@ describe("Participants Aggregate", () => {
 
     })
 
+
+    it ("should get global currencies if setChangeHandlerFunction is set to 'GLOBAL'", async () => {
+
+        let mockRepo = {
+            init: jest.fn().mockResolvedValue(undefined),
+            fetchWhereId: jest.fn(),
+            create: jest.fn(),
+            store: jest.fn()
+        };
+
+        let mockAccBal = {
+            init: jest.fn().mockResolvedValue(undefined),
+            createAccount: jest.fn(),
+
+        };
+
+        let mockConfigClient = {
+            setChangeHandlerFunction: jest.fn(),
+            globalConfigs: {
+                getCurrencies: jest.fn().mockReturnValue(['USD', 'EUR']),
+            },
+        };
+
+        participantAgg = new ParticipantAggregate(
+            mockConfigClient as any,
+            mockRepo as any,
+            mockAccBal as any,
+            auditClientMock,
+            mockAuthorizationClient as any,
+            msgProducerMock,
+            metricsMock,
+            logger,
+        );
+
+        mockRepo.create.mockResolvedValueOnce(true);
+        mockRepo.store.mockResolvedValueOnce(true);
+
+        await participantAgg.init();
+        const changeHandler = mockConfigClient.setChangeHandlerFunction.mock.calls[0][0];
+        await changeHandler('GLOBAL');
+        expect(mockConfigClient.globalConfigs.getCurrencies).toHaveBeenCalled();
+    })
 });

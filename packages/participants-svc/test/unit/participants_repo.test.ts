@@ -56,7 +56,10 @@ describe("MongoDBParticipantsRepo", () => {
                 info: jest.fn(),
                 error: jest.fn(),
                 warn: jest.fn(),
+                isWarnEnabled: jest.fn().mockReturnValue(true),
             }),
+            mockLogger: jest.fn(),
+            
         } as unknown as ILogger;
 
         // Mock MongoDB Client
@@ -91,7 +94,6 @@ describe("MongoDBParticipantsRepo", () => {
     afterEach(() => {
         jest.clearAllMocks();
     });
-
 
     it("should fetch all participants", async () => {
         (mockCollection.find as jest.Mock).mockReturnValue({
@@ -261,18 +263,32 @@ describe("MongoDBParticipantsRepo", () => {
         },]);
     });
 
-    /* it("should handle database errors smoothly when fetching all participants", async () => {
-        (mockCollection.find as jest.Mock).mockReturnValue({
-            project: jest.fn().mockReturnThis(),
-            toArray: jest.fn().mockRejectedValue(new Error("Database error")),
-        });
-
-        await expect(repo.fetchAll()).rejects.toThrow("Database error");
-        expect(mockLogger.error).toHaveBeenCalledWith(expect.any(Error));
-    }); */
-
     it("should close the MongoDB client when destroy is called", async () => {
         await repo.destroy();
         expect(mockClient.close).toHaveBeenCalled();
     });
+
+
+    it("should handle database connection failure during init", async () => {
+        const connectionError = new Error("Connection failed");
+        (MongoClient.connect as jest.Mock).mockRejectedValueOnce(connectionError);
+        
+        const newRepo = new MongoDBParticipantsRepo("mongodb://localhost:27017", mockLogger);
+        await expect(newRepo.init()).rejects.toThrow("Connection failed");
+    });
+    
+    it("should handle error in getSearchKeywords", async () => {
+        const mockError = new Error("Aggregate failed");
+       
+        (mockCollection.aggregate as jest.Mock).mockImplementationOnce(() => {
+            throw mockError;
+        });
+    
+        const result = await repo.getSearchKeywords();
+    
+        // Assertions
+        expect(result).toEqual([]); 
+    });
 });
+
+

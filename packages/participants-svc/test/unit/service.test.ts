@@ -20,10 +20,10 @@ jest.mock("@mojaloop/security-bc-client-lib", () => ({
     TokenHelper: jest.fn().mockImplementation(() => ({
         init: jest.fn().mockResolvedValue(undefined),
     })),
-    AuthenticatedHttpRequester :jest.fn().mockImplementation(() => ({
+    AuthenticatedHttpRequester: jest.fn().mockImplementation(() => ({
         setAppCredentials: jest.fn().mockResolvedValue(undefined),
     })),
-    AuthorizationClient :jest.fn().mockImplementation(() => ({
+    AuthorizationClient: jest.fn().mockImplementation(() => ({
         init: jest.fn(),
         addPrivilegesArray: jest.fn(),
         bootstrap: jest.fn(),
@@ -75,8 +75,6 @@ jest.mock("../../src/implementations/grpc_acc_bal_adapter", () => ({
     }))
 }));
 
-
-
 import { GetParticipantsConfigs } from "../../src/application/configset";
 import { TokenHelper } from "@mojaloop/security-bc-client-lib";
 
@@ -101,7 +99,7 @@ describe("Service Unit Tests", () => {
     const originalProcess = process;
 
     beforeEach(() => {
-        
+
         // Mock ILogger
         mockLogger = {
             info: jest.fn(),
@@ -130,7 +128,7 @@ describe("Service Unit Tests", () => {
             init: jest.fn(),
             fetchWhereId: jest.fn(),
             create: jest.fn(),
-            store: jest.fn()
+            store: jest.fn(),
         } as unknown as jest.Mocked<IParticipantsRepository>;
 
         // Mock IAccountsBalancesAdapter
@@ -207,31 +205,65 @@ describe("Service Unit Tests", () => {
     });
 
     afterEach(() => {
-        
+
         jest.clearAllMocks();
-        
+
     });
 
     it("should start the service successfully", async () => {
-            (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+        //Arrange & Act
+        (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
-            mockRepoPart.create.mockResolvedValueOnce(true);
-            mockAccAndBalAdapter.createAccount.mockResolvedValueOnce("acc-001");
-            mockRepoPart.store.mockResolvedValueOnce(true);
-            mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+        mockRepoPart.create.mockResolvedValueOnce(true);
+        mockAccAndBalAdapter.createAccount.mockResolvedValueOnce("acc-001");
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
 
-            await Service.start(
-                mockLogger,
-                mockAuditClient,
-                mockAuthorizationClient,
-                mockRepoPart,
-                mockAccAndBalAdapter,
-                mockMessageProducer,
-                mockConfigProvider,
-                mockMetrics,
-                mockMessageConsumer
-            );
+        await Service.start(
+            mockLogger,
+            mockAuditClient,
+            mockAuthorizationClient,
+            mockRepoPart,
+            mockAccAndBalAdapter,
+            mockMessageProducer,
+            mockConfigProvider,
+            mockMetrics,
+            mockMessageConsumer
+        );
 
+        // Assert
+        expect(TokenHelper).toHaveBeenCalledWith(
+            "http://localhost:3201/.well-known/jwks.json",
+            mockLogger,
+            "mojaloop.vnext.dev.default_issuer",
+            "mojaloop.vnext.dev.default_audience",
+            expect.anything()
+        );
+
+        await Service.stop();
+    });
+    
+    it("should initiate configProvider if not defined", async () => {
+        //Arrange & Act
+        
+        mockRepoPart.create.mockResolvedValueOnce(true);
+        mockAccAndBalAdapter.createAccount.mockResolvedValueOnce("acc-001");
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+        await Service.start(
+            mockLogger,
+            mockAuditClient,
+            mockAuthorizationClient,
+            mockRepoPart,
+            mockAccAndBalAdapter,
+            mockMessageProducer,
+            undefined,
+            mockMetrics,
+            mockMessageConsumer
+        );
+
+        // Assert
         expect(TokenHelper).toHaveBeenCalledWith(
             "http://localhost:3201/.well-known/jwks.json",
             mockLogger,
@@ -244,6 +276,7 @@ describe("Service Unit Tests", () => {
     });
 
     it("should initiate audit client if not defined", async () => {
+        //Arrange & Act
         (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
         mockRepoPart.create.mockResolvedValueOnce(true);
@@ -253,7 +286,7 @@ describe("Service Unit Tests", () => {
 
         await Service.start(
             mockLogger,
-            undefined,  
+            undefined,
             mockAuthorizationClient,
             mockRepoPart,
             mockAccAndBalAdapter,
@@ -263,6 +296,7 @@ describe("Service Unit Tests", () => {
             mockMessageConsumer
         );
 
+        // Assert
         expect(TokenHelper).toHaveBeenCalledWith(
             "http://localhost:3201/.well-known/jwks.json",
             mockLogger,
@@ -275,6 +309,7 @@ describe("Service Unit Tests", () => {
     });
 
     it("should initiate authorization client if not defined", async () => {
+        // Arrange & Act
         (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
         mockRepoPart.create.mockResolvedValueOnce(true);
@@ -284,7 +319,7 @@ describe("Service Unit Tests", () => {
 
         await Service.start(
             mockLogger,
-            mockAuditClient,  
+            mockAuditClient,
             undefined,
             mockRepoPart,
             mockAccAndBalAdapter,
@@ -294,6 +329,7 @@ describe("Service Unit Tests", () => {
             mockMessageConsumer
         );
 
+        //Assert
         expect(TokenHelper).toHaveBeenCalledWith(
             "http://localhost:3201/.well-known/jwks.json",
             mockLogger,
@@ -306,16 +342,17 @@ describe("Service Unit Tests", () => {
     });
 
     it("should initiate GrpcAccountsAndBalancesAdapter if not defined", async () => {
+        //Arrange & Act
         (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
         mockRepoPart.create.mockResolvedValueOnce(true);
-       
+
         mockRepoPart.store.mockResolvedValueOnce(true);
         mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
 
         await Service.start(
             mockLogger,
-            mockAuditClient,  
+            mockAuditClient,
             mockAuthorizationClient,
             mockRepoPart,
             undefined,
@@ -325,6 +362,7 @@ describe("Service Unit Tests", () => {
             mockMessageConsumer
         );
 
+        //Assert
         expect(TokenHelper).toHaveBeenCalledWith(
             "http://localhost:3201/.well-known/jwks.json",
             mockLogger,
@@ -337,16 +375,17 @@ describe("Service Unit Tests", () => {
     });
 
     it("should setup PrometheusMetrics if metrics were not defined", async () => {
+        //Arrange & Act
         (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
         mockRepoPart.create.mockResolvedValueOnce(true);
-       
+
         mockRepoPart.store.mockResolvedValueOnce(true);
         mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
 
         await Service.start(
             mockLogger,
-            mockAuditClient,  
+            mockAuditClient,
             mockAuthorizationClient,
             mockRepoPart,
             mockAccAndBalAdapter,
@@ -356,6 +395,7 @@ describe("Service Unit Tests", () => {
             mockMessageConsumer
         );
 
+        //Assert
         expect(TokenHelper).toHaveBeenCalledWith(
             "http://localhost:3201/.well-known/jwks.json",
             mockLogger,
@@ -368,16 +408,17 @@ describe("Service Unit Tests", () => {
     });
 
     it("should setup MLKafkaJsonConsumer if it was not defined", async () => {
+        //Arrange & Act
         (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
         mockRepoPart.create.mockResolvedValueOnce(true);
-       
+
         mockRepoPart.store.mockResolvedValueOnce(true);
         mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
 
         await Service.start(
             mockLogger,
-            mockAuditClient,  
+            mockAuditClient,
             mockAuthorizationClient,
             mockRepoPart,
             mockAccAndBalAdapter,
@@ -387,6 +428,7 @@ describe("Service Unit Tests", () => {
             undefined
         );
 
+        //Assert
         expect(TokenHelper).toHaveBeenCalledWith(
             "http://localhost:3201/.well-known/jwks.json",
             mockLogger,
@@ -405,27 +447,27 @@ describe("Service Unit Tests", () => {
     });
 
     it("should handle SIGINT signal correctly", async () => {
-        // Mock process.exit
+        // Arrange & Act
         mockExit = jest.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-        
-        // Mock console.info and console.log
-        mockConsoleInfo = jest.spyOn(console, 'info').mockImplementation(() => {});
-        mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-        
-        // Mock setTimeout
+
+      
+        mockConsoleInfo = jest.spyOn(console, 'info').mockImplementation(() => { });
+        mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => { });
+
+       
         mockSetTimeout = jest.spyOn(global, 'setTimeout').mockImplementation((cb) => {
             return undefined as any;
         });
 
-        // Mock Service.stop
-        jest.spyOn(Service, 'stop').mockResolvedValue();
-        // Get the SIGINT handler
-        const sigintHandler = process.listeners('SIGINT')[0] as (signal: NodeJS.Signals) => Promise<void>;
         
-        // Call the handler
+        jest.spyOn(Service, 'stop').mockResolvedValue();
+       
+        const sigintHandler = process.listeners('SIGINT')[0] as (signal: NodeJS.Signals) => Promise<void>;
+
+       
         await sigintHandler('SIGINT');
 
-        // Verify behaviors
+        // Assert
         expect(mockConsoleInfo).toHaveBeenCalledWith('Service - SIGINT received - cleaning up...');
         expect(Service.stop).toHaveBeenCalled();
         expect(mockSetTimeout).toHaveBeenCalled();
@@ -436,8 +478,6 @@ describe("Service Unit Tests", () => {
         mockConsoleLog.mockRestore();
         mockSetTimeout.mockRestore();
     });
-
-    
 
 });
 
