@@ -2309,7 +2309,7 @@ import { bigintToString, stringToBigint } from "./converters";
                  participantAccounts.map((value: IParticipantAccount) => value.id)
              );
  
-             if (!accBalAccounts) {
+             if (accBalAccounts?.length === 0) {
                  const err = new NoAccountsError(
                      "Could not get participant accounts from accountsAndBalances adapter for participant id: " +
                      existing.id
