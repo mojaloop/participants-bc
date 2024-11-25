@@ -98,8 +98,8 @@ describe("Service Unit Tests", () => {
     let mockSetTimeout: jest.SpyInstance;
     const originalProcess = process;
 
-    beforeEach(() => {
-
+    beforeEach(async () => {
+        await Service.stop();
         // Mock ILogger
         mockLogger = {
             info: jest.fn(),
