@@ -109,18 +109,20 @@ describe("Service Unit Tests", () => {
             createChild: jest.fn().mockReturnThis(),
             destroy: jest.fn(),
             isInfoEnabled: jest.fn(),
-            setLogLevel: jest.fn()
+            setLogLevel: jest.fn(),
         } as unknown as jest.Mocked<ILogger>;
 
         // Mock IAuditClient
         mockAuditClient = {
             logAuditMessage: jest.fn(),
-            audit: jest.fn()
+            audit: jest.fn(),
+            destroy: jest.fn(),
         } as unknown as jest.Mocked<IAuditClient>;
 
         // Mock IAuthorizationClient
         mockAuthorizationClient = {
             authorize: jest.fn().mockResolvedValue(true),
+            destroy: jest.fn(),
         } as unknown as jest.Mocked<IAuthorizationClient>;
 
         // Mock IParticipantsRepository
@@ -129,12 +131,14 @@ describe("Service Unit Tests", () => {
             fetchWhereId: jest.fn(),
             create: jest.fn(),
             store: jest.fn(),
+            destroy: jest.fn(),
         } as unknown as jest.Mocked<IParticipantsRepository>;
 
         // Mock IAccountsBalancesAdapter
         mockAccAndBalAdapter = {
             init: jest.fn(),
-            createAccount: jest.fn()
+            createAccount: jest.fn(),
+            destroy: jest.fn(),
         } as unknown as jest.Mocked<IAccountsBalancesAdapter>;
 
         // Mock IMessageProducer
@@ -374,7 +378,7 @@ describe("Service Unit Tests", () => {
         await Service.stop();
     });
 
-    it("should setup PrometheusMetrics if metrics were not defined", async () => {
+    it("should setup message producer if it was not defined", async () => {
         //Arrange & Act
         (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
 
@@ -392,6 +396,40 @@ describe("Service Unit Tests", () => {
             undefined,
             mockConfigProvider,
             mockMetrics,
+            mockMessageConsumer
+        );
+
+        //Assert
+        expect(TokenHelper).toHaveBeenCalledWith(
+            "http://localhost:3201/.well-known/jwks.json",
+            mockLogger,
+            "mojaloop.vnext.dev.default_issuer",
+            "mojaloop.vnext.dev.default_audience",
+            expect.anything()
+        );
+
+        await Service.stop();
+    });
+
+
+    it("should setup PrometheusMetrics if metrics were not defined", async () => {
+        //Arrange & Act
+        (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+
+        mockRepoPart.create.mockResolvedValueOnce(true);
+
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+        await Service.start(
+            mockLogger,
+            mockAuditClient,
+            mockAuthorizationClient,
+            mockRepoPart,
+            mockAccAndBalAdapter,
+            mockMessageProducer,
+            mockConfigProvider,
+            undefined,
             mockMessageConsumer
         );
 
@@ -441,9 +479,42 @@ describe("Service Unit Tests", () => {
     });
 
     it("should stop the service successfully", async () => {
+        //Arrange & Act
+        (GetParticipantsConfigs as jest.Mock).mockReturnValue(mockConfigClient);
+
+        mockRepoPart.create.mockResolvedValueOnce(true);
+        mockAccAndBalAdapter.createAccount.mockResolvedValueOnce("acc-001");
+        mockRepoPart.store.mockResolvedValueOnce(true);
+        mockLogger.isInfoEnabled.mockResolvedValueOnce(true as never);
+
+        await Service.start(
+            mockLogger,
+            mockAuditClient,
+            mockAuthorizationClient,
+            mockRepoPart,
+            mockAccAndBalAdapter,
+            mockMessageProducer,
+            mockConfigProvider,
+            mockMetrics,
+            mockMessageConsumer
+        );
+
+        const mockAuditClientSpy = jest.spyOn(mockAuditClient, 'destroy');
+        const mockRepoPartSpy = jest.spyOn(mockRepoPart, 'destroy');
+        const mockAccAndBalAdapterSpy = jest.spyOn(mockAccAndBalAdapter, 'destroy');
+        const mockMessageProducerSpy = jest.spyOn(mockMessageProducer, 'destroy');
+        const mockConfigClientSpy = jest.spyOn(mockConfigClient, 'destroy');
+        const mockMessageConsumerSpy = jest.spyOn(mockMessageConsumer, 'destroy');
+        
+
         await Service.stop();
 
-        expect(true)
+        expect(mockAuditClientSpy).toHaveBeenCalled();
+        expect(mockRepoPartSpy).toHaveBeenCalled();
+        expect(mockAccAndBalAdapterSpy).toHaveBeenCalled();
+        expect(mockMessageProducerSpy).toHaveBeenCalled();
+        expect(mockConfigClientSpy).toHaveBeenCalled();
+        expect(mockMessageConsumerSpy).toHaveBeenCalled();
     });
 
     it("should handle SIGINT signal correctly", async () => {
