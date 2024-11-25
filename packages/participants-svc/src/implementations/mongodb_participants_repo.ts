@@ -67,8 +67,6 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
             );
             throw err;
         }
-        if (this._mongoClient === null)
-            throw new Error("Couldn't instantiate mongo client");
 
         const db = this._mongoClient.db(this._databaseName);
 
@@ -141,23 +139,23 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
     }
 
     async searchParticipants(
-        id:string|null,
-        name:string|null,
-        state:string|null,
+        id: string | null,
+        name: string | null,
+        state: string | null,
         pageIndex = 0,
         pageSize: number = MAX_ENTRIES_PER_PAGE
     ): Promise<ParticipantSearchResults> {
-        // make sure we don't go over or below the limits
+        // Ensure we stay within limits
         pageSize = Math.min(pageSize, MAX_ENTRIES_PER_PAGE);
         pageIndex = Math.max(pageIndex, 0);
-
+    
         const searchResults: ParticipantSearchResults = {
             pageSize: pageSize,
             pageIndex: pageIndex,
             totalPages: 0,
-            items: []
+            items: [],
         };
-
+    
         let filter: any = { $and: [] }; // eslint-disable-line @typescript-eslint/no-explicit-any
         if (id) {
             filter.$and.push({ id: { $regex: id, $options: "i" } });
@@ -166,42 +164,34 @@ export class MongoDBParticipantsRepo implements IParticipantsRepository {
             filter.$and.push({ name: { $regex: name, $options: "i" } });
         }
         if (state) {
-            filter.$and.push({ approved: { $eq: state === "APPROVED" ? true : false } });
+            filter.$and.push({ approved: { $eq: state === "APPROVED" } });
         }
-        if(filter.$and.length === 0) {
+        if (filter.$and.length === 0) {
             filter = {};
         }
-
+    
         try {
             const skip = Math.floor(pageIndex * pageSize);
-			const result = await this._collectionParticipant.find(
-				filter,
-				{
-					sort:["updatedAt", "desc"], 
-					skip: skip,
-                    limit: pageSize
-				}
-			).toArray().catch((e: unknown) => {
-                this._logger.error(`Unable to get participants: ${(e as Error).message}`);
-                throw new Error("Unable to get participants");
-			});
-
-            const countResult = await this._collectionParticipant.countDocuments(filter).catch(reason => {
-                this._logger.error("Unable to get quotes count");
-            }) || result.length;
-
-			searchResults.items = result as unknown as IParticipant[];
-
+            const result = await this._collectionParticipant
+                .find(filter, { sort: ["updatedAt", "desc"], skip: skip, limit: pageSize })
+                .toArray();
+    
+            let countResult: number;
+            try {
+                countResult = await this._collectionParticipant.countDocuments(filter);
+            } catch (e) {
+                this._logger.warn("Using fallback result count due to error in countDocuments.");
+                countResult = result.length;
+            }
+    
+            searchResults.items = result as unknown as IParticipant[];
             searchResults.totalPages = Math.ceil(countResult / pageSize);
-            searchResults.pageSize = Math.max(pageSize, result.length);
-            
         } catch (err) {
             this._logger.error(err);
         }
-
-        return Promise.resolve(searchResults);
-    }
     
+        return searchResults;
+    }
 
     async create(participant: IParticipant): Promise<boolean> {
         this._logger.info(`Name:  ${participant.name} - created in:`);
