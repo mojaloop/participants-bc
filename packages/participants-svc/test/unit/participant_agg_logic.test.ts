@@ -701,10 +701,10 @@ describe("Participants Aggregate", () => {
         mockParticipant.participantContactInfoChangeRequests = [{
             contactInfoId: "12345",
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.CREATED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "ADD_PARTICIPANT_CONTACT_INFO",
@@ -739,10 +739,10 @@ describe("Participants Aggregate", () => {
         mockParticipant.participantContactInfoChangeRequests = [{
             contactInfoId: "12345",
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.CREATED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "ADD_PARTICIPANT_CONTACT_INFO",
@@ -758,6 +758,44 @@ describe("Participants Aggregate", () => {
         await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
             .rejects
             .toThrow("Same contact email already exists.");
+    });
+
+    it("should throw an error for the contact info change request if the phone no already exists", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantContacts = [{
+            id: "contact1",
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            role: "staff"
+        }];
+
+        mockRepo.store(mockParticipant);
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, 
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, 
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "ADD_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "Aung Aung",
+            email: "new email",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Same contact phone no. already exists.");
     });
 
     it("should throw an error for the contact info change request if Same contact information already exists.", async () => {
@@ -777,10 +815,10 @@ describe("Participants Aggregate", () => {
         mockParticipant.participantContactInfoChangeRequests = [{
             contactInfoId: "12345",
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.CREATED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
@@ -809,10 +847,10 @@ describe("Participants Aggregate", () => {
         mockParticipant.participantContactInfoChangeRequests = [{
             contactInfoId: "12345",
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.CREATED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
@@ -829,6 +867,37 @@ describe("Participants Aggregate", () => {
         await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
             .rejects
             .toThrow("Could not update participant on adding participant's contact info.");
+    });
+
+    it("should throw an error if contact info change request is already approved", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantContacts = [];
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, 
+            requestState: ApprovalRequestState.APPROVED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, 
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+
+        // Assert
+        await expect(participantAgg.approveParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Participant's contact info change request with id: 12345 is already approved");
     });
 
     /**
@@ -868,10 +937,10 @@ describe("Participants Aggregate", () => {
         mockParticipant.participantContactInfoChangeRequests = [{
             contactInfoId: "12345",
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.CREATED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
@@ -899,10 +968,10 @@ describe("Participants Aggregate", () => {
         mockParticipant.participantContactInfoChangeRequests = [{
             contactInfoId: "12345",
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.REJECTED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
@@ -920,6 +989,38 @@ describe("Participants Aggregate", () => {
         await expect(participantAgg.rejectParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
             .rejects
             .toThrow("Participant's contact info change request with id: 12345 is already rejected");
+    });
+
+    it("should throw an error if updating contact info change request failed on rejection", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantContacts = [];
+
+        mockParticipant.participantContactInfoChangeRequests = [{
+            contactInfoId: "12345",
+            createdBy: "adminUser",
+            createdDate: 1698316800000, 
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, 
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_CONTACT_INFO",
+            // IParticipantContactInfo fields
+            name: "John Doe",
+            email: "john.doe@example.com",
+            phoneNumber: "+123456789",
+            id: "12345",
+            role: "staff"
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        mockRepo.store.mockResolvedValue(false);
+
+        // Assert
+        await expect(participantAgg.rejectParticipantContactInfoChangeRequest(secCtx, "participant1", "12345"))
+            .rejects
+            .toThrow("Could not update participant on rejecting participant's contact info.");
     });
 
 
@@ -959,10 +1060,10 @@ describe("Participants Aggregate", () => {
 
         const mockStatusChangeRequest: IParticipantStatusChangeRequest = {
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.REJECTED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1015,10 +1116,10 @@ describe("Participants Aggregate", () => {
 
         mockParticipant.participantStatusChangeRequests = [{
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.APPROVED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1041,10 +1142,10 @@ describe("Participants Aggregate", () => {
 
         mockParticipant.participantStatusChangeRequests = [{
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.APPROVED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1067,10 +1168,10 @@ describe("Participants Aggregate", () => {
 
         mockParticipant.participantStatusChangeRequests = [{
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.REJECTED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1085,6 +1186,32 @@ describe("Participants Aggregate", () => {
         await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "participant1", "12345"))
             .rejects
             .toThrow("Could not approve participant status change request.");
+    });
+
+    it("should throw an error when deactivating the already deactivated participant", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant2;
+        mockParticipant.participantStatusChangeRequests = null as any;
+
+        mockParticipant.participantStatusChangeRequests = [{
+            createdBy: "adminUser",
+            createdDate: 1698316800000, 
+            requestState: ApprovalRequestState.REJECTED,
+            approvedBy: "managerUser",
+            approvedDate: 1698403200000, 
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_PARTICIPANT_STATUS",
+            id: "12345",
+            isActive: false,
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+
+        // Assert
+        await expect(participantAgg.approveParticipantStatusChangeRequest(secCtx, "participant2", "12345"))
+            .rejects
+            .toThrow("Could not update participant on deactivateParticipant");
     });
 
 
@@ -1124,10 +1251,10 @@ describe("Participants Aggregate", () => {
 
         mockParticipant.participantStatusChangeRequests = [{
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.APPROVED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1150,10 +1277,10 @@ describe("Participants Aggregate", () => {
 
         mockParticipant.participantStatusChangeRequests = [{
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.APPROVED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1177,10 +1304,10 @@ describe("Participants Aggregate", () => {
 
         mockParticipant.participantStatusChangeRequests = [{
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.REJECTED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1204,10 +1331,10 @@ describe("Participants Aggregate", () => {
 
         mockParticipant.participantStatusChangeRequests = [{
             createdBy: "adminUser",
-            createdDate: 1698316800000, // Example timestamp (Unix epoch in milliseconds)
+            createdDate: 1698316800000, 
             requestState: ApprovalRequestState.CREATED,
             approvedBy: "managerUser",
-            approvedDate: 1698403200000, // Example timestamp (Unix epoch in milliseconds)
+            approvedDate: 1698403200000, 
             rejectedBy: null,
             rejectedDate: null,
             requestType: "CHANGE_PARTICIPANT_STATUS",
@@ -1274,12 +1401,18 @@ describe("Participants Aggregate", () => {
             .toThrow("Cannot find a participant's sourceIP change request with id: non-existing-id");
     });
 
-    it("should throw an error updating participant sourceIP change request failed.", async () => {
+    it("should throw an error when approving a duplicated source IP data", async () => {
         //Arrange
         let mockParticipant = mockedParticipant1;
-        mockParticipant.participantSourceIpChangeRequests = [];
+        mockParticipant.participantAllowedSourceIps =[ {
+            id: "sourceIP-001",
+            cidr: "192.168.1.0/24",
+            portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
+            ports: [80, 443],
+            portRange: undefined
+        }]
 
-        mockParticipant.participantAllowedSourceIps = [];
+        mockParticipant.participantSourceIpChangeRequests = [];
 
         mockParticipant.participantSourceIpChangeRequests = [{
             allowedSourceIpId: "67890",
@@ -1291,7 +1424,7 @@ describe("Participants Aggregate", () => {
             rejectedBy: null,
             rejectedDate: null,
             requestType: "ADD_SOURCE_IP",
-            id: "sourceIp-123",
+            id: "req-001",
             cidr: "192.168.1.0/24",
             portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
             ports: [80, 443],
@@ -1301,10 +1434,52 @@ describe("Participants Aggregate", () => {
             },
         }];
 
-        mockRepo.store.mockResolvedValue(false);
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
 
         // Assert
-        await expect(participantAgg.approveParticipantSourceIpChangeRequest(secCtx, "participant1", "sourceIp-123"))
+        await expect(participantAgg.approveParticipantSourceIpChangeRequest(secCtx, "participant1", "req-001"))
+            .rejects
+            .toThrow("Same sourceIP record already exists.");
+    });
+    
+
+    it("should throw an error updating participant sourceIP change request failed.", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantAllowedSourceIps =[ {
+            id: "sourceIP-001",
+            cidr: "192.168.1.0/24",
+            portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
+            ports: [80, 443],
+            portRange: undefined
+        }]
+
+        mockParticipant.participantSourceIpChangeRequests = [];
+
+        mockParticipant.participantSourceIpChangeRequests = [{
+            allowedSourceIpId: "sourceIP-001",
+            createdBy: "networkAdmin",
+            createdDate: 1698316800000,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "securityManager",
+            approvedDate: 1698403200000,
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "CHANGE_SOURCE_IP",
+            id: "req-001",
+            cidr: "192.168.1.0/24",
+            portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
+            ports: [80, 443],
+            portRange: {
+                rangeFirst: 8000,
+                rangeLast: 8080,
+            },
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        mockRepo.store.mockResolvedValue(false);
+        // Assert
+        await expect(participantAgg.approveParticipantSourceIpChangeRequest(secCtx, "participant1", "req-001"))
             .rejects
             .toThrow("Could not update participant on approveParticipantSourceIPChangeRequest");
     });
@@ -1416,6 +1591,42 @@ describe("Participants Aggregate", () => {
         await expect(participantAgg.rejectParticipantSourceIpChangeRequest(secCtx, "participant1", "sourceIp-123"))
             .rejects
             .toThrow("Participant's sourceIP change request with id: sourceIp-123 is already rejected");
+    });
+
+    it("should throw an error when updating participant sourceIP change request failed on reject", async () => {
+        //Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantSourceIpChangeRequests = [];
+
+        mockParticipant.participantAllowedSourceIps = [];
+
+        mockParticipant.participantSourceIpChangeRequests = [{
+            allowedSourceIpId: "sourceIP-001",
+            createdBy: "networkAdmin",
+            createdDate: 1698316800000,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: "securityManager",
+            approvedDate: 1698403200000,
+            rejectedBy: null,
+            rejectedDate: null,
+            requestType: "ADD_SOURCE_IP",
+            id: "req-001",
+            cidr: "192.168.1.0/24",
+            portMode: ParticipantAllowedSourceIpsPortModes.SPECIFIC,
+            ports: [80, 443],
+            portRange: {
+                rangeFirst: 8000,
+                rangeLast: 8080,
+            },
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValue(mockParticipant);
+        mockRepo.store.mockResolvedValue(false);
+
+        // Assert
+        await expect(participantAgg.rejectParticipantSourceIpChangeRequest(secCtx, "participant1", "req-001"))
+            .rejects
+            .toThrow("Could not update participant on rejectParticipantSourceIPChangeRequest");
     });
 
     /**
@@ -2064,6 +2275,42 @@ describe("Participants Aggregate", () => {
 
     })
 
+    it ("should throw an error if the hub participant doesn't exist", async () => {
+
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+
+        mockParticipant.fundsMovements = [{
+            id: "fundsMovement-001",
+            createdBy: "financeOperator",
+            createdDate: 1698316800000,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: null,
+            approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_DEPOSIT,
+            currencyCode: "USD",
+            amount: "10000",
+            journalEntryId: null,
+            extReference: "extRef-12345",
+            note: "Initial deposit for operational funds.",
+        }];
+
+        const hubParticipant = mockedParticipantHub;
+        hubParticipant.participantAccounts = [];
+
+        mockRepo.fetchWhereId.mockResolvedValueOnce(mockParticipant);
+        mockRepo.fetchWhereId.mockResolvedValueOnce(undefined);
+        // Assert
+        await expect(participantAgg.approveFundsMovement(secCtx, "participant1",
+            "fundsMovement-001"))
+            .rejects
+            .toThrow("Could not get hub participant in aggregate");
+
+        
+    })
+
     it ("should throw an error if hub doesn't have HUB_RECONCILIATION account", async () => {
 
         let mockParticipant = mockedParticipant1;
@@ -2156,6 +2403,325 @@ describe("Participants Aggregate", () => {
 
     })
 
+    it ("should throw an error if settlement account from accountsAndBalances adapter for the participant couldn't find", async () => {
+
+        // Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantAccounts = [{
+            id: "acc-98765",
+            type: ParticipantAccountTypes.SETTLEMENT,
+            currencyCode: "USD",
+            externalBankAccountId: "bankAccount-12345",
+            externalBankAccountName: "John Doe Settlement Account",
+            debitBalance: "10000",
+            creditBalance: "0",
+            balance: "10000"
+        }];
+
+        mockParticipant.fundsMovements = [{
+            id: "fundsMovement-001",
+            createdBy: "financeOperator",
+            createdDate: 1698316800000,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: null,
+            approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL,
+            currencyCode: "USD",
+            amount: "10000",
+            journalEntryId: null,
+            extReference: "extRef-12345",
+            note: "Initial deposit for operational funds.",
+        }];
+
+        const hubParticipant = mockedParticipantHub;
+        hubParticipant.participantAccounts = [
+            {
+                id: "1",
+                type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }, {
+                id: "2",
+                type: ParticipantAccountTypes.HUB_RECONCILIATION,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }
+        ];
+
+        // Act
+        mockRepo.fetchWhereId.mockResolvedValueOnce(mockParticipant);
+        mockRepo.fetchWhereId.mockResolvedValueOnce(hubParticipant);
+
+        jest.spyOn(accAndBalAdapterMock, "getAccount").mockResolvedValue(null);
+
+        // Assert
+        await expect(participantAgg.approveFundsMovement(secCtx, "participant1",
+            "fundsMovement-001"))
+            .rejects
+            .toThrow("Could not get settlement account from accountsAndBalances adapter for participant id: participant1");
+
+    })
+
+    it ("should throw an error if fundmovement's amount is NaN", async () => {
+
+        // Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantAccounts = [{
+            id: "acc-98765",
+            type: ParticipantAccountTypes.SETTLEMENT,
+            currencyCode: "USD",
+            externalBankAccountId: "bankAccount-12345",
+            externalBankAccountName: "John Doe Settlement Account",
+            debitBalance: "10000",
+            creditBalance: "0",
+            balance: "10000"
+        }];
+
+        mockParticipant.fundsMovements = [{
+            id: "fundsMovement-001",
+            createdBy: "financeOperator",
+            createdDate: 1698316800000,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: null,
+            approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL,
+            currencyCode: "USD",
+            amount: "null",
+            journalEntryId: null,
+            extReference: "extRef-12345",
+            note: "Initial deposit for operational funds.",
+        }];
+
+        const hubParticipant = mockedParticipantHub;
+        hubParticipant.participantAccounts = [
+            {
+                id: "1",
+                type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }, {
+                id: "2",
+                type: ParticipantAccountTypes.HUB_RECONCILIATION,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }
+        ];
+
+        // Act
+        mockRepo.fetchWhereId.mockResolvedValueOnce(mockParticipant);
+        mockRepo.fetchWhereId.mockResolvedValueOnce(hubParticipant);
+
+        jest.spyOn(accAndBalAdapterMock, "getAccount").mockResolvedValue({
+            id: "2",
+            ownerId: "participant1",
+            state: "ACTIVE",
+            type: "SETTLEMENT",
+            currencyCode: "USD",
+            postedDebitBalance: null,
+            pendingDebitBalance: null,
+            postedCreditBalance: null,
+            pendingCreditBalance: null,
+            balance: "0",
+            timestampLastJournalEntry: 1697835600,
+
+        });
+
+        // Assert
+        await expect(participantAgg.approveFundsMovement(secCtx, "participant1",
+            "fundsMovement-001"))
+            .rejects
+            .toThrow("Invalid withdrawal amount for funds movement with id: fundsMovement-001");
+
+    })
+
+    it ("should throw an error if fundmovement's balance is NaN", async () => {
+
+        // Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantAccounts = [{
+            id: "acc-98765",
+            type: ParticipantAccountTypes.SETTLEMENT,
+            currencyCode: "USD",
+            externalBankAccountId: "bankAccount-12345",
+            externalBankAccountName: "John Doe Settlement Account",
+            debitBalance: "10000",
+            creditBalance: "0",
+            balance: "10000"
+        }];
+
+        mockParticipant.fundsMovements = [{
+            id: "fundsMovement-001",
+            createdBy: "financeOperator",
+            createdDate: 1698316800000,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: null,
+            approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL,
+            currencyCode: "USD",
+            amount: "10000",
+            journalEntryId: null,
+            extReference: "extRef-12345",
+            note: "Initial deposit for operational funds.",
+        }];
+
+        const hubParticipant = mockedParticipantHub;
+        hubParticipant.participantAccounts = [
+            {
+                id: "1",
+                type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }, {
+                id: "2",
+                type: ParticipantAccountTypes.HUB_RECONCILIATION,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }
+        ];
+
+        // Act
+        mockRepo.fetchWhereId.mockResolvedValueOnce(mockParticipant);
+        mockRepo.fetchWhereId.mockResolvedValueOnce(hubParticipant);
+
+        jest.spyOn(accAndBalAdapterMock, "getAccount").mockResolvedValue({
+            id: "2",
+            ownerId: "participant1",
+            state: "ACTIVE",
+            type: "SETTLEMENT",
+            currencyCode: "USD",
+            postedDebitBalance: null,
+            pendingDebitBalance: null,
+            postedCreditBalance: null,
+            pendingCreditBalance: null,
+            balance: "null",
+            timestampLastJournalEntry: 1697835600,
+
+        });
+
+        // Assert
+        await expect(participantAgg.approveFundsMovement(secCtx, "participant1",
+            "fundsMovement-001"))
+            .rejects
+            .toThrow("Invalid balance value in the settlement account for participant id: participant1");
+
+    })
+
+    
+    it ("should throw an error if fundmovement's debit balance amount than balance", async () => {
+
+        // Arrange
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.isActive = true;
+        mockParticipant.participantAccounts = [{
+            id: "acc-98765",
+            type: ParticipantAccountTypes.SETTLEMENT,
+            currencyCode: "USD",
+            externalBankAccountId: "bankAccount-12345",
+            externalBankAccountName: "John Doe Settlement Account",
+            debitBalance: "10000",
+            creditBalance: "0",
+            balance: "10000"
+        }];
+
+        mockParticipant.fundsMovements = [{
+            id: "fundsMovement-001",
+            createdBy: "financeOperator",
+            createdDate: 1698316800000,
+            requestState: ApprovalRequestState.CREATED,
+            approvedBy: null,
+            approvedDate: null,
+            rejectedBy: null,
+            rejectedDate: null,
+            type: ParticipantFundsMovementTypes.OPERATOR_FUNDS_WITHDRAWAL,
+            currencyCode: "USD",
+            amount: "500",
+            journalEntryId: null,
+            extReference: "extRef-12345",
+            note: "Initial deposit for operational funds.",
+        }];
+
+        const hubParticipant = mockedParticipantHub;
+        hubParticipant.participantAccounts = [
+            {
+                id: "1",
+                type: ParticipantAccountTypes.HUB_MULTILATERAL_SETTLEMENT,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }, {
+                id: "2",
+                type: ParticipantAccountTypes.HUB_RECONCILIATION,
+                currencyCode: "USD",
+                balance: null,
+                creditBalance: null,
+                debitBalance: null,
+                externalBankAccountId: null,
+                externalBankAccountName: null,
+            }
+        ];
+
+        // Act
+        mockRepo.fetchWhereId.mockResolvedValueOnce(mockParticipant);
+        mockRepo.fetchWhereId.mockResolvedValueOnce(hubParticipant);
+
+        jest.spyOn(accAndBalAdapterMock, "getAccount").mockResolvedValue({
+            id: "2",
+            ownerId: "participant1",
+            state: "ACTIVE",
+            type: "SETTLEMENT",
+            currencyCode: "USD",
+            postedDebitBalance: null,
+            pendingDebitBalance: null,
+            postedCreditBalance: null,
+            pendingCreditBalance: null,
+            balance: "100",
+            timestampLastJournalEntry: 1697835600,
+
+        });
+
+        // Assert
+        await expect(participantAgg.approveFundsMovement(secCtx, "participant1",
+            "fundsMovement-001"))
+            .rejects
+            .toThrow("Not enough balance in the settlement account for participant id: participant1");
+
+    })
 
     it ("should get global currencies if setChangeHandlerFunction is set to 'GLOBAL'", async () => {
 
@@ -2197,5 +2763,36 @@ describe("Participants Aggregate", () => {
         const changeHandler = mockConfigClient.setChangeHandlerFunction.mock.calls[0][0];
         await changeHandler('GLOBAL');
         expect(mockConfigClient.globalConfigs.getCurrencies).toHaveBeenCalled();
+    })
+
+    /**
+     * getParticipantAccountsById
+     */
+    it ("should throw an error if participant with given Id not found", async () => {
+
+        //Arrange & Act
+        let mockParticipant = mockedParticipant1;
+        mockParticipant.participantAccounts = [{
+            id: "acc-98765",
+            type: ParticipantAccountTypes.POSITION,
+            currencyCode: "EUR",
+            externalBankAccountId: "bankAccount-12345",
+            externalBankAccountName: "John Doe Settlement Account",
+            debitBalance: "10000",
+            creditBalance: "0",
+            balance: "10000"
+        }];
+
+        mockRepo.fetchWhereId.mockResolvedValueOnce(mockParticipant);
+        
+        jest.spyOn(accAndBalAdapterMock, "getAccounts").mockResolvedValue([]);
+        
+
+        // Assert
+        await expect(participantAgg.getParticipantAccountsById(secCtx, "participant1"))
+            .rejects    
+            .toThrow("Could not get participant accounts from accountsAndBalances adapter for participant id: participant1");
+
+        
     })
 });
