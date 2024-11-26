@@ -40,6 +40,8 @@ import { LoginHelper } from '@mojaloop/security-bc-client-lib';
 import { ParticipantsEventHandler } from '../../src/application/event_handler';
 import { ParticipantAggregate } from '../../src/domain/participant_agg';
 import { UnauthorizedError } from '@mojaloop/security-bc-public-types-lib';
+import { SettlementMatrixSettledEvt } from '@mojaloop/platform-shared-lib-public-messages-lib';
+import { IMessage } from '@mojaloop/platform-shared-lib-messaging-types-lib';
 
 const hasPrivilege = true;
 const AUTH_N_SVC_BASEURL = process.env["AUTH_N_SVC_BASEURL"] || "http://localhost:3201";
@@ -163,5 +165,53 @@ describe('ParticipantEventsHandler Unit Test', () => {
     expect(spyConsumerStopMethod).toBeCalledTimes(1);
 
   });
+
+  test("_msgHandler should process SettlementMatrixSettledEvt correctly", async () => {
+    // Arrange
+    const fakeMessage: IMessage = {
+      msgName: SettlementMatrixSettledEvt.name,
+      msgKey: "mockedMsgKey",
+      msgId: "mockedMsgId",
+      payload: {
+        settlementMatrixId: "mockedMatrixId",
+        settledTimestamp: Date.now(),
+        participantList: [
+          { id: "participant1", name: "Participant One" },
+          { id: "participant2", name: "Participant Two" },
+        ],
+      },
+    } as any as SettlementMatrixSettledEvt;
+  
+    const fakeToken = {
+      payload: {
+        azp: "mocked_client_id",
+        platformRoles: ["mocked_role_id"],
+      },
+      accessToken: "mocked_access_token",
+    };
+  
+    const handleEventSpy = jest.spyOn(participantAggMock, "handleSettlementMatrixSettledEvt");
+    jest.spyOn(loginHelper, "getToken").mockResolvedValueOnce(fakeToken as any);
+  
+    await mockedEventHandler.start();
+  
+    // Act
+    await mockedEventHandler["_msgHandler"](fakeMessage);
+  
+    // Assert
+    expect(handleEventSpy).toHaveBeenCalledTimes(1);
+    expect(handleEventSpy).toHaveBeenCalledWith(
+      {
+        clientId: fakeToken.payload.azp,
+        accessToken: fakeToken.accessToken,
+        platformRoleIds: fakeToken.payload.platformRoles,
+        username: null,
+      },
+      fakeMessage
+    );
+  
+    await mockedEventHandler.stop();
+  });
+  
 
 });

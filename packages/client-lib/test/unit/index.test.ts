@@ -660,5 +660,30 @@ describe('Unit tests - Participants Client lib', () => {
         // Assert
         expect(mockLogger.error).toHaveBeenCalledWith("Failed to update participant cache from event", error);
     });
+
+    it('should log an error if updating participant cache fails', async () => {
+        // Arrange
+        const participantId = mockedParticipant1.id;
+        const error = new Error('Test Error');
+        const message = {
+            msgType: MessageTypes.DOMAIN_EVENT,
+            msgName: ParticipantChangedEvt.name,
+            payload: { participantId }
+        } as IMessage;
+
+        jest.spyOn(httpClient, "getParticipantById").mockRejectedValue(error);
+
+        jest.spyOn(mockLogger, "error");
+
+        // Act
+        await httpClient["_messageHandler"](message);
+       
+        jest.advanceTimersByTime(6000); // TODO: Should work, but it doesn't, use below solution for now
+
+        await new Promise((r) => setTimeout(r, 6000));
+
+        // Assert
+        expect(mockLogger.error).toHaveBeenCalledWith("Failed to update participant cache from event", error);
+    });
 });
 

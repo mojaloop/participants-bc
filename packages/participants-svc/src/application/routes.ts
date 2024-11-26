@@ -194,32 +194,31 @@
          return this._mainRouter;
      }
  
-     private _handleUnauthorizedError(err: Error, res: express.Response): boolean {
-         let handled = false;
-         if (err instanceof UnauthorizedError) {
-             this._logger.warn(err.message);
-             res.status(401).json({
-                 status: "error",
-                 msg: err.message,
-             });
-             handled = true;
-         } else if (err instanceof ForbiddenError || err instanceof MakerCheckerViolationError) {
-             this._logger.warn(err.message);
-             res.status(403).json({
-                 status: "error",
-                 msg: err.message,
-             });
-             handled = true;
-         } else if (err instanceof ParticipantNotFoundError) {
-             res.status(404).json({
-                 status: "error",
-                 msg: "Participant not found.",
-             });
-             handled = true;
-         }
- 
-         return handled;
-     }
+     private _handleError(err: Error, res: express.Response): void {
+        if (err instanceof UnauthorizedError) {
+            this._logger.warn(err.message);
+            res.status(401).json({ status: "error", msg: err.message });
+        } else if (err instanceof ForbiddenError || err instanceof MakerCheckerViolationError) {
+            this._logger.warn(err.message);
+            res.status(403).json({ status: "error", msg: err.message });
+        } else if (err instanceof ParticipantCreateValidationError) {
+            this._logger.warn(`Validation failure: ${err.message}`);
+            res.status(400).json({ status: "error", msg: `Validation failure: ${err.message}` });
+        } else if (err instanceof ParticipantNotFoundError) {
+            this._logger.warn(err.message);
+            res.status(404).json({ status: "error", msg: "Participant not found." });
+        } else if (err instanceof ParticipantNotActive) {
+            this._logger.warn(err.message);
+            res.status(422).json({ status: "error", msg: err.message });
+        } else if(err instanceof DuplicateRequestFoundError){
+            this._logger.warn(err.message); 
+            res.status(409).json({status: "error",msg: err.message });
+        } else {
+            this._logger.error(err);
+            res.status(500).json({ status: "error", msg: err.message });
+        }
+    }
+    
  
      private async _getAllParticipants(req: express.Request, res: express.Response): Promise<void> {
          try {
@@ -247,14 +246,8 @@
              );
  
              res.send(fetched);
-         } catch (err: unknown) {
-             if (this._handleUnauthorizedError((err as Error), res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: (err as Error).message,
-             });
+         } catch (err:any) {
+            this._handleError(err, res);
          }
      }
  
@@ -270,13 +263,7 @@
              );
              res.send(fetched);
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: err.message,
-             });
+            this._handleError(err, res);
          }
      }
  
@@ -291,13 +278,7 @@
              );
              res.send(fetched);
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: err.message,
-             });
+            this._handleError(err, res);
          }
      }
  
@@ -315,21 +296,7 @@
                  id: createdId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantCreateValidationError) {
-                 res.status(400).json({
-                     status: "error",
-                     msg: `Validation failure: ${err.message}.`,
-                 });
-
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -348,13 +315,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: err.message,
-             });
+            this._handleError(err, res);
          }
      }
  
@@ -374,20 +335,7 @@
              );
              res.send(fetched);
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotFoundError) {
-                 res.status(404).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -408,20 +356,7 @@
                  id: createdId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -441,20 +376,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -474,20 +396,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -512,20 +421,7 @@
                  id: createdId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -544,20 +440,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -576,13 +459,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
+            this._handleError(err, res);
          }
      }
  
@@ -591,32 +468,19 @@
       * */
  
      private async _sourceIpsByParticipantId(req: express.Request, res: express.Response): Promise<void> {
-         const id = req.params["id"] ?? null;
-         this._logger.debug(`Fetching allowed sourceIps for Participant [${id}].`);
- 
-         try {
-             const fetched = await this._participantsAgg.getAllowedSourceIpsByParticipantId(
-                 req.securityContext!,
-                 id
-             );
-             res.send(fetched);
-         } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof NoAccountsError) {
-                 res.status(404).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
-         }
-     }
+        const id = req.params["id"] ?? null;
+        this._logger.debug(`Fetching allowed sourceIps for Participant [${id}].`);
+    
+        try {
+            const fetched = await this._participantsAgg.getAllowedSourceIpsByParticipantId(
+                req.securityContext!,
+                id
+            );
+            res.send(fetched);
+        } catch (err:any) {
+            this._handleError(err, res);
+        }
+    }
  
      private async _participantSourceIpChangeRequestCreate(req: express.Request, res: express.Response): Promise<void> {
          const id = req.params["id"] ?? null;
@@ -635,20 +499,7 @@
                  id: createdId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -668,20 +519,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -701,20 +539,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -733,20 +558,7 @@
              );
              res.send(fetched);
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof NoAccountsError) {
-                 res.status(404).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -767,25 +579,7 @@
                  id: createdId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else if (err instanceof DuplicateRequestFoundError) {
-                 res.status(409).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -805,20 +599,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -838,20 +619,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -890,20 +658,7 @@
              );
              res.send(fetched);
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof NoEndpointsError) {
-                 res.status(404).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -924,13 +679,7 @@
                  id: endpointId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: err.message,
-             });
+            this._handleError(err, res);
          }
      }
  
@@ -947,10 +696,6 @@
              return;
          }
  
-         this._logger.debug(
-             `Changing endpoints for Participant [${participantId}].`
-         );
- 
          try {
              await this._participantsAgg.changeParticipantEndpoint(
                  req.securityContext!,
@@ -959,20 +704,21 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof NoEndpointsError) {
-                 res.status(404).json({
-                     status: "error",
-                     msg: err.message,
-                 });
+             if  (err instanceof UnauthorizedError) {
+                this._logger.warn(err.message);
+                res.status(401).json({ status: "error", msg: err.message });
+             } else if(err instanceof NoEndpointsError){
+                res.status(404).json({
+                    status: "error",
+                    msg: err.message,
+                });
              } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+                this._logger.error(err);
+                res.status(500).json({
+                    status: "error",
+                    msg: err.message,
+                });
+            }
          }
      }
  
@@ -992,13 +738,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: err.message,
-             });
+            this._handleError(err, res);
          }
      }
  
@@ -1024,20 +764,7 @@
                  id: createdId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -1057,9 +784,10 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
+             if  (err instanceof UnauthorizedError) {
+                this._logger.warn(err.message);
+                res.status(401).json({ status: "error", msg: err.message });
+             } else if(err instanceof ParticipantNotActive) {
                  res.status(422).json({
                      status: "error",
                      msg: err.message,
@@ -1105,20 +833,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -1140,20 +855,7 @@
                  id: createdId,
              });
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -1173,20 +875,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -1206,20 +895,7 @@
              );
              res.send();
          } catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             if (err instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             } else {
-                 this._logger.error(err);
-                 res.status(500).json({
-                     status: "error",
-                     msg: err.message,
-                 });
-             }
+            this._handleError(err, res);
          }
      }
  
@@ -1242,22 +918,8 @@
                      res.send(result);
                  });
              }
-         } catch (error: any) {
-             this._logger.error(error);
-             if (this._handleUnauthorizedError(error, res)) return;
- 
-             if (error instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: error.message,
-                 });
-             } else {
-                 this._logger.error(error);
-                 res.status(500).json({
-                     status: "error",
-                     msg: error.message,
-                 });
-             }
+         } catch (err: any) {
+            this._handleError(err, res);
          }
      }
  
@@ -1321,22 +983,8 @@
                  ignoreDuplicate
              );
              res.send(result);
-         } catch (error: any) {
-             this._logger.error(error);
-             if (this._handleUnauthorizedError(error, res)) return;
- 
-             if (error instanceof ParticipantNotActive) {
-                 res.status(422).json({
-                     status: "error",
-                     msg: error.message,
-                 });
-             } else {
-                 this._logger.error(error);
-                 res.status(500).json({
-                     status: "error",
-                     msg: error.message,
-                 });
-             }
+         } catch (err: any) {
+             this._handleError(err, res);
          }
      }
  
@@ -1346,14 +994,8 @@
                  req.securityContext!
              );
              res.send(ret);
-         }   catch (err: any) {
-             if (this._handleUnauthorizedError(err, res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: (err as Error).message,
-             });
+         } catch (err: any) {
+            this._handleError(err, res);
          }
      }
  
@@ -1366,14 +1008,8 @@
              );
  
              res.send(result);
-         } catch (err: unknown) {
-             if (this._handleUnauthorizedError((err as Error), res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: (err as Error).message,
-             });
+         } catch (err: any) {
+            this._handleError(err, res);
          }
      }
  
@@ -1387,14 +1023,8 @@
              );
  
              res.send(pendingApprovals);
-         } catch (err: unknown) {
-             if (this._handleUnauthorizedError((err as Error), res)) return;
- 
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: (err as Error).message,
-             });
+         } catch (err: any) {
+            this._handleError(err, res);
          }
      }
  
@@ -1406,13 +1036,8 @@
              const result = await this._participantsAgg.approveBulkPendingApprovalRequests(req.securityContext!, pendingApprovals);
  
              res.send(result);
-         } catch (err: unknown) {
-             if (this._handleUnauthorizedError((err as Error), res)) return;
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: (err as Error).message,
-             });
+         } catch (err: any) {
+            this._handleError(err, res);
          }
      }
      
@@ -1424,13 +1049,8 @@
              const result = await this._participantsAgg.rejectBulkPendingApprovalRequests(req.securityContext!, pendingApprovals);
  
              res.send(result);
-         } catch (err: unknown) {
-             if (this._handleUnauthorizedError((err as Error), res)) return;
-             this._logger.error(err);
-             res.status(500).json({
-                 status: "error",
-                 msg: (err as Error).message,
-             });
+         } catch (err: any) {
+            this._handleError(err, res);
          }
      }
  

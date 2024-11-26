@@ -61,8 +61,6 @@ describe('Participant Class', () => {
         console.log("Unit tests for participant");
     });
 
-    
-    
     describe('ValidateParticipantSourceIpChangeRequest', () => {
 
         it("Should resolve for valid source IP change request", async () => {

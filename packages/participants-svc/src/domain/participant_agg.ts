@@ -710,64 +710,66 @@ import { bigintToString, stringToBigint } from "./converters";
              secCtx,
              ParticipantPrivilegeNames.ENABLE_PARTICIPANT
          );
- 
+
          if (!participantId)
-             throw new ParticipantNotFoundError("[id] cannot be empty");
+            throw new ParticipantNotFoundError("[id] cannot be empty");
+
+        if(participantId === HUB_PARTICIPANT_ID)
+            throw new InvalidParticipantError("Cannot perform this action on the hub participant");
+
+        const existing: IParticipant | null = await this._repo.fetchWhereId(
+            participantId
+        );
+        if (!existing)
+            throw new ParticipantNotFoundError(
+                `Participant with ID: '${participantId}' not found.`
+            );
+
+        if (!existing.isActive) {
+            this._logger.warn(
+                `Trying to deactivate an already active participant with id: ${participantId}`
+            );
+            return;
+        }
+
+        existing.isActive = false;
+        existing.changeLog.push({
+            changeType: ParticipantChangeTypes.DEACTIVATE,
+            user: secCtx.username!,
+            timestamp: Date.now(),
+            notes: note,
+        });
+
+        if (!(await this._repo.store(existing))) {
+            const err = new CouldNotStoreParticipant(
+                "Could not update participant on deactivateParticipant"
+            );
+            this._logger.error(err);
+            throw err;
+        }
+
+        await this._auditClient.audit(
+            AuditedActionNames.PARTICIPANT_DISABLED,
+            true,
+            this._getAuditSecCtx(secCtx),
+            [{ key: "participantId", value: participantId }]
+        );
+
+        this._logger.info(
+            `Successfully deactivated participant with ID: '${existing.id}'`
+        );
+
+        //create event for participant deactivate
+        const payload: ParticipantChangedEvtPayload = {
+            participantId: participantId,
+            actionName: AuditedActionNames.PARTICIPANT_DISABLED
+        };
+
+        const event = new ParticipantChangedEvt(payload);
+
+        await this._messageProducer.send(event);
  
-         if(participantId === HUB_PARTICIPANT_ID)
-             throw new InvalidParticipantError("Cannot perform this action on the hub participant");
- 
-         const existing: IParticipant | null = await this._repo.fetchWhereId(
-             participantId
-         );
-         if (!existing)
-             throw new ParticipantNotFoundError(
-                 `Participant with ID: '${participantId}' not found.`
-             );
- 
-         if (!existing.isActive) {
-             this._logger.warn(
-                 `Trying to deactivate an already active participant with id: ${participantId}`
-             );
-             return;
-         }
- 
-         existing.isActive = false;
-         existing.changeLog.push({
-             changeType: ParticipantChangeTypes.DEACTIVATE,
-             user: secCtx.username!,
-             timestamp: Date.now(),
-             notes: note,
-         });
- 
-         if (!(await this._repo.store(existing))) {
-             const err = new CouldNotStoreParticipant(
-                 "Could not update participant on deactivateParticipant"
-             );
-             this._logger.error(err);
-             throw err;
-         }
- 
-         await this._auditClient.audit(
-             AuditedActionNames.PARTICIPANT_DISABLED,
-             true,
-             this._getAuditSecCtx(secCtx),
-             [{ key: "participantId", value: participantId }]
-         );
- 
-         this._logger.info(
-             `Successfully deactivated participant with ID: '${existing.id}'`
-         );
- 
-         //create event for participant deactivate
-         const payload: ParticipantChangedEvtPayload = {
-             participantId: participantId,
-             actionName: AuditedActionNames.PARTICIPANT_DISABLED
-         };
- 
-         const event = new ParticipantChangedEvt(payload);
- 
-         await this._messageProducer.send(event);
+         
      }
  
      /*
@@ -2307,7 +2309,7 @@ import { bigintToString, stringToBigint } from "./converters";
                  participantAccounts.map((value: IParticipantAccount) => value.id)
              );
  
-             if (!accBalAccounts) {
+             if (accBalAccounts?.length === 0) {
                  const err = new NoAccountsError(
                      "Could not get participant accounts from accountsAndBalances adapter for participant id: " +
                      existing.id
@@ -2491,7 +2493,7 @@ import { bigintToString, stringToBigint } from "./converters";
          );
          if (!settlementAccount) {
              throw new AccountNotFoundError(
-                 `Cannot find a participant's position account for currency: ${fundsMov.currencyCode}`
+                 `Cannot find a participant's settlement account for currency: ${fundsMov.currencyCode}`
              );
          }
  
